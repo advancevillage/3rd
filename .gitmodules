@@ -1,0 +1,3 @@
+[submodule "src/github.com/julienschmidt/httprouter"]
+	path = src/github.com/julienschmidt/httprouter
+	url =  https://github.com/julienschmidt/httprouter.git
