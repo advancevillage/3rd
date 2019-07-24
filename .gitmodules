@@ -1,3 +1,9 @@
 [submodule "src/github.com/julienschmidt/httprouter"]
 	path = src/github.com/julienschmidt/httprouter
 	url =  https://github.com/julienschmidt/httprouter.git
+
+[submodule "src/github.com/jinzhu/gorm"]
+	path = src/github.com/jinzhu/gorm
+	url =  https://github.com/jinzhu/gorm.git
+
+
