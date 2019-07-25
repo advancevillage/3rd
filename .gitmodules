@@ -10,3 +10,6 @@
 [submodule "src/github.com/jinzhu/inflection"]
 	path = src/github.com/jinzhu/inflection
 	url = https://github.com/jinzhu/inflection.git
+[submodule "src/github.com/dgrijalva/jwt-go"]
+	path = src/github.com/dgrijalva/jwt-go
+	url = https://github.com/dgrijalva/jwt-go.git
