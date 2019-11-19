@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>邮件模版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0px;
+        }
+        a {
+            text-decoration: none;
+        }
+        a:hover {
+            color: #11192c;
+        }
+        .email-container {
+            width: 900px;
+            height: 100%;
+            margin: 0 auto;
+        }
+        .email-container-header {
+            background-color: #11192c;
+            height: 3rem;
+            line-height: 3rem;
+            border: 1px solid #11192c;
+        }
+        .email-container-header > p {
+            margin-left: 2rem;
+            color: #fff;
+        }
+        .email-container-content {
+            border: 1px solid #d6d7d9;
+            margin-bottom: 2rem;
+        }
+        .email-content-name {
+            font-weight: bold;
+            margin: 1rem 2rem;
+            color: #4a4b4d;
+        }
+        .email-content {
+            color: rgba(0, 0, 0, 0.85);
+            margin: 1rem 2rem;
+            height: 2rem;
+            line-height: 2rem;
+        }
+        .email-hr {
+            width: 90%;
+            margin-left: 2rem;
+            color: #ccc;
+        }
+        .font-blue {
+            color: #1670d8;
+        }
+        .email-content-tip {
+            margin: 1rem 0 2rem 2em;
+            color: rgba(0,0,0,0.85);
+        }
+        .content-link {
+            background: #1670d8;
+            text-align: left;
+            word-break: break-all;
+            width: 90%;
+            height: auto;
+            overflow: hidden;
+        }
+        .font-white {
+            color: #fff;
+            padding: .3rem;
+        }
+        .email-container-footer {
+            color: rgba(0,0,0,0.85);
+            font-size: 1rem;
+        }
+        .email-container-footer > p {
+            text-align: center;
+        }
+        .font-bold {
+            color: rgba(0,0,0,0.85);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="email-container email-container-header">
+        <p>test</p>
+    </div>
+    <div class="email-container email-container-content">
+        <div class="email-content font-bold">test，您好：</div>
+            <div class="email-content">您的达观 RPA 账号为：<span class="font-blue">test</span></div>
+            <div class="email-content">初始密码为：<span class="font-blue">test</span> </div>
+        <hr class="email-hr" />
+        <div class="email-content font-bold">感谢使用达观 RPA !</div>
+        <div class="email-content">请点击以下链接激活账号（48小时内有效）：</div>
+        <div class="email-content content-link">
+            <a class="font-white" href="www.google.com">google</a>
+        </div>
+        <div class="email-content-tip">为了账号安全，请您尽快登录重置密码，若链接无法点击，请复制并粘贴该网址至浏览器窗口中直接访问。</div>
+    </div>
+    <img src="./test.png">
+    <div class="email-container email-container-footer">
+        <p>本邮件是由达观数据系统自动发出， 系统不接受回复，请勿直接回复！</p>
+        <p>如有任何疑问请<a href="https://www.datagrand.com/" class="font-blue">联系我们</a></p>
+    </div>
+</div>
+</body>
+</html>
