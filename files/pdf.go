@@ -14,8 +14,7 @@ func (pdf *PDFFile) CreateFileFromBuffer(filename string, html []byte) error {
 		return err
 	}
 	//设置PDF选项
-	engine.Dpi.Set(600)
-	engine.NoCollate.Set(false)
+	engine.Dpi.Set(pdf.DPI)
 	engine.PageSize.Set(wkhtmltopdf.PageSizeA4)
 	//生成PDF
 	engine.AddPage(wkhtmltopdf.NewPageReader(bytes.NewBuffer(html)))
@@ -38,8 +37,7 @@ func (pdf *PDFFile) CreateFileFromUrl(filename string, url string) error {
 		return err
 	}
 	//设置PDF选项
-	engine.Dpi.Set(600)
-	engine.NoCollate.Set(false)
+	engine.Dpi.Set(pdf.DPI)
 	engine.PageSize.Set(wkhtmltopdf.PageSizeA4)
 	//生成PDF
 	engine.AddPage(wkhtmltopdf.NewPage(url))

@@ -8,7 +8,7 @@ type Files interface {
 type XMLFile struct {}
 
 type PDFFile struct {
-	FontSize float64
+	DPI uint
 }
 
 
