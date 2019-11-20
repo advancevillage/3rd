@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestPDFFile_CreateFile(t *testing.T) {
+func TestPDFFile_CreateFileFromBuffer(t *testing.T) {
 	pdf := files.PDFFile{DPI: 800}
 	body, err := template.ParseFiles("test.html")
 	if err != nil {
@@ -26,4 +26,21 @@ func TestPDFFile_CreateFile(t *testing.T) {
 	return
 }
 
+func TestZipFile_CreateFileFromBuffer(t *testing.T) {
+	zip := files.ZipFile{}
+	body, err := template.ParseFiles("test.html")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	html := new(bytes.Buffer)
+	err = body.Execute(html, body)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	err = zip.CreateFileFromBuffer("111/test.txt", html.Bytes())
+	if err != nil {
+		t.Error(err.Error())
+	}
+	return
+}
 
