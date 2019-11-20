@@ -24,10 +24,9 @@ type Logs interface {
 	Write(level string, m string) error
 }
 
-
-
 type TxtLogger struct {
 	ptr 	   int
+	size 	   int
 	total 	   int
 	filename   string
 	cache      []*bufio.Writer

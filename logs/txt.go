@@ -11,10 +11,11 @@ func NewTxtLogger(filename string, size int, total int) (*TxtLogger, error) {
 	var err error
 	txt := &TxtLogger{}
 	txt.ptr = 0
+	txt.size = size
 	txt.total = total
 	txt.cache = make([]*bufio.Writer, 0, total)
 	txt.filename = filename
-	txt.file, err = os.Create(filename)
+	txt.file, err = os.OpenFile(filename, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -30,25 +31,23 @@ func (txt *TxtLogger) Write(level string, m string) {
 	mlen := len(m + level)
 	logger := log.New(txt.cache[txt.ptr % txt.total], level, log.LstdFlags | log.Lshortfile)
 	for {
-		free := txt.cache[txt.ptr % txt.total].Available() - 2
-		if free > mlen {
+		free := txt.cache[txt.ptr % txt.total].Available() - 1
+		if mlen < free {
 			logger.Println(m)
 			break
-		} else {
-			logger.Println(m[:free])
+		} else if mlen < txt.size {
 			err = txt.cache[txt.ptr % txt.total].Flush()
 			if err != nil {
-				m = err.Error()
-				level  = LogLevelEmer
-				logger = log.New(txt.file, level, log.LstdFlags | log.Lshortfile)
-				logger.Println(m)
-				break
+				logger.SetPrefix(LogLevelEmer)
+				logger.SetOutput(txt.file)
+				logger.Println(err.Error())
 			}
 			txt.ptr = (txt.ptr + 1) % txt.total
-			m = m[free:]
+		} else {
+			logger.SetOutput(txt.file)
+			logger.Println(m)
+			break
 		}
-		logger.SetOutput(txt.cache[txt.ptr % txt.total])
-		mlen -= free
 	}
 	return
 }

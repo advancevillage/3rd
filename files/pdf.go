@@ -22,6 +22,10 @@ func (pdf *PDFFile) CreateFileFromBuffer(filename string, html []byte) error {
 	if err != nil {
 		return err
 	}
+	err = CreatePath(filename)
+	if err != nil {
+		return err
+	}
 	err = engine.WriteFile(filename)
 	if err != nil {
 		return err
@@ -42,6 +46,10 @@ func (pdf *PDFFile) CreateFileFromUrl(filename string, url string) error {
 	//生成PDF
 	engine.AddPage(wkhtmltopdf.NewPage(url))
 	err = engine.Create()
+	if err != nil {
+		return err
+	}
+	err = CreatePath(filename)
 	if err != nil {
 		return err
 	}

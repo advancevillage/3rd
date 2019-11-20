@@ -19,7 +19,7 @@ func TestPDFFile_CreateFile(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	err = pdf.CreateFileFromUrl("test.pdf", "http://localhost:63342/3rd/test/test.html?_ijt=97n1893s3jb0ll4q4tcjm1gse5")
+	err = pdf.CreateFileFromBuffer("111/test.pdf", html.Bytes())
 	if err != nil {
 		t.Error(err.Error())
 	}

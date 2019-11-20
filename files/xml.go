@@ -4,6 +4,10 @@ package files
 import "os"
 
 func (xml *XMLFile) CreateFileFromBuffer(filename string, content []byte) error {
+	err := CreatePath(filename)
+	if err != nil {
+		return err
+	}
 	out, err := os.Create(filename)
 	if err != nil {
 		return err
