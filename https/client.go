@@ -1,5 +1,5 @@
 //author: richard
-package http
+package https
 
 import (
 	"bytes"
@@ -9,10 +9,11 @@ import (
 	"time"
 )
 
-func NewRequest(headers map[string]string, timeout int64) *Client {
+func NewRequest(headers map[string]string, timeout int64, retryCount uint) *Client {
 	return &Client{
 		headers:headers,
 		timeout:timeout,
+		retryCount: retryCount + 1,
 	}
 }
 
@@ -40,7 +41,15 @@ func (r *Client) GET(uri string,  params map[string]string, headers map[string]s
 		}
 	}
 	//发送请求
-	response, err := client.Do(request)
+	var response *http.Response
+	for i := uint(0); i < r.retryCount; i++ {
+		response, err = client.Do(request)
+		if err != nil {
+			continue
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +79,15 @@ func (r *Client) POST(uri string, headers map[string]string, buf []byte) ([]byte
 			request.Header.Add(k,v)
 		}
 	}
-	//发送请求
-	response, err := client.Do(request)
+	var response *http.Response
+	for i := uint(0); i < r.retryCount; i++ {
+		response, err = client.Do(request)
+		if err != nil {
+			continue
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +123,15 @@ func (r *Client) PostForm(uri string,  params map[string]string, headers map[str
 		}
 	}
 	//发送请求
-	response, err := client.Do(request)
+	var response *http.Response
+	for i := uint(0); i < r.retryCount; i++ {
+		response, err = client.Do(request)
+		if err != nil {
+			continue
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

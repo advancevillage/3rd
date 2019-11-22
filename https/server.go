@@ -1,5 +1,5 @@
 //author: richard
-package http
+package https
 
 import (
 	"fmt"
@@ -51,4 +51,11 @@ func (c *Context) Param(q string) string {
 		value = c.ctx.GetString(q)
 	}
 	return value
+}
+
+//@brief: application/json
+//@param: code 状态码
+//@param: body
+func (c *Context) JsonResponse(code int, body interface{}) {
+	c.ctx.JSON(code, body)
 }

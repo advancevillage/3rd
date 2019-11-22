@@ -1,5 +1,5 @@
 //author: richard
-package http
+package https
 
 import "github.com/gin-gonic/gin"
 
@@ -13,6 +13,7 @@ type Context struct {
 type Client struct {
 	headers map[string]string
 	timeout int64
+	retryCount uint
 }
 
 type Router struct {
