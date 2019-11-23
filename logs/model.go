@@ -21,7 +21,14 @@ const (
 )
 
 type Logs interface {
-	Write(level string, m string) error
+	Error(message string)
+	Warning(message string)
+	Debug(message string)
+	Info(message string)
+	Alert(message string)
+	Critical(message string)
+	Emergency(message string)
+	Write(level string, m string)
 }
 
 type TxtLogger struct {

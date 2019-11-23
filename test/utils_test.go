@@ -14,7 +14,7 @@ func TestRandsString(t *testing.T) {
 }
 
 func TestUUID(t *testing.T) {
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 10000; i++ {
 		str := utils.UUID()
 		t.Log(str)
 	}

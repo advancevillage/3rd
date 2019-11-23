@@ -38,7 +38,6 @@ func (s *Server) handle(method string, path string, f Handler) {
 }
 
 //@param q 查询参数
-//level: postform > query > path > ctx.Set()
 func (c *Context) Param(q string) string {
 	value := c.ctx.PostForm(q)
 	if len(value) == 0 {

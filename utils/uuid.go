@@ -26,13 +26,13 @@ func generator(a time.Time) uuid {
 	u[6] |= 0x10 // set version to 1 (time based uuid)
 	u[8] &= 0x3F // clear variant
 	u[8] |= 0x80 // set to IETF variant
-	u[9]  = u[8]>>6&0x1F|(u[7]<<2)&0x1F
-	u[10] = u[9]>>1&0x1F
-	u[11] = u[10]>>4&0x1F|(u[8]<<4)&0x1F
-	u[12] = u[11]>>7|(u[9]<<1)&0x1F
-	u[13] = u[12]>>2&0x1F
-	u[14] = u[13]>>5|(u[10]<<3)&0x1F
-	u[15] = u[14]&0x1F
+	u[9]  = u[0]>>6&0x1F|(u[7]<<2)&0x1F
+	u[10] = u[1]>>1&0x1F
+	u[11] = u[2]>>4&0x1F|(u[5]<<4)&0x1F
+	u[12] = u[3]>>7|(u[9]<<1)&0x1F
+	u[13] = u[4]>>2&0x1F
+	u[14] = u[5]>>5|(u[3]<<3)&0x1F
+	u[15] = u[9]&0x1F
 	return u
 }
 
