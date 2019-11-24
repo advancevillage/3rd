@@ -4,7 +4,6 @@ package wss
 import (
 	"3rd/logs"
 	"github.com/gobwas/ws"
-	"net"
 )
 
 const (
@@ -18,14 +17,16 @@ const (
 
 
 type OpCode ws.OpCode
+type Handler func([]byte, byte) ([]byte, error)
 
-type Handler func([]byte, byte) error
+type Router struct {
+	Path 	string
+	Func 	Handler
+}
 
 type Server struct {
 	host 	string
 	port 	int
-	conn 	net.Conn
 	logger  logs.Logs
-	handler Handler
-	hs 		ws.Handshake
+	router  []Router
 }

@@ -5,72 +5,66 @@ import (
 	"3rd/logs"
 	"fmt"
 	"github.com/gobwas/ws"
-	"io"
-	"net"
+	"github.com/gobwas/ws/wsutil"
+	"net/http"
 )
 
-func NewServer(host string, port int, logger logs.Logs, handler Handler) *Server {
+func NewServer(host string, port int, router []Router, logger logs.Logs, ) *Server {
 	s := &Server{
 		host:host,
 		port: port,
 		logger:logger,
-		handler: handler,
+		router: router,
 	}
 	return s
 }
 
 func (s *Server) StartServer() (err error) {
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.host, s.port))
+	//init router
+	for i := 0; i < len(s.router); i++ {
+		s.handle(s.router[i].Path, s.router[i].Func)
+	}
+	err = http.ListenAndServe(fmt.Sprintf("%s:%d", s.host, s.port), nil)
 	if err != nil {
-		s.logger.Emergency(err.Error())
-		return
+		s.logger.Error(err.Error())
 	}
-	for {
-		s.conn, err = ln.Accept()
-		if err != nil {
-			s.logger.Emergency(err.Error())
-			continue
-		}
-		s.hs, err = ws.Upgrade(s.conn)
-		if err != nil {
-			s.logger.Emergency(err.Error())
-			continue
-		}
-		go s.server()
-	}
+	return
 }
 
-func (s *Server) server() {
-	defer func () { _ = s.conn.Close() }()
-	for {
-		//接受请求
-		header, err := ws.ReadHeader(s.conn)
-		if err != nil {
-			s.logger.Error(err.Error())
-		}
-		payload := make([]byte, header.Length)
-		_, err = io.ReadFull(s.conn, payload)
-		if err != nil {
-			s.logger.Error(err.Error())
-		}
-		if header.Masked {
-			ws.Cipher(payload, header.Mask, 0)
-		}
-		header.Masked = false
-		//处理请求
-		err = s.handler(payload, byte(header.OpCode))
-		if err != nil {
-			s.logger.Error(err.Error())
-		}
-		//响应请求
-		if err := ws.WriteHeader(s.conn, header); err != nil {
-			s.logger.Error(err.Error())
-		}
-		if _, err := s.conn.Write(payload); err != nil {
-			s.logger.Error(err.Error())
-		}
-		if header.OpCode == ws.OpClose {
-			break
-		}
+func (s *Server) server(w http.ResponseWriter, r *http.Request, handler Handler) {
+	conn, _, hs, err := ws.UpgradeHTTP(r, w)
+	if err != nil {
+		s.logger.Error(err.Error())
+		s.logger.Error(hs.Protocol)
+		return
 	}
+	go func () {
+		defer func() { err = conn.Close() }()
+		for {
+			//接受请求
+			payload, op, err := wsutil.ReadClientData(conn)
+			if err != nil {
+				s.logger.Error(err.Error())
+				break
+			}
+			//处理请求
+			payload, err = handler(payload, byte(op))
+			if err != nil {
+				s.logger.Error(err.Error())
+			}
+			//响应请求
+			err = wsutil.WriteServerMessage(conn, op, payload)
+			if err != nil {
+				s.logger.Error(err.Error())
+				break
+			}
+		}
+	}()
+}
+
+func (s *Server) handle(path string, handler Handler) {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		s.server(w, r, handler)
+	}
+	http.HandleFunc(path, f)
 }

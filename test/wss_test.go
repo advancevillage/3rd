@@ -13,11 +13,19 @@ func TestWsServer_StartServer(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	f := func(r []byte, code byte) error {
-		log.Println(string(r), code)
-		return nil
+	f1 := func(r []byte, code byte) ([]byte, error) {
+		log.Println(string(r), code, "f1")
+		return []byte("f1"), nil
 	}
-	ws := wss.NewServer("0.0.0.0", 13147, logger, f)
+	f2 := func(r []byte, code byte) ([]byte, error) {
+		log.Println(string(r), code, )
+		return []byte("f2"), nil
+	}
+	router := []wss.Router{
+		wss.Router{Path:"/v1/f1/", Func: f1},
+		wss.Router{Path:"/v1/f2/", Func:f2},
+	}
+	ws := wss.NewServer("0.0.0.0", 13147, router, logger)
 	err = ws.StartServer()
 	if err != nil {
 		t.Error(err.Error())
