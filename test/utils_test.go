@@ -7,7 +7,7 @@ import (
 )
 
 func TestRandsString(t *testing.T) {
-	for i := 0; i < 500; i++ {
+	for i := 0; i < 5000; i++ {
 		str := utils.RandsString(50)
 		t.Log(str)
 	}
