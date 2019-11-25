@@ -31,7 +31,7 @@ func (txt *TxtLogger) Write(level string, m string) {
 	mlen := len(m + level)
 	logger := log.New(txt.cache[txt.ptr % txt.total], level, log.LstdFlags | log.Lshortfile)
 	for {
-		free := txt.cache[txt.ptr % txt.total].Available() - 1
+		free := txt.cache[txt.ptr % txt.total].Available()
 		if mlen < free {
 			logger.Println(m)
 			break
