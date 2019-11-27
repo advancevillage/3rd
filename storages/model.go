@@ -7,9 +7,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type Storage interface {
-
-}
+type Storage interface {}
 
 type Database struct {
 	Host string
