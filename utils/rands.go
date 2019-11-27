@@ -34,3 +34,9 @@ func RandsString(n int) string {
 	}
 	return *(*string)(unsafe.Pointer(&b))
 }
+
+
+func RandsInt(up int) int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(up)
+}

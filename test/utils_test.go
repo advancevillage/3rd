@@ -21,6 +21,12 @@ func TestUUID(t *testing.T) {
 	}
 }
 
+func TestRandInt(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		t.Log(utils.RandsInt(100))
+	}
+}
+
 func TestTime(t *testing.T) {
 	for i := 0; i < 500; i++ {
 		t.Log(times.Timestamp())

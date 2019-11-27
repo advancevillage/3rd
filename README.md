@@ -15,8 +15,15 @@
 
 #### init
 ````shell
-    export GOPROXY=https://goproxy.io
+    export GOPROXY=https://goproxy.cn
     export GO111MODULE=on
+    
+    check list
+    https://goproxy.io/github.com/go-redis/redis/@v/
+                       -------------------------
+                              package
+                                 |
+                               *.info
 ````
 
 #### go mod
