@@ -4,7 +4,7 @@ package times
 import "time"
 
 const (
-	layout = "2006-01-02 15:04:05"
+	Layout = "2006-01-02 15:04:05"
 )
 
 func Timestamp() int64 {
@@ -12,7 +12,7 @@ func Timestamp() int64 {
 }
 
 func TimeString() string {
-	return time.Now().Format(layout)
+	return time.Now().Format(Layout)
 }
 
 

@@ -4,6 +4,7 @@ package test
 import (
 	"3rd/logs"
 	"3rd/pools"
+	"3rd/utils"
 	"encoding/json"
 	"os"
 	"testing"
@@ -42,7 +43,7 @@ func BenchmarkGoPool_Process(b *testing.B) {
 	pool := pools.NewGoPool(10, logger)
 	for i := 0; i < b.N; i++ {
 		for i := 0; i < 10000; i ++ {
-			err = pool.Process("richard", handler)
+			err = pool.Process(utils.UUID(), handler)
 		}
 	}
 }

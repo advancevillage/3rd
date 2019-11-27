@@ -28,14 +28,15 @@ func NewTxtLogger(filename string, size int, total int) (*TxtLogger, error) {
 
 func (txt *TxtLogger) Write(level string, m string) {
 	var err error
-	mlen := len(m + level)
+	//文件名称最大字符长度
+	length := len(m + level) + len("2019/11/27 13:48:10") + 25
 	logger := log.New(txt.cache[txt.ptr % txt.total], level, log.LstdFlags | log.Lshortfile)
 	for {
 		free := txt.cache[txt.ptr % txt.total].Available()
-		if mlen < free {
+		if length < free {
 			logger.Println(m)
 			break
-		} else if mlen < txt.size {
+		} else if length < txt.size {
 			err = txt.cache[txt.ptr % txt.total].Flush()
 			if err != nil {
 				logger.SetPrefix(LogLevelEmer)
@@ -43,6 +44,7 @@ func (txt *TxtLogger) Write(level string, m string) {
 				logger.Println(err.Error())
 			}
 			txt.ptr = (txt.ptr + 1) % txt.total
+			logger.SetOutput(txt.cache[txt.ptr % txt.total])
 		} else {
 			logger.SetOutput(txt.file)
 			logger.Println(m)
