@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+//@debug: https://uname.github.io/2015/11/19/pysockdebugger/
+//@debug: http://www.zlmcu.com/document/tcp_debug_tools.html
 func TestRpcServer_StartServer(t *testing.T) {
 	logger, err := logs.NewTxtLogger("rpc.log", 64, 3)
 	if err != nil {
@@ -14,7 +16,7 @@ func TestRpcServer_StartServer(t *testing.T) {
 	}
 	rcvr := make([]interface{}, 0)
 	rcvr = append(rcvr, new(Edwin))
-	server := rpcs.NewServer("localhost", 11311, logger, rcvr)
+	server := rpcs.NewServer("100.100.20.172", 11311, logger, rcvr)
 	err = server.StartServer()
 	if err != nil {
 		t.Error(err.Error())

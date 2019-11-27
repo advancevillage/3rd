@@ -5,6 +5,7 @@ import (
 	"3rd/logs"
 	"3rd/pools"
 	"encoding/json"
+	"os"
 	"testing"
 )
 
@@ -43,5 +44,11 @@ func BenchmarkGoPool_Process(b *testing.B) {
 		for i := 0; i < 10000; i ++ {
 			err = pool.Process("richard", handler)
 		}
+	}
+}
+
+func TestExit_Process(t *testing.T) {
+	for {
+		go func() { os.Exit(0) }()
 	}
 }
