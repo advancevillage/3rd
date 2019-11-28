@@ -4,6 +4,7 @@ package test
 import (
 	"3rd/files"
 	"bytes"
+	"fmt"
 	"html/template"
 	"testing"
 )
@@ -42,5 +43,18 @@ func TestZipFile_CreateFileFromBuffer(t *testing.T) {
 		t.Error(err.Error())
 	}
 	return
+}
+
+func TestBase_01 (t *testing.T) {
+	int_chan := make(chan int, 1)
+	string_chan := make(chan string)
+	int_chan <- 1
+	string_chan <- "string"
+	select {
+	case value := <- int_chan:
+		fmt.Println(value)
+	case value := <- string_chan:
+			fmt.Println(value)
+	}
 }
 
