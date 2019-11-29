@@ -46,6 +46,3 @@ func (m *Mysql) Connection(flag bool) *sql.DB {
 }
 
 //解析SQL,将SQL分成预编译模版和值列表
-func (m *Mysql) prepare(query string) (string, []interface{}, error) {
-
-}

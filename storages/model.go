@@ -4,12 +4,15 @@ package storages
 import (
 	"3rd/logs"
 	"database/sql"
+	"errors"
+	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
-type Storage interface {
-	prepare(query string) (string, []interface{}, error) //预编译
-}
+var (
+	ErrorKeyNotExist = errors.New("key not exist")
+)
 
 type Database struct {
 	Host string
@@ -22,8 +25,30 @@ type Database struct {
 	conn     *sql.DB
 }
 
+type Storage interface {
+	UpdateStorage(key string, body []byte) error
+	CreateStorage(key string, body []byte) error
+	QueryStorage(key  string) ([]byte, error)
+	DeleteStorage(key string) error
+}
+
 type Mysql struct {
 	master *Database
 	slaves []*Database
 	logger logs.Logs
+}
+
+type Redis struct {
+	host   string
+	port   int
+	auth   string
+	schema int
+	conn *redis.Client
+	logger logs.Logs
+}
+
+type LevelDB struct {
+	conn *leveldb.DB
+	logger logs.Logs
+	schema string
 }

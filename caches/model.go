@@ -6,10 +6,18 @@ import (
 	"3rd/storages"
 )
 
+const (
+	CacheSeparator = "-"
+)
+
+type CacheOptions struct {
+	Timeout int64
+}
+
 type Cache interface {
-	UpdateCache(key string, body []byte) error
-	CreateCache(key string, body []byte) error
-	QueryCache(key  string) ([]byte, error)
+	UpdateCache(key string, body []byte, options *CacheOptions) error
+	CreateCache(key string, body []byte, options *CacheOptions) error
+	QueryCache(key  string, options *CacheOptions) ([]byte, error)
 	DeleteCache(key string) error
 }
 
