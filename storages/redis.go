@@ -30,8 +30,8 @@ func NewRedis(host string, port int, auth string, schema int, logger logs.Logs) 
 
 //@link: http://redisdoc.com/string/setex.html
 //SET key value EX XX|NX
-func (r *Redis) SET(key string, value []byte, timeout int) error {
-	err := r.conn.SetXX(key, value, time.Duration(timeout) * time.Second).Err()
+func (r *Redis) StrSet(key string, value []byte, timeout int) error {
+	err := r.conn.Set(key, value, time.Duration(timeout) * time.Second).Err()
 	if err != nil {
 		r.logger.Error(err.Error())
 		return err
@@ -39,7 +39,7 @@ func (r *Redis) SET(key string, value []byte, timeout int) error {
 	return nil
 }
 
-func (r *Redis) GET(key string) ([]byte, error) {
+func (r *Redis) StrGet(key string) ([]byte, error) {
 	ret := r.conn.Get(key)
 	if ret == nil {
 		return nil, ErrorKeyNotExist
@@ -50,4 +50,57 @@ func (r *Redis) GET(key string) ([]byte, error) {
 		return nil, ErrorKeyNotExist
 	}
 	return buf, nil
+}
+
+func (r *Redis) LPush(key string, values ...[]byte) error {
+	err := r.conn.LPush(key, values).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (r *Redis) RPush(key string, values ...[]byte) error {
+	err := r.conn.RPush(key, values).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (r *Redis) LPop(key string) ([]byte, error) {
+	ret := r.conn.LPop(key)
+	if ret == nil {
+		return nil, ErrorKeyNotExist
+	}
+	buf, err := ret.Bytes()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return nil, ErrorKeyNotExist
+	}
+	return buf, nil
+}
+
+func (r *Redis) RPop(key string) ([]byte, error) {
+	ret := r.conn.RPop(key)
+	if ret == nil {
+		return nil, ErrorKeyNotExist
+	}
+	buf, err := ret.Bytes()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return nil, ErrorKeyNotExist
+	}
+	return buf, nil
+}
+
+func (r *Redis) LLen(key string) (int64, error) {
+	length, err := r.conn.LLen(key).Result()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return 0, err
+	}
+	return length, nil
 }
