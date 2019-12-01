@@ -29,7 +29,7 @@ type Storage interface {
 	UpdateStorage(key string, body []byte) error
 	CreateStorage(key string, body []byte) error
 	QueryStorage(key  string) ([]byte, error)
-	DeleteStorage(key string) error
+	DeleteStorage(key ...string) error
 }
 
 type Mysql struct {

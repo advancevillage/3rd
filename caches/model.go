@@ -4,24 +4,26 @@ package caches
 import (
 	"3rd/logs"
 	"3rd/storages"
+	"github.com/go-redis/redis"
 )
 
 const (
 	CacheSeparator = "-"
 )
 
-type CacheOptions struct {
-	Timeout int64
-}
-
 type Cache interface {
-	UpdateCache(key string, body []byte, options *CacheOptions) error
-	CreateCache(key string, body []byte, options *CacheOptions) error
-	QueryCache(key  string, options *CacheOptions) ([]byte, error)
-	DeleteCache(key string) error
+	DeleteCache(key ...string) error
+	QueryCache(key  string, timeout int) ([]byte, error)
+	UpdateCache(key string, body []byte, timeout int) error
+	CreateCache(key string, body []byte, timeout int) error
 }
 
 type Redis struct {
+	host   string
+	port   int
+	auth   string
+	schema int
+	conn     *redis.Client
 	logger   logs.Logs
 	storage  storages.Storage
 }

@@ -4,3 +4,6 @@
 pkg
 test/error.log
 *.log
+test/111
+test/database
+test/*.log

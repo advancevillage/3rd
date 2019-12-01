@@ -28,6 +28,24 @@ func NewRedis(host string, port int, auth string, schema int, logger logs.Logs) 
 	return r, nil
 }
 
+//实现接口
+func (r *Redis) UpdateStorage(key string, body []byte) error {
+	return r.StrSet(key, body, 365 * 24)
+}
+
+func (r *Redis) CreateStorage(key string, body []byte) error {
+	return r.StrSet(key, body, 365 * 24)
+}
+
+func (r *Redis) QueryStorage(key  string) ([]byte, error) {
+	return r.StrGet(key)
+}
+
+func (r *Redis) DeleteStorage(key ...string) error {
+	return r.StrDelete(key...)
+}
+
+
 //@link: http://redisdoc.com/string/setex.html
 //SET key value EX XX|NX
 func (r *Redis) StrSet(key string, value []byte, timeout int) error {
@@ -41,15 +59,21 @@ func (r *Redis) StrSet(key string, value []byte, timeout int) error {
 
 func (r *Redis) StrGet(key string) ([]byte, error) {
 	ret := r.conn.Get(key)
-	if ret == nil {
-		return nil, ErrorKeyNotExist
-	}
 	buf, err := ret.Bytes()
 	if err != nil {
 		r.logger.Error(err.Error())
 		return nil, ErrorKeyNotExist
 	}
 	return buf, nil
+}
+
+func (r *Redis) StrDelete(key ...string) error {
+	err := r.conn.Del(key...).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *Redis) ListPush(method bool, key string, values [][]byte) error {
@@ -79,9 +103,6 @@ func (r *Redis) ListPop(method bool, key string) ([]byte, error) {
 		ret = r.conn.LPop(key)
 	} else {
 		ret = r.conn.RPop(key)
-	}
-	if ret == nil {
-		return nil, ErrorKeyNotExist
 	}
 	buf, err := ret.Bytes()
 	if err != nil {
@@ -127,9 +148,6 @@ func (r *Redis) HashSet(key string, fields map[string][]byte) error {
 
 func (r *Redis) HashGet(key string, field string) ([]byte, error) {
 	ret := r.conn.HGet(key, field)
-	if ret == nil {
-		return nil, ErrorKeyNotExist
-	}
 	buf, err := ret.Bytes()
 	if err != nil {
 		r.logger.Error(err.Error())
