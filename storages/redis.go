@@ -52,8 +52,20 @@ func (r *Redis) StrGet(key string) ([]byte, error) {
 	return buf, nil
 }
 
-func (r *Redis) LPush(key string, values ...[]byte) error {
-	err := r.conn.LPush(key, values).Err()
+func (r *Redis) ListPush(method bool, key string, values [][]byte) error {
+	var err error
+	in := make([]interface{}, 0, len(values))
+	for i := 0; i < len(values); i++ {
+		in = append(in, values[i])
+	}
+	if len(in) <= 0 {
+		return nil
+	}
+	if method {
+		err = r.conn.LPush(key, in...).Err()
+	} else {
+		err = r.conn.RPush(key, in...).Err()
+	}
 	if err != nil {
 		r.logger.Error(err.Error())
 		return err
@@ -61,17 +73,13 @@ func (r *Redis) LPush(key string, values ...[]byte) error {
 	return nil
 }
 
-func (r *Redis) RPush(key string, values ...[]byte) error {
-	err := r.conn.RPush(key, values).Err()
-	if err != nil {
-		r.logger.Error(err.Error())
-		return err
+func (r *Redis) ListPop(method bool, key string) ([]byte, error) {
+	var ret *redis.StringCmd
+	if method {
+		ret = r.conn.LPop(key)
+	} else {
+		ret = r.conn.RPop(key)
 	}
-	return nil
-}
-
-func (r *Redis) LPop(key string) ([]byte, error) {
-	ret := r.conn.LPop(key)
 	if ret == nil {
 		return nil, ErrorKeyNotExist
 	}
@@ -83,24 +91,58 @@ func (r *Redis) LPop(key string) ([]byte, error) {
 	return buf, nil
 }
 
-func (r *Redis) RPop(key string) ([]byte, error) {
-	ret := r.conn.RPop(key)
-	if ret == nil {
-		return nil, ErrorKeyNotExist
-	}
-	buf, err := ret.Bytes()
-	if err != nil {
-		r.logger.Error(err.Error())
-		return nil, ErrorKeyNotExist
-	}
-	return buf, nil
-}
-
-func (r *Redis) LLen(key string) (int64, error) {
+func (r *Redis) ListLength(key string) (int64, error) {
 	length, err := r.conn.LLen(key).Result()
 	if err != nil {
 		r.logger.Error(err.Error())
 		return 0, err
 	}
 	return length, nil
+}
+
+func (r *Redis) ListDelete(key string, value []byte) error {
+	err := r.conn.LRem(key, 0, value).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (r *Redis) HashSet(key string, fields map[string][]byte) error {
+	in := make(map[string]interface{})
+	for k, v :=range fields {
+		in[k] = v
+	}
+	if len(in) <= 0 {
+		return nil
+	}
+	err := r.conn.HMSet(key, in).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (r *Redis) HashGet(key string, field string) ([]byte, error) {
+	ret := r.conn.HGet(key, field)
+	if ret == nil {
+		return nil, ErrorKeyNotExist
+	}
+	buf, err := ret.Bytes()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return nil, ErrorKeyNotExist
+	}
+	return buf, nil
+}
+
+func (r *Redis) HashDelete(key string, fields ...string) error {
+	err := r.conn.HDel(key, fields...).Err()
+	if err != nil {
+		r.logger.Error(err.Error())
+		return err
+	}
+	return nil
 }

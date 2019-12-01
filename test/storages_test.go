@@ -17,18 +17,17 @@ func TestStorageRedis(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	err = redis.SET("richard", []byte("ShowU, A More Beautiful Self"), 600)
+	err = redis.StrSet("richard", []byte("ShowU, A More Beautiful Self"), 600)
 	if err != nil {
 		t.Error(err.Error())
 	}
-	value, err := redis.GET("richard")
+	value, err := redis.StrGet("richard")
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 	t.Log(value)
 }
-
 
 func BenchmarkStorageRedis(b *testing.B) {
 	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
@@ -54,3 +53,37 @@ func BenchmarkStorageRedis(b *testing.B) {
 		}
 	}
 }
+
+func TestStorageRedis_List(t *testing.T) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	redis, err := storages.NewRedis("192.168.1.101", 6379, "", 0, logger)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	values := [][]byte {
+		[]byte("richard"),
+		[]byte("sun"),
+	}
+	key := "kelly"
+	err = redis.ListPush(true, key, values)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	_, err = redis.ListPop(false, key)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	err = redis.ListDelete(key, values[0])
+	if err != nil {
+		t.Error(err.Error())
+	}
+	err = redis.ListPush(false, key, nil)
+	if err != nil {
+		t.Error(err.Error())
+	}
+}
+
