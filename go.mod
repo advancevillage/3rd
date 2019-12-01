@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.5.0
+	github.com/elastic/go-elasticsearch/v7 v7.4.2-0.20191116102024-c3151acaeef9
 	github.com/gin-gonic/gin v1.4.0
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/go-sql-driver/mysql v1.4.1
