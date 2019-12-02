@@ -55,6 +55,7 @@ type LevelDB struct {
 }
 
 type TES struct {
+	index    string		//default index
 	urls   []string
 	logger logs.Logs
 	conn *elastic.Client
