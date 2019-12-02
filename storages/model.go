@@ -15,6 +15,10 @@ var (
 	ErrorKeyNotExist = errors.New("key not exist")
 )
 
+const (
+	ESDefaultIndex = "20170729"
+)
+
 type Database struct {
 	Host string
 	Port int

@@ -18,7 +18,7 @@ func NewTES(urls []string, logger logs.Logs) (*TES, error) {
 	tes := &TES{}
 	tes.urls = urls
 	tes.logger = logger
-	tes.index  = "20170729"
+	tes.index  = ESDefaultIndex
 	tes.conn, err = elastic.NewClient(elastic.SetSniff(false), elastic.SetURL(tes.urls...))
 	if err != nil {
 		tes.logger.Error(err.Error())
