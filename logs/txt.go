@@ -3,6 +3,7 @@ package logs
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os"
 )
@@ -55,32 +56,32 @@ func (txt *TxtLogger) Write(level string, m string) {
 }
 
 //@brief: error log
-func (txt *TxtLogger) Error(message string) {
-	txt.Write(LogLevelEror, message)
+func (txt *TxtLogger) Error(format string, a ...interface{}) {
+	txt.Write(LogLevelEror, fmt.Sprintf(format, a...))
 }
 
 //@brief: warning log
-func (txt *TxtLogger) Warning(message string) {
-	txt.Write(LogLevelWarn, message)
+func (txt *TxtLogger) Warning(format string, a ...interface{}) {
+	txt.Write(LogLevelWarn, fmt.Sprintf(format, a...))
 }
 
 //@brief: debug log
-func (txt *TxtLogger) Debug(message string) {
-	txt.Write(LogLevelDebg, message)
+func (txt *TxtLogger) Debug(format string, a ...interface{}) {
+	txt.Write(LogLevelDebg, fmt.Sprintf(format, a...))
 }
 
-func (txt *TxtLogger) Info(message string) {
-	txt.Write(LogLevelInfo, message)
+func (txt *TxtLogger) Info(format string, a ...interface{}) {
+	txt.Write(LogLevelInfo, fmt.Sprintf(format, a...))
 }
 
-func (txt *TxtLogger) Alert(message string) {
-	txt.Write(LogLevelAlrt, message)
+func (txt *TxtLogger) Alert(format string, a ...interface{}) {
+	txt.Write(LogLevelAlrt, fmt.Sprintf(format, a...))
 }
 
-func (txt *TxtLogger) Critical(message string) {
-	txt.Write(LogLevelCrit, message)
+func (txt *TxtLogger) Critical(format string, a ...interface{}) {
+	txt.Write(LogLevelCrit, fmt.Sprintf(format, a...))
 }
 
-func (txt *TxtLogger) Emergency(message string) {
-	txt.Write(LogLevelEmer, message)
+func (txt *TxtLogger) Emergency(format string, a ...interface{}) {
+	txt.Write(LogLevelEmer, fmt.Sprintf(format, a...))
 }

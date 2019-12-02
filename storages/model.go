@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/olivere/elastic/v7"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -54,5 +55,7 @@ type LevelDB struct {
 }
 
 type TES struct {
-
+	urls   []string
+	logger logs.Logs
+	conn *elastic.Client
 }
