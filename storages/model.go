@@ -52,3 +52,7 @@ type LevelDB struct {
 	logger logs.Logs
 	schema string
 }
+
+type TES struct {
+
+}
