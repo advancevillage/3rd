@@ -13,6 +13,7 @@ import (
 
 var (
 	ErrorKeyNotExist = errors.New("key not exist")
+	ErrorNoResult    = errors.New("result is empty")
 )
 
 const (

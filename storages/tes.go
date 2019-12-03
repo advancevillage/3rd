@@ -102,3 +102,19 @@ func (tes *TES) UpdateDocument(index string, id string, fields map[string]interf
 	}
 	return nil
 }
+
+func (tes *TES) QueryDocument(index ...string) ([]json.RawMessage, error) {
+	ret , err := tes.conn.Search(index...).Query(elastic.NewMatchAllQuery()).Do(context.Background())
+	if err != nil {
+		tes.logger.Error(err.Error())
+		return nil, err
+	}
+	if ret.TotalHits() <= 0 {
+		return nil, ErrorNoResult
+	}
+	data := make([]json.RawMessage, 0, ret.TotalHits())
+	for _, hit := range ret.Hits.Hits {
+		data = append(data, hit.Source)
+	}
+	return data, nil
+}
