@@ -36,7 +36,7 @@ func NewMysql(master *Database, slaves []*Database, logger logs.Logs) (*Mysql, e
 
 //readonly: flag = false
 //write&read: flag = true
-func (m *Mysql) Connection(flag bool) *sql.DB {
+func (m *Mysql) NewConnection(flag bool) *sql.DB {
 	if flag {
 		return  m.master.conn
 	} else {

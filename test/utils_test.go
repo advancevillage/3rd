@@ -4,6 +4,7 @@ package test
 import (
 	"3rd/times"
 	"3rd/utils"
+	"sync"
 	"testing"
 )
 
@@ -64,4 +65,36 @@ func TestFunc(t *testing.T) {
 
 }
 
+func TestSnowFlake(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		snowFlakeId := utils.SnowFlakeId()
+		t.Log(snowFlakeId)
+	}
+}
 
+func BenchmarkSnowFlake(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		snowFlakeId := utils.SnowFlakeId()
+		b.Log(snowFlakeId)
+	}
+}
+
+func TestSyncPool(t *testing.T) {
+	pool := &sync.Pool{
+		// 默认的返回值设置，不写这个参数，默认是nil
+		New: func() interface{} {
+			return 0
+		},
+	}
+	// 看一下初始的值，这里是返回0，如果不设置New函数，默认返回nil
+	init := pool.Get()
+	t.Log(init)
+	// 设置一个参数1
+	pool.Put(1)
+	// 获取查看结果
+	num := pool.Get()
+	t.Log(num)
+	// 再次获取，会发现，已经是空的了，只能返回默认的值。
+	num = pool.Get()
+	t.Log(num)
+}
