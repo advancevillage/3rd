@@ -71,8 +71,7 @@ func (tes *TES) DeleteStorage(key ...string) error {
 }
 
 func (tes *TES) QueryStorage(key string) ([]byte, error) {
-	//TODO
-	return nil, nil
+	return tes.QueryDocument(tes.index, key)
 }
 
 //创建一个文档,如果文档不存在则创建。如果存在则更新值
@@ -103,18 +102,16 @@ func (tes *TES) UpdateDocument(index string, id string, fields map[string]interf
 	return nil
 }
 
-func (tes *TES) QueryDocument(index ...string) ([]json.RawMessage, error) {
-	ret , err := tes.conn.Search(index...).Query(elastic.NewMatchAllQuery()).Do(context.Background())
+func (tes *TES) QueryDocument(index string, id string) ([]byte, error) {
+	ret , err := tes.conn.Get().Index(index).Id(id).Do(context.Background())
 	if err != nil {
 		tes.logger.Error(err.Error())
 		return nil, err
 	}
-	if ret.TotalHits() <= 0 {
-		return nil, ErrorNoResult
+	buf, err := json.Marshal(ret.Source)
+	if err != nil {
+		tes.logger.Error(err.Error())
+		return nil, err
 	}
-	data := make([]json.RawMessage, 0, ret.TotalHits())
-	for _, hit := range ret.Hits.Hits {
-		data = append(data, hit.Source)
-	}
-	return data, nil
+	return buf, nil
 }

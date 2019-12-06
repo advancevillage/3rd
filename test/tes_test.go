@@ -75,12 +75,10 @@ func TestTES_CreateStorage(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	ret, err := tes.QueryDocument(storages.ESDefaultIndex)
+	ret, err := tes.QueryDocument(storages.ESDefaultIndex, key)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	for i := range ret {
-		t.Log(string(ret[i]))
-	}
+	t.Log(ret)
 }

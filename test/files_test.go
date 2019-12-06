@@ -20,7 +20,7 @@ func TestPDFFile_CreateFileFromBuffer(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	err = pdf.CreateFileFromUrl("111/test.pdf", "https://www.jianshu.com/p/82ffcf1eba20")
+	err = pdf.CreateFileFromUrl("111/test.pdf", "https://medium.com/@mena.meseha/what-is-the-difference-between-mysql-innodb-b-tree-index-and-hash-index-ed8f2ce66d69")
 	if err != nil {
 		t.Error(err.Error())
 	}

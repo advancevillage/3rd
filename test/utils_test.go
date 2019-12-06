@@ -47,3 +47,21 @@ func BenchmarkUUID(b *testing.B) {
 		b.Log(str)
 	}
 }
+
+func TestFunc(t *testing.T) {
+	ff := func() func() int {
+		var x int
+		return func() int {
+			x++
+			return x * x
+		}
+	}
+	f := ff()
+	t.Log(f())
+	t.Log(f())
+	t.Log(f())
+	t.Log(f())
+
+}
+
+
