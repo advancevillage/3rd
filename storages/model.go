@@ -2,9 +2,9 @@
 package storages
 
 import (
-	"3rd/logs"
 	"database/sql"
 	"errors"
+	"github.com/advancevillage/3rd/logs"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic/v7"

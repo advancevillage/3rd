@@ -2,7 +2,7 @@
 package pools
 
 import (
-	"3rd/logs"
+	"github.com/advancevillage/3rd/logs"
 	"sync"
 )
 

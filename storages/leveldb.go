@@ -2,7 +2,7 @@
 package storages
 
 import (
-	"3rd/logs"
+	"github.com/advancevillage/3rd/logs"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 

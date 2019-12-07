@@ -2,8 +2,8 @@
 package test
 
 import (
-	"3rd/times"
-	"3rd/utils"
+	"github.com/advancevillage/3rd/times"
+	"github.com/advancevillage/3rd/utils"
 	"sync"
 	"testing"
 )

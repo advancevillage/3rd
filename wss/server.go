@@ -2,8 +2,8 @@
 package wss
 
 import (
-	"3rd/logs"
 	"fmt"
+	"github.com/advancevillage/3rd/logs"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"net/http"

@@ -1,4 +1,4 @@
-module 3rd
+module github.com/advancevillage/3rd
 
 go 1.13
 

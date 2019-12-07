@@ -2,7 +2,7 @@
 package test
 
 import (
-	"3rd/https"
+	"github.com/advancevillage/3rd/https"
 	"net/http"
 	"testing"
 )

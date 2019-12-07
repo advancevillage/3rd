@@ -3,9 +3,9 @@
 package storages
 
 import (
-	"3rd/logs"
 	"context"
 	"encoding/json"
+	"github.com/advancevillage/3rd/logs"
 	"github.com/olivere/elastic/v7"
 )
 

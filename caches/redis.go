@@ -2,9 +2,9 @@
 package caches
 
 import (
-	"3rd/logs"
-	"3rd/storages"
 	"fmt"
+	"github.com/advancevillage/3rd/logs"
+	"github.com/advancevillage/3rd/storages"
 	"github.com/go-redis/redis"
 	"time"
 )

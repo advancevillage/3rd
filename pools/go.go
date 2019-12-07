@@ -2,8 +2,8 @@
 package pools
 
 import (
-	"3rd/logs"
 	"errors"
+	"github.com/advancevillage/3rd/logs"
 	"sync"
 	"sync/atomic"
 )

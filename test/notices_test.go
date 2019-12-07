@@ -2,8 +2,8 @@
 package test
 
 import (
-	"3rd/notices"
 	"bytes"
+	"github.com/advancevillage/3rd/notices"
 	"html/template"
 	"testing"
 )

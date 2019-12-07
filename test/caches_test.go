@@ -2,10 +2,10 @@
 package test
 
 import (
-	"3rd/caches"
-	"3rd/logs"
-	"3rd/storages"
 	"encoding/json"
+	"github.com/advancevillage/3rd/caches"
+	"github.com/advancevillage/3rd/logs"
+	"github.com/advancevillage/3rd/storages"
 	"testing"
 	"time"
 )

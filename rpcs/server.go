@@ -2,8 +2,8 @@
 package rpcs
 
 import (
-	"3rd/logs"
 	"fmt"
+	"github.com/advancevillage/3rd/logs"
 	"net"
 	"net/rpc"
 	"net/rpc/jsonrpc"

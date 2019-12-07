@@ -1,7 +1,7 @@
 //author: richard
 package rpcs
 
-import "3rd/logs"
+import "github.com/advancevillage/3rd/logs"
 
 //@link: https://golang.org/pkg/net/rpc/
 //- the method's type is exported.

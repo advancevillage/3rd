@@ -2,9 +2,9 @@
 package test
 
 import (
-	"3rd/files"
 	"bytes"
 	"fmt"
+	"github.com/advancevillage/3rd/files"
 	"html/template"
 	"testing"
 )

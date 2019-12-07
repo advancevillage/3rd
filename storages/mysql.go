@@ -2,10 +2,10 @@
 package storages
 
 import (
-	"3rd/logs"
-	"3rd/utils"
 	"database/sql"
 	"fmt"
+	"github.com/advancevillage/3rd/logs"
+	"github.com/advancevillage/3rd/utils"
 	_ "github.com/go-sql-driver/mysql"
 )
 

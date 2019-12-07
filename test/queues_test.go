@@ -2,11 +2,11 @@
 package test
 
 import (
-	"3rd/logs"
-	"3rd/pools"
-	"3rd/queues"
-	"3rd/utils"
 	"encoding/json"
+	"github.com/advancevillage/3rd/logs"
+	"github.com/advancevillage/3rd/pools"
+	"github.com/advancevillage/3rd/queues"
+	"github.com/advancevillage/3rd/utils"
 	"testing"
 	"time"
 )

@@ -2,8 +2,8 @@
 package storages
 
 import (
-	"3rd/logs"
 	"fmt"
+	"github.com/advancevillage/3rd/logs"
 	"github.com/go-redis/redis"
 	"time"
 )
