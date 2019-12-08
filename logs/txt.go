@@ -24,31 +24,35 @@ func NewTxtLogger(filename string, size int, total int) (*TxtLogger, error) {
 		writer := bufio.NewWriterSize(txt.file, size)
 		txt.cache = append(txt.cache,  writer)
 	}
+	txt.logger = log.New(txt.cache[txt.ptr % txt.total], "", log.LstdFlags | log.Lshortfile)
 	return txt, nil
 }
 
 func (txt *TxtLogger) Write(level string, m string) {
+	txt.mutex.Lock()
+	defer txt.mutex.Unlock()
 	var err error
 	//文件名称最大字符长度
 	length := len(m + level) + len("2019/11/27 13:48:10") + 25
-	logger := log.New(txt.cache[txt.ptr % txt.total], level, log.LstdFlags | log.Lshortfile)
+	txt.logger.SetPrefix(level)
+	txt.logger.SetOutput(txt.cache[txt.ptr % txt.total])
 	for {
 		free := txt.cache[txt.ptr % txt.total].Available()
 		if length < free {
-			logger.Println(m)
+			txt.logger.Println(m)
 			break
 		} else if length < txt.size {
 			err = txt.cache[txt.ptr % txt.total].Flush()
 			if err != nil {
-				logger.SetPrefix(LogLevelEmer)
-				logger.SetOutput(txt.file)
-				logger.Println(err.Error())
+				txt.logger.SetPrefix(LogLevelEmer)
+				txt.logger.SetOutput(txt.file)
+				txt.logger.Println(err.Error())
 			}
 			txt.ptr = (txt.ptr + 1) % txt.total
-			logger.SetOutput(txt.cache[txt.ptr % txt.total])
+			txt.logger.SetOutput(txt.cache[txt.ptr % txt.total])
 		} else {
-			logger.SetOutput(txt.file)
-			logger.Println(m)
+			txt.logger.SetOutput(txt.file)
+			txt.logger.Println(m)
 			break
 		}
 	}

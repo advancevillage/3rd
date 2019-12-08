@@ -3,7 +3,9 @@ package logs
 
 import (
 	"bufio"
+	"log"
 	"os"
+	"sync"
 )
 
 const (
@@ -38,4 +40,6 @@ type TxtLogger struct {
 	filename   string
 	cache      []*bufio.Writer
 	file 	   *os.File
+	mutex      sync.Mutex
+	logger     *log.Logger
 }
