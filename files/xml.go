@@ -1,9 +1,16 @@
 //author: richard
 package files
 
-import "os"
+import (
+	"io/ioutil"
+	"os"
+)
 
-func (xml *XMLFile) CreateFileFromBuffer(filename string, content []byte) error {
+func NewXMLFile() *XMLFile {
+	return &XMLFile{}
+}
+
+func (x *XMLFile) CreateFileFromBuffer(filename string, content []byte) error {
 	err := CreatePath(filename)
 	if err != nil {
 		return err
@@ -21,5 +28,19 @@ func (xml *XMLFile) CreateFileFromBuffer(filename string, content []byte) error 
 		return err
 	}
 	return nil
+}
+
+func (x *XMLFile) ReadFile(filename string) ([]byte, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := ioutil.ReadAll(fd)
+	if err != nil {
+		_ = fd.Close()
+		return nil, err
+	}
+	_ = fd.Close()
+	return buf, nil
 }
 

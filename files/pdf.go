@@ -4,6 +4,8 @@ package files
 import (
 	"bytes"
 	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+	"io/ioutil"
+	"os"
 )
 
 func (pdf *PDFFile) CreateFileFromBuffer(filename string, html []byte) error {
@@ -58,5 +60,19 @@ func (pdf *PDFFile) CreateFileFromUrl(filename string, url string) error {
 		return err
 	}
 	return nil
+}
+
+func (pdf *PDFFile) ReadFile(filename string) ([]byte, error) {
+	fd, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := ioutil.ReadAll(fd)
+	if err != nil {
+		_ = fd.Close()
+		return nil, err
+	}
+	_ = fd.Close()
+	return buf, nil
 }
 

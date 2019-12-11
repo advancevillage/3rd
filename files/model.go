@@ -8,6 +8,7 @@ const (
 
 type Files interface {
 	CreateFileFromBuffer(filename string, content []byte) error
+	ReadFile(filename string) ([]byte, error)
 }
 
 type XMLFile struct {}
