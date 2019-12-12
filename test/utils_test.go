@@ -2,10 +2,12 @@
 package test
 
 import (
+	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/times"
 	"github.com/advancevillage/3rd/utils"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestRandsString(t *testing.T) {
@@ -29,16 +31,24 @@ func TestRandInt(t *testing.T) {
 }
 
 func TestTime(t *testing.T) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	for i := 0; i < 500; i++ {
-		t.Log(times.Timestamp())
-		t.Log(times.TimeString())
+		t.Log(times.NewTimes(logger).Timestamp())
+		t.Log(times.NewTimes(logger).TimeString())
 	}
 }
 
 func BenchmarkTime(b *testing.B) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		b.Error(err.Error())
+	}
 	for i := 0; i < b.N; i++ {
-		b.Log(times.Timestamp())
-		b.Log(times.TimeString())
+		b.Log(times.NewTimes(logger).Timestamp())
+		b.Log(times.NewTimes(logger).TimeString())
 	}
 }
 
@@ -97,4 +107,14 @@ func TestSyncPool(t *testing.T) {
 	// 再次获取，会发现，已经是空的了，只能返回默认的值。
 	num = pool.Get()
 	t.Log(num)
+}
+
+func TestTimeFormat(t *testing.T) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Log(times.NewTimes(logger).TimeFormatString(time.ANSIC))
+	t.Log(times.NewTimes(logger).TimeFormatString(time.RFC1123Z))
+	t.Log(times.NewTimes(logger).TimeFormatString(time.RFC1123))
 }
