@@ -140,5 +140,23 @@ func TestStorageV2(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
+	buf, err := redis.QueryStorageV2(index, key)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	t.Log(string(buf))
+	buf, err = es7.QueryStorageV2(index, key)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	t.Log(string(buf))
+	buf, err = db.QueryStorageV2(index, key)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	t.Log(string(buf))
 }
 
