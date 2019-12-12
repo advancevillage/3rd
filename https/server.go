@@ -4,6 +4,7 @@ package https
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"io/ioutil"
 )
 
 func NewServer(host string, port int, router []Router) *Server {
@@ -57,4 +58,12 @@ func (c *Context) Param(q string) string {
 //@param: body
 func (c *Context) JsonResponse(code int, body interface{}) {
 	c.ctx.JSON(code, body)
+}
+
+func (c *Context) Body() ([]byte, error) {
+	buf, err := ioutil.ReadAll(c.ctx.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	return buf, nil
 }
