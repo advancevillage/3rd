@@ -74,6 +74,44 @@ func (tes *TES) QueryStorage(key string) ([]byte, error) {
 	return tes.QueryDocument(tes.index, key)
 }
 
+func (tes *TES) CreateStorageV2(index string, key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
+	if err != nil {
+		tes.logger.Error(err.Error())
+		return err
+	}
+	return tes.CreateDocument(index, key, object)
+}
+
+func (tes *TES) DeleteStorageV2(index string, key ...string) error {
+	for i := range key {
+		err := tes.DeleteDocument(index, key[i])
+		if err != nil {
+			tes.logger.Error(err.Error())
+		} else {
+			continue
+		}
+	}
+	return nil
+}
+
+func (tes *TES) UpdateStorageV2(index string, key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
+	if err != nil {
+		tes.logger.Error(err.Error())
+		return err
+	}
+	return tes.CreateDocument(index, key, object)
+}
+
+func (tes *TES) QueryStorageV2(index string, key  string) ([]byte, error) {
+	return tes.QueryDocument(index, key)
+}
+
 //创建一个文档,如果文档不存在则创建。如果存在则更新值
 func (tes *TES) CreateDocument(index string, id string, body interface{}) error {
 	_, err := tes.conn.Index().Index(index).Id(id).BodyJson(body).Do(context.Background())

@@ -31,10 +31,16 @@ type Database struct {
 }
 
 type Storage interface {
-	UpdateStorage(key string, body []byte) error
+	//v1
 	CreateStorage(key string, body []byte) error
-	QueryStorage(key  string) ([]byte, error)
 	DeleteStorage(key ...string) error
+	UpdateStorage(key string, body []byte) error
+	QueryStorage(key  string) ([]byte, error)
+	//v2
+	CreateStorageV2(index string, key string, body []byte) error
+	DeleteStorageV2(index string, key ...string) error
+	UpdateStorageV2(index string, key string, body []byte) error
+	QueryStorageV2(index string, key  string) ([]byte, error)
 }
 
 type Mysql struct {

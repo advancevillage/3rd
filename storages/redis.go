@@ -45,6 +45,25 @@ func (r *Redis) DeleteStorage(key ...string) error {
 	return r.StrDelete(key...)
 }
 
+func (r *Redis) CreateStorageV2(index string, key string, body []byte) error {
+	var fields = make(map[string][]byte)
+	fields[key] = body
+	return r.HashSet(index, fields)
+}
+
+func (r *Redis) DeleteStorageV2(index string, key ...string) error {
+	return r.HashDelete(index, key...)
+}
+
+func (r *Redis) UpdateStorageV2(index string, key string, body []byte) error {
+	var fields = make(map[string][]byte)
+	fields[key] = body
+	return r.HashSet(index, fields)
+}
+
+func (r *Redis) QueryStorageV2(index string, key  string) ([]byte, error) {
+	return r.HashGet(index, key)
+}
 
 //@link: http://redisdoc.com/string/setex.html
 //SET key value EX XX|NX

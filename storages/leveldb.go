@@ -2,6 +2,7 @@
 package storages
 
 import (
+	"fmt"
 	"github.com/advancevillage/3rd/logs"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -58,4 +59,24 @@ func (l *LevelDB) DeleteStorage(key ...string) error {
 		}
 	}
 	return nil
+}
+
+func (l *LevelDB) CreateStorageV2(index string, key string, body []byte) error {
+	return l.CreateStorage(fmt.Sprintf("%s/%s", index, key), body)
+}
+
+func (l *LevelDB) UpdateStorageV2(index string, key string, body []byte) error {
+	return l.UpdateStorage(fmt.Sprintf("%s/%s", index, key), body)
+}
+
+func (l *LevelDB) QueryStorageV2(index string, key  string) ([]byte, error) {
+	return l.QueryStorage(fmt.Sprintf("%s/%s", index, key))
+}
+
+func (l *LevelDB) DeleteStorageV2(index string, key ...string) error {
+	var keys = make([]string, 0, len(key))
+	for i := 0; i < len(key); i++ {
+		keys = append(keys, fmt.Sprintf("%s/%s", index, key[i]))
+	}
+	return l.DeleteStorage(keys ...)
 }
