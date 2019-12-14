@@ -2,7 +2,6 @@
 package test
 
 import (
-	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/times"
 	"github.com/advancevillage/3rd/utils"
 	"sync"
@@ -31,24 +30,16 @@ func TestRandInt(t *testing.T) {
 }
 
 func TestTime(t *testing.T) {
-	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
-	if err != nil {
-		t.Error(err.Error())
-	}
 	for i := 0; i < 500; i++ {
-		t.Log(times.NewTimes(logger).Timestamp())
-		t.Log(times.NewTimes(logger).TimeString())
+		t.Log(times.Timestamp())
+		t.Log(times.TimeString())
 	}
 }
 
 func BenchmarkTime(b *testing.B) {
-	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
-	if err != nil {
-		b.Error(err.Error())
-	}
 	for i := 0; i < b.N; i++ {
-		b.Log(times.NewTimes(logger).Timestamp())
-		b.Log(times.NewTimes(logger).TimeString())
+		b.Log(times.Timestamp())
+		b.Log(times.TimeString())
 	}
 }
 
@@ -110,11 +101,36 @@ func TestSyncPool(t *testing.T) {
 }
 
 func TestTimeFormat(t *testing.T) {
-	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	t.Log(times.TimeFormatString(time.ANSIC))
+	t.Log(times.TimeFormatString(time.RFC1123Z))
+	t.Log(times.TimeFormatString(time.RFC1123))
+}
+
+func TestAesEncryptAndDecrypt(t *testing.T) {
+	plaintext := []byte("我 爱 你")
+	t.Log(plaintext)
+	cipher, err := utils.EncryptUseAes(plaintext)
 	if err != nil {
 		t.Error(err.Error())
 	}
-	t.Log(times.NewTimes(logger).TimeFormatString(time.ANSIC))
-	t.Log(times.NewTimes(logger).TimeFormatString(time.RFC1123Z))
-	t.Log(times.NewTimes(logger).TimeFormatString(time.RFC1123))
+	t.Log(string(cipher))
+	plaintext, err = utils.DecryptUseAes(cipher)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Log(plaintext)
+}
+
+func BenchmarkAesEncryptAndDecrypt(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		plaintext := []byte(utils.RandsString(12))
+		cipher, err := utils.EncryptUseAes(plaintext)
+		if err != nil {
+			b.Error(err.Error())
+		}
+		plaintext, err = utils.DecryptUseAes(cipher)
+		if err != nil {
+			b.Error(err.Error())
+		}
+	}
 }

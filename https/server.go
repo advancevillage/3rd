@@ -2,7 +2,9 @@
 package https
 
 import (
+	"encoding/base64"
 	"fmt"
+	"github.com/advancevillage/3rd/utils"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 )
@@ -66,4 +68,31 @@ func (c *Context) Body() ([]byte, error) {
 		return nil, err
 	}
 	return buf, nil
+}
+
+func (c *Context) SetCookie(name string, value string, path string, domain string) error {
+	maxAge := 2 * 3600 //秒
+	cipherText, err := utils.EncryptUseAes([]byte(value))
+	if err != nil {
+		return err
+	}
+	text := base64.StdEncoding.EncodeToString(cipherText)
+	c.ctx.SetCookie(name, text, maxAge, path, domain, false, true)
+	return nil
+}
+
+func (c *Context) ReadCookie(name string) (string, error) {
+	cipherText, err := base64.StdEncoding.DecodeString(name)
+	if err != nil {
+		return "", err
+	}
+	plainText, err := utils.DecryptUseAes(cipherText)
+	if err != nil {
+		return "", err
+	}
+	value, err := c.ctx.Cookie(string(plainText))
+	if err != nil {
+		return "", err
+	}
+	return value, nil
 }
