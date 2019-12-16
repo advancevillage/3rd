@@ -18,7 +18,12 @@ func TestServer_StartServer(t *testing.T) {
 			AccountId: "1aa79ea8-0c3f-11ea-9753-0242ac120002",
 			Pong: "pong",
 		}
-		err := ctx.SetCookie("name", "richard", "/", "localhost")
+		err := ctx.WriteCookie("cookie", "richard", "/", "localhost")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		value, err := ctx.ReadCookie("cookie")
+		body.Value = value
 		if err != nil {
 			t.Error(err.Error())
 		}
