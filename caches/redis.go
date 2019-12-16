@@ -72,3 +72,19 @@ func (c *Redis) DeleteCache(key ...string) error {
 	}
 	return nil
 }
+
+func (c *Redis) CreateCacheV2(index string, key string, body []byte) error {
+	return c.storage.CreateStorageV2(index, key, body)
+}
+
+func (c *Redis) UpdateCacheV2(index string, key string, body []byte) error {
+	return c.storage.UpdateStorageV2(index, key, body)
+}
+
+func (c *Redis) QueryCacheV2(index string, key  string) ([]byte, error) {
+	return c.storage.QueryStorageV2(index, key)
+}
+
+func (c *Redis) DeleteCacheV2(index string, key ...string) error {
+	return c.storage.DeleteStorageV2(index, key ...)
+}

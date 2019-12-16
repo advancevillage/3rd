@@ -16,6 +16,11 @@ type Cache interface {
 	QueryCache(key  string, timeout int) ([]byte, error)
 	UpdateCache(key string, body []byte, timeout int) error
 	CreateCache(key string, body []byte, timeout int) error
+
+	CreateCacheV2(index string, key string, body []byte) error
+	UpdateCacheV2(index string, key string, body []byte) error
+	QueryCacheV2(index string, key  string) ([]byte, error)
+	DeleteCacheV2(index string, key ...string) error
 }
 
 type Redis struct {
