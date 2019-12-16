@@ -2,9 +2,14 @@
 package caches
 
 import (
+	"errors"
 	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/storages"
 	"github.com/go-redis/redis"
+)
+
+var (
+	ErrorKeyNotExist = errors.New("key not exist")
 )
 
 const (

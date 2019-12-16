@@ -74,17 +74,61 @@ func (c *Redis) DeleteCache(key ...string) error {
 }
 
 func (c *Redis) CreateCacheV2(index string, key string, body []byte) error {
-	return c.storage.CreateStorageV2(index, key, body)
+	var fields = make(map[string][]byte)
+	fields[key] = body
+	return c.HashSet(index, fields)
 }
 
 func (c *Redis) UpdateCacheV2(index string, key string, body []byte) error {
-	return c.storage.UpdateStorageV2(index, key, body)
+	var fields = make(map[string][]byte)
+	fields[key] = body
+	return c.HashSet(index, fields)
 }
 
 func (c *Redis) QueryCacheV2(index string, key  string) ([]byte, error) {
-	return c.storage.QueryStorageV2(index, key)
+	return c.HashGet(index, key)
 }
 
 func (c *Redis) DeleteCacheV2(index string, key ...string) error {
-	return c.storage.DeleteStorageV2(index, key ...)
+	return c.HashDelete(index, key ...)
+}
+
+func (c *Redis) HashSet(key string, fields map[string][]byte) error {
+	in := make(map[string]interface{})
+	for k, v :=range fields {
+		in[k] = v
+	}
+	if len(in) <= 0 {
+		return nil
+	}
+	err := c.conn.HMSet(key, in).Err()
+	if err != nil {
+		c.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (c *Redis) HashGet(key string, field string) ([]byte, error) {
+	ret := c.conn.HGet(key, field)
+	buf, err := ret.Bytes()
+	if err != nil {
+		c.logger.Error(err.Error())
+		body, err := c.storage.QueryStorageV2(key, field)
+		if err != nil {
+			return nil, ErrorKeyNotExist
+		}
+		_ = c.storage.CreateStorageV2(key, field, body)
+		return body, nil
+	}
+	return buf, nil
+}
+
+func (c *Redis) HashDelete(key string, fields ...string) error {
+	err := c.conn.HDel(key, fields...).Err()
+	if err != nil {
+		c.logger.Error(err.Error())
+		return err
+	}
+	return nil
 }
