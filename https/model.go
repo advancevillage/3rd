@@ -1,8 +1,10 @@
 //author: richard
 package https
 
-import "github.com/gin-gonic/gin"
-
+import (
+	"github.com/advancevillage/3rd/logs"
+	"github.com/gin-gonic/gin"
+)
 
 type Handler func(*Context)
 
@@ -27,4 +29,10 @@ type Server struct {
 	port int
 	router []Router
 	engine *gin.Engine
+}
+
+type AwsApiGatewayLambdaServer struct {
+	engine *gin.Engine
+	logger logs.Logs
+	router []Router
 }

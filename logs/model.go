@@ -43,3 +43,7 @@ type TxtLogger struct {
 	mutex      sync.Mutex
 	logger     *log.Logger
 }
+
+type StdLogger struct {
+	logger    *log.Logger
+}
