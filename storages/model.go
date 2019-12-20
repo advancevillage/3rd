@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/advancevillage/3rd/logs"
+	"github.com/aws/aws-sdk-go/service/elasticsearchservice"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic/v7"
@@ -69,4 +70,9 @@ type TES struct {
 	urls   []string
 	logger logs.Logs
 	conn *elastic.Client
+}
+
+type AwsES struct {
+	es 	*elasticsearchservice.ElasticsearchService
+	logger  logs.Logs
 }

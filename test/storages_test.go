@@ -160,3 +160,15 @@ func TestStorageV2(t *testing.T) {
 	t.Log(string(buf))
 }
 
+func TestAwsEs(t *testing.T) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	awsEs, err := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test01-s7ta4jzxuhynn62qxxot22mauy.ap-southeast-1.es.amazonaws.com", logger)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Log(awsEs)
+}
+
