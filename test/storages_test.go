@@ -165,10 +165,34 @@ func TestAwsEs(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	awsEs, err := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test01-s7ta4jzxuhynn62qxxot22mauy.ap-southeast-1.es.amazonaws.com", logger)
+	index := "richard"
+	key := "kelly"
+	object := struct {
+		Id  int64 	`json:"id,omitempty"`
+		Name string `json:"name,omitempty"`
+		Age  int 	`json:"age,omitempty"`
+	}{
+		Id: utils.SnowFlakeId(),
+		Name: utils.RandsString(12),
+		Age: utils.RandsInt(100),
+	}
+	body, err := json.Marshal(object)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	awsEs := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test-4v5zjk23vcg2wbrt6noh3lmxhm.ap-southeast-1.es.amazonaws.com", logger)
 	if err != nil {
 		t.Error(err.Error())
 	}
-	t.Log(awsEs)
+	err = awsEs.CreateStorageV2(index, key, body)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	body, err = awsEs.QueryStorageV2(index, key)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Log(body)
 }
 

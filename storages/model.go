@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/advancevillage/3rd/logs"
-	"github.com/aws/aws-sdk-go/service/elasticsearchservice"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic/v7"
@@ -73,6 +72,10 @@ type TES struct {
 }
 
 type AwsES struct {
-	es 	*elasticsearchservice.ElasticsearchService
+	ak  string
+	sk  string
+	region string
+	domain string
+	service string
 	logger  logs.Logs
 }
