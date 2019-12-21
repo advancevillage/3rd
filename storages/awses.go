@@ -3,118 +3,75 @@ package storages
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
+	"context"
+	"encoding/json"
 	"github.com/advancevillage/3rd/logs"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/aws/aws-sdk-go/service/elasticsearchservice"
+	"github.com/aws/aws-sdk-go/private/protocol/rest"
+	"github.com/olivere/elastic/v7"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
-func NewAwsES(ak string, sk string, region string, domain string, logger logs.Logs) *AwsES {
+func NewAwsES(ak string, sk string, region string, domain string, logger logs.Logs) (*AwsES, error) {
+	var err error
 	es := AwsES{}
 	es.logger = logger
-	es.ak = ak
-	es.sk = sk
-	es.domain = domain
-	es.region = region
-	es.service = "es"
-	return &es
-}
-
-func (s *AwsES) DeleteStorage(index string, key string) error {
-	endpoint := fmt.Sprintf("%s/%s/_doc/%s", s.domain, index, key)
-	//sign v4
-	credential := credentials.NewStaticCredentials(s.ak, s.sk, "")
-	signer := v4.NewSigner(credential)
-	buf := bytes.NewReader(nil)
-	//调用ES API
+	es.credential = credentials.NewStaticCredentials(ak, sk, "")
+	sign :=  &signer{}
+	sign.logger = logger
 	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodDelete, endpoint, buf)
+	sign.v4 = v4.NewSigner(es.credential)
+	sign.service = "es"
+	sign.region = region
+	sign.transport = client.Transport
+	if sign.transport == nil {
+		sign.transport = http.DefaultTransport
+	}
+	client.Transport = sign
+	es.conn, err = elastic.NewClient(elastic.SetURL(domain), elastic.SetScheme("https"), elastic.SetHttpClient(client),elastic.SetSniff(false))
 	if err != nil {
-		s.logger.Error(err.Error())
-		return err
+		es.logger.Error(err.Error())
+		return nil, err
 	}
-	request.Header.Add("Content-Type", "application/json")
-	_, err = signer.Sign(request, buf, s.service, s.region, time.Now())
+	info, code, err := es.conn.Ping(domain).Do(context.Background())
 	if err != nil {
-		s.logger.Error(err.Error())
-		return err
+		es.logger.Error(err.Error())
+		return nil, err
 	}
-	response, err := client.Do(request)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	if response.StatusCode != http.StatusOK {
-		return errors.New(elasticsearchservice.ErrCodeBaseException)
-	}
-	return nil
+	es.logger.Info("info=%v, code=%d", info, code)
+	return &es, nil
 }
 
-func (s *AwsES) CreateStorageV2(index string, key string, body []byte) error {
-	endpoint := fmt.Sprintf("%s/%s/_doc/%s", s.domain, index, key)
-	//sign v4
-	credential := credentials.NewStaticCredentials(s.ak, s.sk, "")
-	signer := v4.NewSigner(credential)
-	buf := bytes.NewReader(body)
-	//调用ES API
-	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodPost, endpoint, buf)
+//实现接口
+func (s *AwsES) CreateStorage(key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
 	if err != nil {
 		s.logger.Error(err.Error())
 		return err
 	}
-	request.Header.Add("Content-Type", "application/json")
-	_, err = signer.Sign(request, buf, s.service, s.region, time.Now())
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	_, err = client.Do(request)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	return nil
+	return s.CreateDocument(ESDefaultIndex, key, object)
 }
 
-func (s *AwsES) UpdateStorageV2(index string, key string, body []byte) error {
-	endpoint := fmt.Sprintf("%s/%s/_doc/%s", s.domain, index, key)
-	//sign v4
-	credential := credentials.NewStaticCredentials(s.ak, s.sk, "")
-	signer := v4.NewSigner(credential)
-	buf := bytes.NewReader(body)
-	//调用ES API
-	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodPut, endpoint, buf)
+func (s *AwsES) UpdateStorage(key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
 	if err != nil {
 		s.logger.Error(err.Error())
 		return err
 	}
-	request.Header.Add("Content-Type", "application/json")
-	_, err = signer.Sign(request, buf, s.service, s.region, time.Now())
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return err
-	}
-	if response.StatusCode != http.StatusOK {
-		return errors.New(elasticsearchservice.ErrCodeBaseException)
-	}
-	return nil
+	return s.CreateDocument(ESDefaultIndex, key, object)
 }
 
-func (s *AwsES) DeleteStorageV2(index string, key ...string) error {
+func (s *AwsES) DeleteStorage(key ...string) error {
 	for i := range key {
-		err := s.DeleteStorage(index, key[i])
+		err := s.DeleteDocument(ESDefaultIndex, key[i])
 		if err != nil {
 			s.logger.Error(err.Error())
 		} else {
@@ -124,41 +81,141 @@ func (s *AwsES) DeleteStorageV2(index string, key ...string) error {
 	return nil
 }
 
-func (s *AwsES) QueryStorageV2(index string, key  string) ([]byte, error) {
-	endpoint := fmt.Sprintf("%s/%s/_doc/%s", s.domain, index, key)
-	//sign v4
-	credential := credentials.NewStaticCredentials(s.ak, s.sk, "")
-	signer := v4.NewSigner(credential)
-	buf := bytes.NewReader(nil)
-	//调用ES API
-	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodGet, endpoint, buf)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, err
-	}
-	request.Header.Add("Content-Type", "application/json")
-	_, err = signer.Sign(request, buf, s.service, s.region, time.Now())
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, err
-	}
-	response, err := client.Do(request)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, err
-	}
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		s.logger.Error(err.Error())
-		return nil, err
-	}
-	return body, nil
+func (s *AwsES) QueryStorage(key string) ([]byte, error) {
+	return s.QueryDocument(ESDefaultIndex, key)
 }
 
+func (s *AwsES) CreateStorageV2(index string, key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	return s.CreateDocument(index, key, object)
+}
 
+func (s *AwsES) DeleteStorageV2(index string, key ...string) error {
+	for i := range key {
+		err := s.DeleteDocument(index, key[i])
+		if err != nil {
+			s.logger.Error(err.Error())
+		} else {
+			continue
+		}
+	}
+	return nil
+}
 
+func (s *AwsES) UpdateStorageV2(index string, key string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	return s.CreateDocument(index, key, object)
+}
 
+func (s *AwsES) QueryStorageV2(index string, key  string) ([]byte, error) {
+	return s.QueryDocument(index, key)
+}
+
+func (s *AwsES) CreateDocument(index string, id string, body interface{}) error {
+	_, err := s.conn.Index().Index(index).Id(id).BodyJson(body).Do(context.Background())
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *AwsES) DeleteDocument(index string, id string) error {
+	_, err := s.conn.Delete().Index(index).Id(id).Do(context.Background())
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *AwsES) UpdateDocument(index string, id string, fields map[string]interface{}) error {
+	_, err := s.conn.Update().Index(index).Id(id).Doc(fields).Do(context.Background())
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *AwsES) QueryDocument(index string, id string) ([]byte, error) {
+	ret , err := s.conn.Get().Index(index).Id(id).Do(context.Background())
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, err
+	}
+	buf, err := json.Marshal(ret.Source)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return nil, err
+	}
+	return buf, nil
+}
+
+//@link: https://github.com/sha1sum/aws_signing_client/blob/master/client.go
+type signer struct {
+	transport http.RoundTripper
+	v4        *v4.Signer
+	service   string
+	region    string
+	logger 	  logs.Logs
+}
+
+func (s *signer) RoundTrip(request *http.Request) (*http.Response, error) {
+	if h, ok := request.Header["Authorization"]; ok && len(h) > 0 && strings.HasPrefix(h[0], "AWS4") {
+		return s.transport.RoundTrip(request)
+	}
+	request.URL.Scheme = "https"
+	if strings.Contains(request.URL.RawPath, "%2C") {
+		request.URL.RawPath = rest.EscapePath(request.URL.RawPath, false)
+	}
+	t := time.Now()
+	request.Header.Set("Date", t.Format(time.RFC3339))
+	var err error
+	switch request.Body {
+	case nil:
+		_, err = s.v4.Sign(request, nil, s.service, s.region, t)
+	default:
+		d, err := ioutil.ReadAll(request.Body)
+		if err != nil {
+			return nil, err
+		}
+		request.Body = ioutil.NopCloser(bytes.NewReader(d))
+		_, err = s.v4.Sign(request, bytes.NewReader(d), s.service, s.region, t)
+	}
+	if err != nil {
+		return nil, err
+	}
+	response, err := s.transport.RoundTrip(request)
+	if err != nil {
+		return response, err
+	}
+	body := "<nil>"
+	if response.Body != nil {
+		defer func () { _ = response.Body.Close() }()
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(response.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = buf.String()
+		response.Body = ioutil.NopCloser(bytes.NewReader(buf.Bytes()))
+	}
+	s.logger.Info("Successful response from RoundTripper: %+v\n\nBody: %s\n", response, body)
+	return response, nil
+}
 
 
 

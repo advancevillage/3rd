@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/advancevillage/3rd/logs"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic/v7"
@@ -72,10 +73,7 @@ type TES struct {
 }
 
 type AwsES struct {
-	ak  string
-	sk  string
-	region string
-	domain string
-	service string
+	credential *credentials.Credentials
+	conn *elastic.Client
 	logger  logs.Logs
 }

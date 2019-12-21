@@ -181,7 +181,7 @@ func TestAwsEs(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	awsEs := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test-4v5zjk23vcg2wbrt6noh3lmxhm.ap-southeast-1.es.amazonaws.com", logger)
+	awsEs, err := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test-4v5zjk23vcg2wbrt6noh3lmxhm.ap-southeast-1.es.amazonaws.com", logger)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -189,10 +189,40 @@ func TestAwsEs(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	body, err = awsEs.QueryStorageV2(index, key)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	t.Log(body)
 }
+
+//goos: darwin
+//goarch: amd64
+//pkg: github.com/advancevillage/3rd/test
+//BenchmarkAwsEs-8   	       1	1347722079 ns/op
+//PASS
+func BenchmarkAwsEs(b *testing.B) {
+	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
+	if err != nil {
+		b.Error(err.Error())
+	}
+	object := struct {
+		Id  int64 	`json:"id,omitempty"`
+		Name string `json:"name,omitempty"`
+		Age  int 	`json:"age,omitempty"`
+	}{}
+	awsEs, err := storages.NewAwsES("AKIA5MGTVEAKFPBRN2FF", "RoIqxVnIxQkfb9Xdsncj45MfZH6bnYBc8+KxiE14", "ap-southeast-1", "https://search-test-4v5zjk23vcg2wbrt6noh3lmxhm.ap-southeast-1.es.amazonaws.com", logger)
+	for i := 0; i < b.N; i++ {
+		index := "richard"
+		key := utils.RandsString(10)
+		object.Id = utils.SnowFlakeId()
+		object.Name = utils.RandsString(10)
+		object.Age = utils.RandsInt(100)
+		body, err := json.Marshal(object)
+		if err != nil {
+			b.Error(err.Error())
+			continue
+		}
+		err = awsEs.CreateStorageV2(index, key, body)
+		if err != nil {
+			b.Error(err.Error())
+		}
+	}
+}
+
 
