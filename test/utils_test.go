@@ -2,8 +2,10 @@
 package test
 
 import (
+	"fmt"
 	"github.com/advancevillage/3rd/times"
 	"github.com/advancevillage/3rd/utils"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -119,6 +121,14 @@ func TestAesEncryptAndDecrypt(t *testing.T) {
 		t.Error(err.Error())
 	}
 	t.Log(plaintext)
+}
+
+func TestReflect(t *testing.T) {
+	var key = make([]string, 2, 5)
+	key[0] = "11"
+	key[1] = "22"
+	tt := reflect.TypeOf(key)
+	t.Log(tt,fmt.Sprintf("%#v", key))
 }
 
 func BenchmarkAesEncryptAndDecrypt(b *testing.B) {

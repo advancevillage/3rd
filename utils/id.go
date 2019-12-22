@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -103,4 +104,8 @@ func SnowFlakeId() int64 {
 	}
 	id := (now - sub) << timeShift | sf.workerId << workerShift | sf.number
 	return id
+}
+
+func SnowFlakeIdString() string {
+	return strconv.FormatInt(SnowFlakeId(), 10)
 }

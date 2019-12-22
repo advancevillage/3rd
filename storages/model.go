@@ -10,6 +10,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/olivere/elastic/v7"
 	"github.com/syndtr/goleveldb/leveldb"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
@@ -76,4 +77,11 @@ type AwsES struct {
 	credential *credentials.Credentials
 	conn *elastic.Client
 	logger  logs.Logs
+}
+
+type MongoDB struct {
+	host string
+	port int
+	conn *mongo.Client
+	logger logs.Logs
 }
