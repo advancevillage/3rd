@@ -15,18 +15,22 @@ import (
 )
 
 const (
+	poolSize = 30
 	MongoDBTimeout = 20 // 's
 	identification = "_3rd_internal_id_"
 )
 
-func NewMongoDB(host string, port int, logger logs.Logs) (*MongoDB, error) {
+func NewMongoDB(username string, password string, host string, port int, logger logs.Logs) (*MongoDB, error) {
 	var err error
 	mgo := MongoDB{}
 	mgo.logger = logger
 	mgo.host = host
 	mgo.port = port
-	mgo.conn, err = mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%d", mgo.host, mgo.port)))
-	ctx, _ := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	mgo.username = username
+	mgo.password = password
+	mgo.conn, err = mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%s@%s:%d", mgo.username, mgo.password, mgo.host, mgo.port)).SetMaxPoolSize(poolSize))
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
 	if err != nil {
 		mgo.logger.Error(err.Error())
 		return nil, err
@@ -112,7 +116,8 @@ func (s *MongoDB) CreateDocument(database string, collect string, body interface
 		return err
 	}
 	collection := s.conn.Database(database).Collection(collect)
-	ctx, _ := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
 	_, err = collection.InsertOne(ctx, buf)
 	if err != nil {
 		s.logger.Error(err.Error())
@@ -132,7 +137,8 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 		d = append(d, e)
 	}
 	collection := s.conn.Database(database).Collection(collect)
-	ctx, _ := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
 	err := collection.FindOne(ctx, d).Decode(&o)
 	if err != nil {
 		return nil, err
@@ -165,7 +171,8 @@ func (s *MongoDB) UpdateDocument(database string, collect string, where map[stri
 		{"$set", ds},
 	}
 	collection := s.conn.Database(database).Collection(collect)
-	ctx, _ := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
 	_, err := collection.UpdateOne(ctx, d, update)
 	if err != nil {
 		return err
@@ -183,7 +190,8 @@ func (s *MongoDB) DeleteDocument(database string, collect string, where map[stri
 		d = append(d, e)
 	}
 	collection := s.conn.Database(database).Collection(collect)
-	ctx, _ := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
 	_, err := collection.DeleteMany(ctx, d)
 	if err != nil {
 		return err

@@ -196,7 +196,7 @@ func TestMongoDB(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	mgo, err := storages.NewMongoDB("localhost", 27017, logger)
+	mgo, err := storages.NewMongoDB("admin", "password", "localhost", 27017, logger)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -239,7 +239,7 @@ func TestMongoDBStorageInterface(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	mgo, err := storages.NewMongoDB("localhost", 27017, logger)
+	mgo, err := storages.NewMongoDB("admin", "password", "localhost", 27017, logger)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -331,7 +331,7 @@ func BenchmarkMongo(b *testing.B) {
 		Name string `json:"name,omitempty"`
 		Age  int 	`json:"age,omitempty"`
 	}{}
-	mgo, err := storages.NewMongoDB("localhost", 27017, logger)
+	mgo, err := storages.NewMongoDB("admin", "password", "localhost", 27017, logger)
 	if err != nil {
 		b.Error(err.Error())
 	}
@@ -362,7 +362,7 @@ func BenchmarkMongoDBStorageInterface_CreateV2(b *testing.B) {
 		Name string `json:"name,omitempty"`
 		Age  int 	`json:"age,omitempty"`
 	}{}
-	mgo, err := storages.NewMongoDB("localhost", 27017, logger)
+	mgo, err := storages.NewMongoDB("admin", "password", "localhost", 27017, logger)
 	if err != nil {
 		b.Error(err.Error())
 	}
@@ -393,7 +393,7 @@ func BenchmarkMongoDBStorageInterface_QueryV2(b *testing.B) {
 	if err != nil {
 		b.Error(err.Error())
 	}
-	mgo, err := storages.NewMongoDB("localhost", 27017, logger)
+	mgo, err := storages.NewMongoDB("admin", "password", "localhost", 27017, logger)
 	if err != nil {
 		b.Error(err.Error())
 	}

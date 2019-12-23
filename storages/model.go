@@ -82,6 +82,8 @@ type AwsES struct {
 type MongoDB struct {
 	host string
 	port int
+	username string
+	password string
 	conn *mongo.Client
 	logger logs.Logs
 }
