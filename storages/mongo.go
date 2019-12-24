@@ -4,7 +4,6 @@ package storages
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/advancevillage/3rd/logs"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,15 +19,12 @@ const (
 	identification = "_3rd_internal_id_"
 )
 
-func NewMongoDB(username string, password string, host string, port int, logger logs.Logs) (*MongoDB, error) {
+func NewMongoDB(url string, logger logs.Logs) (*MongoDB, error) {
 	var err error
 	mgo := MongoDB{}
 	mgo.logger = logger
-	mgo.host = host
-	mgo.port = port
-	mgo.username = username
-	mgo.password = password
-	mgo.conn, err = mongo.NewClient(options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%s@%s:%d", mgo.username, mgo.password, mgo.host, mgo.port)).SetMaxPoolSize(poolSize))
+	mgo.url = url
+	mgo.conn, err = mongo.NewClient(options.Client().ApplyURI(mgo.url).SetMaxPoolSize(poolSize))
 	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
 	defer cancel()
 	if err != nil {
