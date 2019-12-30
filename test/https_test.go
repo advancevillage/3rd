@@ -69,3 +69,19 @@ func TestServer_AwsLambda(t *testing.T) {
 		log.Println(err.Error())
 	}
 }
+
+func TestClient(t *testing.T) {
+	client := https.NewRequest(nil, 60, 2)
+	uploadFile := "111/test.pdf"
+	extraParams := map[string]string{
+		"title":       "My Document",
+		"author":      "richard",
+		"description": "A document with all the Go programming language secrets",
+	}
+	body, err := client.Upload("https://google.com/upload", nil, extraParams, uploadFile)
+	if err != nil {
+		t.Error(err.Error())
+	} else {
+		t.Log(string(body))
+	}
+}

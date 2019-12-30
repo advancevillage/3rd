@@ -3,9 +3,13 @@ package https
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -142,4 +146,64 @@ func (r *Client) PostForm(uri string,  params map[string]string, headers map[str
 		return nil, err
 	}
 	return body, nil
+}
+
+//@link: https://matt.aimonetti.net/posts/2013-07-golang-multipart-file-upload-example/
+func (r *Client) Upload(uri string, headers map[string]string, extraParams map[string]string, uploadFile string) ([]byte, error) {
+	client := &http.Client{Timeout: time.Second * time.Duration(r.timeout)}
+	file, err := os.Open(uploadFile)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", filepath.Base(uploadFile))
+	if err != nil {
+		return nil, err
+	}
+	_, err = io.Copy(part, file)
+	for key, val := range extraParams {
+		_ = writer.WriteField(key, val)
+	}
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequest(http.MethodPost, uri, body)
+	if err != nil {
+		return nil, err
+	}
+	//请求头
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	for k,v := range headers {
+		request.Header.Add(k,v)
+	}
+	for k,v := range r.headers {
+		if _, ok := headers[k]; ok {
+			continue
+		} else {
+			request.Header.Add(k,v)
+		}
+	}
+	var response *http.Response
+	for i := uint(0); i < r.retryCount; i++ {
+		response, err = client.Do(request)
+		if err != nil {
+			continue
+		} else {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	body = &bytes.Buffer{}
+	_, err = body.ReadFrom(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body.Bytes(), nil
 }

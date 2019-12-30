@@ -58,3 +58,10 @@ func TestBase_01 (t *testing.T) {
 	}
 }
 
+func TestZipFile_CreateFileFromFile(t *testing.T) {
+	zip := files.ZipFile{}
+	err := zip.CreateFileFromFile("111/111.mp4", "/Users/sun/Pictures/视频素材/test.mp4")
+	if err != nil {
+		t.Error(err.Error())
+	}
+}
