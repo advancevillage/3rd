@@ -104,7 +104,7 @@ func (r *Client) POST(uri string, headers map[string]string, buf []byte) ([]byte
 	return body, nil
 }
 
-func (r *Client) PostForm(uri string,  params map[string]string, headers map[string]string) ([]byte, error) {
+func (r *Client) PostForm(uri string, params map[string]string, headers map[string]string) ([]byte, error) {
 	client := &http.Client{Timeout: time.Second * time.Duration(r.timeout)}
 	form := url.Values{}
 	for k, v := range params {
@@ -149,7 +149,7 @@ func (r *Client) PostForm(uri string,  params map[string]string, headers map[str
 }
 
 //@link: https://matt.aimonetti.net/posts/2013-07-golang-multipart-file-upload-example/
-func (r *Client) Upload(uri string, headers map[string]string, extraParams map[string]string, uploadFile string) ([]byte, error) {
+func (r *Client) Upload(uri string, params map[string]string, headers map[string]string, uploadFile string) ([]byte, error) {
 	client := &http.Client{Timeout: time.Second * time.Duration(r.timeout)}
 	file, err := os.Open(uploadFile)
 	if err != nil {
@@ -164,7 +164,10 @@ func (r *Client) Upload(uri string, headers map[string]string, extraParams map[s
 		return nil, err
 	}
 	_, err = io.Copy(part, file)
-	for key, val := range extraParams {
+	if err != nil {
+		return nil, err
+	}
+	for key, val := range params {
 		_ = writer.WriteField(key, val)
 	}
 	err = writer.Close()
@@ -175,8 +178,6 @@ func (r *Client) Upload(uri string, headers map[string]string, extraParams map[s
 	if err != nil {
 		return nil, err
 	}
-	//请求头
-	request.Header.Set("Content-Type", writer.FormDataContentType())
 	for k,v := range headers {
 		request.Header.Add(k,v)
 	}
@@ -187,6 +188,8 @@ func (r *Client) Upload(uri string, headers map[string]string, extraParams map[s
 			request.Header.Add(k,v)
 		}
 	}
+	//请求头
+	request.Header.Set("Content-Type", writer.FormDataContentType())
 	var response *http.Response
 	for i := uint(0); i < r.retryCount; i++ {
 		response, err = client.Do(request)
@@ -200,10 +203,9 @@ func (r *Client) Upload(uri string, headers map[string]string, extraParams map[s
 		return nil, err
 	}
 	defer func() { _ = response.Body.Close() }()
-	body = &bytes.Buffer{}
-	_, err = body.ReadFrom(response.Body)
+	buf, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
-	return body.Bytes(), nil
+	return buf, nil
 }

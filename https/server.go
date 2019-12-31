@@ -4,9 +4,12 @@ package https
 import (
 	"encoding/base64"
 	"fmt"
+	"github.com/advancevillage/3rd/files"
 	"github.com/advancevillage/3rd/utils"
 	"github.com/gin-gonic/gin"
+	"io"
 	"io/ioutil"
+	"os"
 )
 
 func NewServer(host string, port int, router []Router) *Server {
@@ -55,19 +58,19 @@ func (c *Context) Param(q string) string {
 	return value
 }
 
-//@brief: application/json
-//@param: code 状态码
-//@param: body
-func (c *Context) JsonResponse(code int, body interface{}) {
-	c.ctx.JSON(code, body)
-}
-
 func (c *Context) Body() ([]byte, error) {
 	buf, err := ioutil.ReadAll(c.ctx.Request.Body)
 	if err != nil {
 		return nil, err
 	}
 	return buf, nil
+}
+
+//@brief: application/json
+//@param: code 状态码
+//@param: body
+func (c *Context) JsonResponse(code int, body interface{}) {
+	c.ctx.JSON(code, body)
 }
 
 func (c *Context) WriteCookie(name string, value string, path string, domain string) error {
@@ -92,4 +95,32 @@ func (c *Context) ReadCookie(name string) (string, error) {
 	}
 	plainText, err := utils.DecryptUseAes(cipherText)
 	return string(plainText), err
+}
+
+//@brief: 保存上传的文件 multipart/form-data
+//@param:
+func (c *Context) Save(filename string) error {
+	_, fh, err := c.ctx.Request.FormFile("file")
+	if err != nil {
+		return err
+	}
+	in, err := fh.Open()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+	err = files.CreatePath(filename)
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = out.Close() }()
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return nil
 }
