@@ -234,6 +234,26 @@ func TestMongoDB(t *testing.T) {
 	}
 }
 
+func TestMongoDB_QueryV3(t *testing.T) {
+	logger := logs.NewStdLogger()
+	mgo, err := storages.NewMongoDB("mongodb://admin:password@localhost:27017", logger)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	index := "categories"
+	where := make(map[string]interface{})
+	where["categoryName"] = "test"
+	body, err := mgo.QueryStorageV3(index, where)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	for i := range body {
+		t.Log(string(body[i]))
+	}
+}
+
 func TestMongoDBStorageInterface(t *testing.T) {
 	logger, err := logs.NewTxtLogger("mongo.log", 512, 4)
 	if err != nil {

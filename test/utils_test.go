@@ -144,3 +144,4 @@ func BenchmarkAesEncryptAndDecrypt(b *testing.B) {
 		}
 	}
 }
+
