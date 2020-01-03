@@ -7,6 +7,7 @@ import (
 
 const (
 	Layout = "2006-01-02 15:04:05"
+	YYYYMMddHHmmss = "20060102150405"
 )
 
 func Timestamp() int64 {

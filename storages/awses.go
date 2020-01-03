@@ -123,6 +123,11 @@ func (s *AwsES) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return s.QueryDocument(index, key)
 }
 
+//TODO
+func (s *AwsES) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
+	return nil, nil
+}
+
 func (s *AwsES) CreateDocument(index string, id string, body interface{}) error {
 	_, err := s.conn.Index().Index(index).Id(id).BodyJson(body).Do(context.Background())
 	if err != nil {

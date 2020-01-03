@@ -65,6 +65,10 @@ func (r *Redis) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return r.HashGet(index, key)
 }
 
+func (r *Redis) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
+	return nil, nil
+}
+
 //@link: http://redisdoc.com/string/setex.html
 //SET key value EX XX|NX
 func (r *Redis) StrSet(key string, value []byte, timeout int) error {

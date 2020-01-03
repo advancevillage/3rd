@@ -112,6 +112,11 @@ func (tes *TES) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return tes.QueryDocument(index, key)
 }
 
+//TODO
+func (tes *TES) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
+	return nil, nil
+}
+
 //创建一个文档,如果文档不存在则创建。如果存在则更新值
 func (tes *TES) CreateDocument(index string, id string, body interface{}) error {
 	_, err := tes.conn.Index().Index(index).Id(id).BodyJson(body).Do(context.Background())

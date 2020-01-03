@@ -15,7 +15,7 @@ import (
 
 const (
 	poolSize = 30
-	MongoDBTimeout = 20 // 's
+	MongoDBTimeout = 30 // 's
 	identification = "_3rd_internal_id_"
 )
 
@@ -105,6 +105,10 @@ func (s *MongoDB) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return s.QueryDocument(index, index, where)
 }
 
+func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
+	return s.QueryDocuments(index, index, where)
+}
+
 func (s *MongoDB) CreateDocument(database string, collect string, body interface{}) error {
 	buf, err := bson.Marshal(body)
 	if err != nil {
@@ -127,7 +131,7 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 	var d  bson.D
 	for k :=range where {
 		e := bson.E{
-			Key: strings.ToLower(k),
+			Key: k,
 			Value: where[k],
 		}
 		d = append(d, e)
@@ -142,6 +146,40 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 	body, err := json.Marshal(o)
 	if err != nil {
 		return nil, err
+	}
+	return body, nil
+}
+
+func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}) ([][]byte, error) {
+	var d  bson.D
+	for k :=range where {
+		e := bson.E{
+			Key: k,
+			Value: where[k],
+		}
+		d = append(d, e)
+	}
+	collection := s.conn.Database(database).Collection(collect)
+	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
+	defer cancel()
+	cursor, err := collection.Find(ctx, d)
+	if err != nil {
+		return nil, err
+	}
+	var body = make([][]byte, 0)
+	for cursor.Next(ctx) {
+		o  := make(map[string]interface{})
+		err = cursor.Decode(&o)
+		if err != nil {
+			s.logger.Error(err.Error())
+			continue
+		}
+		buf, err := json.Marshal(o)
+		if err != nil {
+			s.logger.Error(err.Error())
+			continue
+		}
+		body = append(body, buf)
 	}
 	return body, nil
 }

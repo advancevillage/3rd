@@ -43,6 +43,8 @@ type Storage interface {
 	DeleteStorageV2(index string, key ...string) error
 	UpdateStorageV2(index string, key string, body []byte) error
 	QueryStorageV2(index string, key  string) ([]byte, error)
+	//v3
+	QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error)
 }
 
 type Mysql struct {

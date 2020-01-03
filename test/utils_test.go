@@ -12,8 +12,12 @@ import (
 )
 
 func TestRandsString(t *testing.T) {
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 5; i++ {
 		str := utils.RandsString(50)
+		t.Log(str)
+	}
+	for i := 0; i < 5; i++ {
+		str := utils.RandsNumberString(50)
 		t.Log(str)
 	}
 }
@@ -106,6 +110,7 @@ func TestTimeFormat(t *testing.T) {
 	t.Log(times.TimeFormatString(time.ANSIC))
 	t.Log(times.TimeFormatString(time.RFC1123Z))
 	t.Log(times.TimeFormatString(time.RFC1123))
+	t.Log(times.TimeFormatString(times.YYYYMMddHHmmss))
 }
 
 func TestAesEncryptAndDecrypt(t *testing.T) {
