@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func NewRedisCache(host string, port int, auth string, schema int, logger logs.Logs, storage storages.Storage) (*Cache, error) {
+func NewRedisCache(host string, port int, auth string, schema int, logger logs.Logs, storage storages.Storage) (ICache, error) {
 	c := &Cache{}
 	c.logger = logger
 	c.storage = storage

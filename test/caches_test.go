@@ -89,7 +89,7 @@ func TestRedisStorage (t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	cache, err := caches.NewRedisStroage("192.168.1.101", 6379, "", 0, logger)
+	cache, err := caches.NewRedisStorage("192.168.1.101", 6379, "", 0, logger)
 	if err != nil {
 		t.Error(err.Error())
 		return

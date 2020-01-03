@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func NewRedisStroage(host string, port int, auth string, schema int, logger logs.Logs) (*Storage, error) {
+func NewRedisStorage(host string, port int, auth string, schema int, logger logs.Logs) (ICache, error) {
 	c := &Storage{}
 	c.logger = logger
 	c.conn = redis.NewClient(&redis.Options{
