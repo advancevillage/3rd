@@ -12,22 +12,34 @@ import (
 	"os"
 )
 
-func NewServer(host string, port int, router []Router) *Server {
+func NewServer(host string, port int, router []Router, middleware ...Handler) *Server {
 	s := Server{}
 	s.host = host
 	s.port = port
 	s.router = router
+	s.middleware = middleware
+	//setting release mode
+	gin.SetMode(gin.ReleaseMode)
 	s.engine = gin.New()
 	return &s
 }
 
 func (s *Server) StartServer() error {
-	//setting release mode
-	gin.SetMode(gin.ReleaseMode)
 	//init router
 	for i := 0; i < len(s.router); i++ {
 		s.handle(s.router[i].Method, s.router[i].Path, s.router[i].Func)
 	}
+	//init middleware
+	handlers := make([]gin.HandlerFunc, 0, len(s.middleware))
+	for i := range s.middleware {
+		handler := func(ctx *gin.Context) {
+			c := Context{ctx:ctx}
+			s.middleware[i](&c)
+		}
+		handlers = append(handlers, handler)
+	}
+	s.engine.Use(handlers[:] ...)
+	//run
 	err := s.engine.Run(fmt.Sprintf("%s:%d", s.host, s.port))
 	if err != nil {
 		return err

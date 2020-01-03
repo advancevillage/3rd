@@ -16,7 +16,7 @@ const (
 	CacheSeparator = "-"
 )
 
-type Cache interface {
+type ICache interface {
 	DeleteCache(key ...string) error
 	QueryCache(key  string, timeout int) ([]byte, error)
 	UpdateCache(key string, body []byte, timeout int) error
@@ -28,12 +28,13 @@ type Cache interface {
 	DeleteCacheV2(index string, key ...string) error
 }
 
-type Redis struct {
-	host   string
-	port   int
-	auth   string
-	schema int
+type Cache struct {
 	conn     *redis.Client
 	logger   logs.Logs
 	storage  storages.Storage
+}
+
+type Storage struct {
+	conn     *redis.Client
+	logger   logs.Logs
 }

@@ -9,18 +9,13 @@ import (
 	"time"
 )
 
-func NewRedis(host string, port int, auth string, schema int, logger logs.Logs, storage storages.Storage) (*Redis, error) {
-	c := &Redis{}
-	c.host = host
-	c.port = port
-	c.schema = schema
-	c.auth = auth
+func NewRedisStroage(host string, port int, auth string, schema int, logger logs.Logs) (*Storage, error) {
+	c := &Storage{}
 	c.logger = logger
-	c.storage = storage
 	c.conn = redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%d", c.host, c.port),
-		Password: c.auth,
-		DB:  c.schema,
+		Addr: fmt.Sprintf("%s:%d", host, port),
+		Password: auth,
+		DB:  schema,
 	})
 	_, err := c.conn.Ping().Result()
 	if err != nil {
@@ -30,7 +25,7 @@ func NewRedis(host string, port int, auth string, schema int, logger logs.Logs, 
 	return c, nil
 }
 
-func (c *Redis) CreateCache(key string, body []byte, timeout int) error {
+func (c *Storage) CreateCache(key string, body []byte, timeout int) error {
 	err := c.conn.SetNX(key, body, time.Duration(timeout) * time.Second).Err()
 	if err != nil {
 		c.logger.Error(err.Error())
@@ -39,7 +34,7 @@ func (c *Redis) CreateCache(key string, body []byte, timeout int) error {
 	return nil
 }
 
-func (c *Redis) UpdateCache(key string, body []byte, timeout int) error {
+func (c *Storage) UpdateCache(key string, body []byte, timeout int) error {
 	err := c.conn.SetXX(key, body, time.Duration(timeout) * time.Second).Err()
 	if err != nil {
 		c.logger.Error(err.Error())
@@ -48,23 +43,16 @@ func (c *Redis) UpdateCache(key string, body []byte, timeout int) error {
 	return nil
 }
 
-func (c *Redis) QueryCache(key  string, timeout int) ([]byte, error) {
+func (c *Storage) QueryCache(key  string, timeout int) ([]byte, error) {
 	ret := c.conn.Get(key)
 	buf, err := ret.Bytes()
 	if err != nil {
-		//缓存层不存在,查询存储层
-		value, err := c.storage.QueryStorage(key)
-		if err != nil {
-			return nil, storages.ErrorKeyNotExist
-		}
-		//更新缓存层
-		go func () { _ = c.CreateCache(key, value, timeout)}()
-		return value, nil
+		return nil, storages.ErrorKeyNotExist
 	}
 	return buf, nil
 }
 
-func (c *Redis) DeleteCache(key ...string) error {
+func (c *Storage) DeleteCache(key ...string) error {
 	err := c.conn.Del(key...).Err()
 	if err != nil {
 		c.logger.Error(err.Error())
@@ -73,27 +61,27 @@ func (c *Redis) DeleteCache(key ...string) error {
 	return nil
 }
 
-func (c *Redis) CreateCacheV2(index string, key string, body []byte) error {
+func (c *Storage) CreateCacheV2(index string, key string, body []byte) error {
 	var fields = make(map[string][]byte)
 	fields[key] = body
 	return c.HashSet(index, fields)
 }
 
-func (c *Redis) UpdateCacheV2(index string, key string, body []byte) error {
+func (c *Storage) UpdateCacheV2(index string, key string, body []byte) error {
 	var fields = make(map[string][]byte)
 	fields[key] = body
 	return c.HashSet(index, fields)
 }
 
-func (c *Redis) QueryCacheV2(index string, key  string) ([]byte, error) {
+func (c *Storage) QueryCacheV2(index string, key  string) ([]byte, error) {
 	return c.HashGet(index, key)
 }
 
-func (c *Redis) DeleteCacheV2(index string, key ...string) error {
+func (c *Storage) DeleteCacheV2(index string, key ...string) error {
 	return c.HashDelete(index, key ...)
 }
 
-func (c *Redis) HashSet(key string, fields map[string][]byte) error {
+func (c *Storage) HashSet(key string, fields map[string][]byte) error {
 	in := make(map[string]interface{})
 	for k, v :=range fields {
 		in[k] = v
@@ -109,22 +97,16 @@ func (c *Redis) HashSet(key string, fields map[string][]byte) error {
 	return nil
 }
 
-func (c *Redis) HashGet(key string, field string) ([]byte, error) {
+func (c *Storage) HashGet(key string, field string) ([]byte, error) {
 	ret := c.conn.HGet(key, field)
 	buf, err := ret.Bytes()
 	if err != nil {
-		c.logger.Error(err.Error())
-		body, err := c.storage.QueryStorageV2(key, field)
-		if err != nil {
-			return nil, ErrorKeyNotExist
-		}
-		_ = c.storage.CreateStorageV2(key, field, body)
-		return body, nil
+		return nil, ErrorKeyNotExist
 	}
 	return buf, nil
 }
 
-func (c *Redis) HashDelete(key string, fields ...string) error {
+func (c *Storage) HashDelete(key string, fields ...string) error {
 	err := c.conn.HDel(key, fields...).Err()
 	if err != nil {
 		c.logger.Error(err.Error())

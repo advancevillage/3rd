@@ -28,10 +28,11 @@ var lambdaError = events.APIGatewayProxyResponse{
 	IsBase64Encoded: false,
 }
 
-func NewAwsApiGatewayLambdaServer(router []Router) *AwsApiGatewayLambdaServer {
+func NewAwsApiGatewayLambdaServer(router []Router, middleware ...Handler) *AwsApiGatewayLambdaServer {
 	s := AwsApiGatewayLambdaServer{}
 	s.logger = logs.NewStdLogger()
 	s.router = router
+	s.middleware = middleware
 	s.engine = gin.New()
 	return &s
 }
@@ -43,6 +44,17 @@ func (s *AwsApiGatewayLambdaServer) StartServer() error {
 	for i := 0; i < len(s.router); i++ {
 		s.handle(s.router[i].Method, s.router[i].Path, s.router[i].Func)
 	}
+	//init middleware
+	handlers := make([]gin.HandlerFunc, 0, len(s.middleware))
+	for i := range s.middleware {
+		handler := func(ctx *gin.Context) {
+			c := Context{ctx:ctx}
+			s.middleware[i](&c)
+		}
+		handlers = append(handlers, handler)
+	}
+	s.engine.Use(handlers[:] ...)
+	//run
 	lambda.Start(s.lambdaHandler)
 	return nil
 }

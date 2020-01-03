@@ -28,6 +28,7 @@ type Server struct {
 	host string
 	port int
 	router []Router
+	middleware []Handler
 	engine *gin.Engine
 }
 
@@ -35,4 +36,5 @@ type AwsApiGatewayLambdaServer struct {
 	engine *gin.Engine
 	logger logs.Logs
 	router []Router
+	middleware []Handler
 }
