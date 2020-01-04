@@ -44,7 +44,7 @@ type Storage interface {
 	UpdateStorageV2(index string, key string, body []byte) error
 	QueryStorageV2(index string, key  string) ([]byte, error)
 	//v3
-	QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error)
+	QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error)
 }
 
 type Mysql struct {

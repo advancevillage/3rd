@@ -124,7 +124,7 @@ func (s *AwsES) QueryStorageV2(index string, key  string) ([]byte, error) {
 }
 
 //TODO
-func (s *AwsES) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
+func (s *AwsES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
 	return nil, nil
 }
 

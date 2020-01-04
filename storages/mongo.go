@@ -105,8 +105,8 @@ func (s *MongoDB) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return s.QueryDocument(index, index, where)
 }
 
-func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}) ([][]byte, error) {
-	return s.QueryDocuments(index, index, where)
+func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
+	return s.QueryDocuments(index, index, where, int64(limit), int64(offset))
 }
 
 func (s *MongoDB) CreateDocument(database string, collect string, body interface{}) error {
@@ -150,7 +150,7 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 	return body, nil
 }
 
-func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}) ([][]byte, error) {
+func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}, limit int64, offset int64) ([][]byte, error) {
 	var d  bson.D
 	for k :=range where {
 		e := bson.E{
@@ -159,10 +159,13 @@ func (s *MongoDB) QueryDocuments(database string, collect string,  where map[str
 		}
 		d = append(d, e)
 	}
+	option := options.Find()
+	option.SetLimit(limit)
+	option.SetSkip(offset)
 	collection := s.conn.Database(database).Collection(collect)
 	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
 	defer cancel()
-	cursor, err := collection.Find(ctx, d)
+	cursor, err := collection.Find(ctx, d, option)
 	if err != nil {
 		return nil, err
 	}
