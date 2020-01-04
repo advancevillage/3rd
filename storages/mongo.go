@@ -191,7 +191,7 @@ func (s *MongoDB) UpdateDocument(database string, collect string, where map[stri
 	var d  bson.D
 	for k :=range where {
 		e := bson.E{
-			Key: strings.ToLower(k),
+			Key: k,
 			Value: where[k],
 		}
 		d = append(d, e)
@@ -199,7 +199,7 @@ func (s *MongoDB) UpdateDocument(database string, collect string, where map[stri
 	var ds  bson.D
 	for k :=range set {
 		e := bson.E{
-			Key: strings.ToLower(k),
+			Key: k,
 			Value: set[k],
 		}
 		ds = append(ds, e)
