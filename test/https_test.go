@@ -35,9 +35,11 @@ func TestServer_StartServer(t *testing.T) {
 	}
 
 	p := func(ctx *https.Context) {
-		log.Println("start")
+		headers := map[string]string {
+			"Access-Control-Allow-Origin": "*",
+		}
+		ctx.Header(headers)
 		ctx.Next()
-		log.Println("end")
 	}
 	server := https.NewServer("0.0.0.0", 13148, routers, p)
 	err := server.StartServer()
