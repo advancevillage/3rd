@@ -25,20 +25,12 @@ func NewServer(host string, port int, router []Router, middleware ...Handler) *S
 }
 
 func (s *Server) StartServer() error {
+	//init middleware
+	s.plugin(s.middleware)
 	//init router
 	for i := 0; i < len(s.router); i++ {
 		s.handle(s.router[i].Method, s.router[i].Path, s.router[i].Func)
 	}
-	//init middleware
-	handlers := make([]gin.HandlerFunc, 0, len(s.middleware))
-	for i := range s.middleware {
-		handler := func(ctx *gin.Context) {
-			c := Context{ctx:ctx}
-			s.middleware[i](&c)
-		}
-		handlers = append(handlers, handler)
-	}
-	s.engine.Use(handlers[:] ...)
 	//run
 	err := s.engine.Run(fmt.Sprintf("%s:%d", s.host, s.port))
 	if err != nil {
@@ -53,6 +45,18 @@ func (s *Server) handle(method string, path string, f Handler) {
 		f(&c)
 	}
 	s.engine.Handle(method, path, handler)
+}
+
+func (s *Server) plugin(middleware []Handler) {
+	handlers := make([]gin.HandlerFunc, 0, len(middleware))
+	for i := range middleware {
+		handler := func(ctx *gin.Context) {
+			c := Context{ctx:ctx}
+			middleware[i](&c)
+		}
+		handlers = append(handlers, handler)
+	}
+	s.engine.Use(handlers[:] ...)
 }
 
 //@param q 查询参数

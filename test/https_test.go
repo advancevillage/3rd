@@ -33,7 +33,13 @@ func TestServer_StartServer(t *testing.T) {
 	routers := []https.Router{
 		{"GET", "/v1/test/ping", f},
 	}
-	server := https.NewServer("0.0.0.0", 13148, routers)
+
+	p := func(ctx *https.Context) {
+		log.Println("start")
+		ctx.Next()
+		log.Println("end")
+	}
+	server := https.NewServer("0.0.0.0", 13148, routers, p)
 	err := server.StartServer()
 	if err != nil {
 		t.Error(err.Error())
