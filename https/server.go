@@ -136,3 +136,17 @@ func (c *Context) Save(filename string) error {
 	}
 	return nil
 }
+
+func (c *Context) Next() {
+	c.ctx.Next()
+}
+
+func (c *Context) Abort() {
+	c.ctx.Abort()
+}
+
+func (c *Context) Header(headers map[string]string) {
+	for key := range headers {
+		c.ctx.Header(key, headers[key])
+	}
+}
