@@ -113,8 +113,8 @@ func (tes *TES) QueryStorageV2(index string, key  string) ([]byte, error) {
 }
 
 //TODO
-func (tes *TES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
-	return nil, nil
+func (tes *TES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+	return nil, 0, nil
 }
 
 //创建一个文档,如果文档不存在则创建。如果存在则更新值

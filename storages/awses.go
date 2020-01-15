@@ -124,8 +124,8 @@ func (s *AwsES) QueryStorageV2(index string, key  string) ([]byte, error) {
 }
 
 //TODO
-func (s *AwsES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
-	return nil, nil
+func (s *AwsES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+	return nil, 0, nil
 }
 
 func (s *AwsES) CreateDocument(index string, id string, body interface{}) error {

@@ -82,6 +82,6 @@ func (l *LevelDB) DeleteStorageV2(index string, key ...string) error {
 }
 
 //TODO
-func (l *LevelDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
-	return nil, nil
+func (l *LevelDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+	return nil, 0, nil
 }

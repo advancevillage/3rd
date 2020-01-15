@@ -241,9 +241,9 @@ func TestMongoDB_QueryV3(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	index := "categories"
+	index := "brands"
 	where := make(map[string]interface{})
-	where["categoryName"] = "test"
+	where["brandStatus"] = 0x701
 	body, err := mgo.QueryStorageV3(index, where, 100, 0)
 	if err != nil {
 		t.Error(err.Error())

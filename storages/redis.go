@@ -65,8 +65,8 @@ func (r *Redis) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return r.HashGet(index, key)
 }
 
-func (r *Redis) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, error) {
-	return nil, nil
+func (r *Redis) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+	return nil, 0, nil
 }
 
 //@link: http://redisdoc.com/string/setex.html
