@@ -113,7 +113,7 @@ func (tes *TES) QueryStorageV2(index string, key  string) ([]byte, error) {
 }
 
 //TODO
-func (tes *TES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+func (tes *TES) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
 	return nil, 0, nil
 }
 

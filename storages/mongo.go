@@ -105,8 +105,8 @@ func (s *MongoDB) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return s.QueryDocument(index, index, where)
 }
 
-func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
-	return s.QueryDocuments(index, index, where, int64(limit), int64(offset))
+func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
+	return s.QueryDocuments(index, index, where, int64(limit), int64(offset), sort)
 }
 
 func (s *MongoDB) CreateDocument(database string, collect string, body interface{}) error {
@@ -150,8 +150,10 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 	return body, nil
 }
 
-func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}, limit int64, offset int64) ([][]byte, int64, error) {
-	var d  bson.D
+//note:
+// where[sort] = map[string]string
+func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}, limit int64, offset int64, sort map[string]interface{}) ([][]byte, int64, error) {
+	var d,o  bson.D
 	for k :=range where {
 		e := bson.E{
 			Key: k,
@@ -159,9 +161,18 @@ func (s *MongoDB) QueryDocuments(database string, collect string,  where map[str
 		}
 		d = append(d, e)
 	}
+	for k := range sort {
+		e := bson.E{
+			Key: k,
+			Value: sort[k],
+		}
+		o = append(o, e)
+	}
 	option := options.Find()
 	option.SetLimit(limit)
 	option.SetSkip(offset)
+	option.SetSort(o)
+
 	collection := s.conn.Database(database).Collection(collect)
 	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
 	defer cancel()

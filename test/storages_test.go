@@ -244,13 +244,16 @@ func TestMongoDB_QueryV3(t *testing.T) {
 	index := "brands"
 	where := make(map[string]interface{})
 	where["brandStatus"] = 0x701
-	body, err := mgo.QueryStorageV3(index, where, 100, 0)
+	sort := make(map[string]interface{})
+	sort["brandCreateTime"] = -1
+
+	body, total, err := mgo.QueryStorageV3(index, where, 100, 0, sort)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 	for i := range body {
-		t.Log(string(body[i]))
+		t.Log(total, string(body[i]))
 	}
 }
 

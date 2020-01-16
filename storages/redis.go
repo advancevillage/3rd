@@ -65,7 +65,7 @@ func (r *Redis) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return r.HashGet(index, key)
 }
 
-func (r *Redis) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int) ([][]byte, int64, error) {
+func (r *Redis) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
 	return nil, 0, nil
 }
 
