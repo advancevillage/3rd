@@ -28,7 +28,7 @@ func TestServer_StartServer(t *testing.T) {
 		if err != nil {
 			t.Error(err.Error())
 		}
-		ctx.JsonResponse(http.StatusOK, body)
+		ctx.JSON(http.StatusOK, body)
 	}
 	routers := []https.Router{
 		{"GET", "/v1/test/ping", f},
@@ -38,7 +38,7 @@ func TestServer_StartServer(t *testing.T) {
 		headers := map[string]string {
 			"Access-Control-Allow-Origin": "*",
 		}
-		ctx.Header(headers)
+		ctx.WriteHeader(headers)
 		ctx.Next()
 	}
 	server := https.NewServer("0.0.0.0", 13148, routers, p)
@@ -66,7 +66,7 @@ func TestServer_AwsLambda(t *testing.T) {
 		if err != nil {
 			log.Println(err.Error())
 		}
-		ctx.JsonResponse(http.StatusOK, body)
+		ctx.JSON(http.StatusOK, body)
 	}
 	routers := []https.Router{
 		{"GET", "/v1/test/ping", f},

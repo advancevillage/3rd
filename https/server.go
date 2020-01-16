@@ -85,7 +85,7 @@ func (c *Context) Body() ([]byte, error) {
 //@brief: application/json
 //@param: code 状态码
 //@param: body
-func (c *Context) JsonResponse(code int, body interface{}) {
+func (c *Context) JSON(code int, body interface{}) {
 	c.ctx.JSON(code, body)
 }
 
@@ -149,8 +149,12 @@ func (c *Context) Abort() {
 	c.ctx.Abort()
 }
 
-func (c *Context) Header(headers map[string]string) {
+func (c *Context) WriteHeader(headers map[string]string) {
 	for key := range headers {
 		c.ctx.Header(key, headers[key])
 	}
+}
+
+func (c *Context) ReadHeader(h string) string {
+	return c.ctx.GetHeader(h)
 }
