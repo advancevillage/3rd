@@ -245,7 +245,8 @@ func TestMongoDB_QueryV3(t *testing.T) {
 	where := make(map[string]interface{})
 	where["brandStatus"] = 0x701
 	sort := make(map[string]interface{})
-	sort["brandCreateTime"] = -1
+	//sort["brandCreateTime"] = -1
+	sort["brandCreateTime"] = 1
 
 	body, total, err := mgo.QueryStorageV3(index, where, 100, 0, sort)
 	if err != nil {
