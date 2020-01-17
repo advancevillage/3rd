@@ -153,7 +153,7 @@ func (s *MongoDB) QueryDocument(database string, collect string,  where map[stri
 //note:
 // where[sort] = map[string]string
 func (s *MongoDB) QueryDocuments(database string, collect string,  where map[string]interface{}, limit int64, offset int64, sort map[string]interface{}) ([][]byte, int64, error) {
-	var d,o  bson.D
+	var d,o  = make(bson.D,0), make(bson.D,0)
 	for k :=range where {
 		e := bson.E{
 			Key: k,
