@@ -28,6 +28,12 @@ type ICache interface {
 	DeleteCacheV2(index string, key ...string) error
 }
 
+type IMessage interface {
+	Publish(channel string, data []byte) error
+	KeySpace(key string, f func(string, []byte) error) error
+	Subscribe(channel string, f func(string, []byte) error) error
+}
+
 type Cache struct {
 	conn     *redis.Client
 	logger   logs.Logs
@@ -37,4 +43,10 @@ type Cache struct {
 type Storage struct {
 	conn     *redis.Client
 	logger   logs.Logs
+}
+
+type Message struct {
+	conn     *redis.Client
+	logger   logs.Logs
+	schema   int
 }

@@ -114,3 +114,4 @@ func (c *Storage) HashDelete(key string, fields ...string) error {
 	}
 	return nil
 }
+
