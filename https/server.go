@@ -115,30 +115,47 @@ func (c *Context) ReadCookie(name string) (string, error) {
 
 //@brief: 保存上传的文件 multipart/form-data
 //@param:
-func (c *Context) Save(filename string) error {
+func (c *Context) Save(filename string) (string, error) {
 	_, fh, err := c.ctx.Request.FormFile("file")
+	i := len(fh.Filename) - 1
+	j := 0
+	for ; i > 0; i-- {
+		if fh.Filename[i] == '.' {
+			break
+		} else {
+			continue
+		}
+	}
+	for ; j < len(filename); j++ {
+		if filename[j] == '.' {
+			break
+		} else {
+			continue
+		}
+	}
+	filename = filename[:j] + fh.Filename[i:]
 	if err != nil {
-		return err
+		return filename, err
 	}
 	in, err := fh.Open()
 	if err != nil {
-		return err
+		return filename, err
 	}
 	defer func() { _ = in.Close() }()
 	err = files.CreatePath(filename)
 	if err != nil {
-		return err
+		return filename, err
 	}
 	out, err := os.Create(filename)
 	if err != nil {
-		return err
+		return filename, err
 	}
 	defer func() { _ = out.Close() }()
 	_, err = io.Copy(out, in)
 	if err != nil {
-		return err
+		return filename, err
 	}
-	return nil
+	return filename, nil
 }
 
 func (c *Context) Next() {
