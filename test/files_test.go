@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/advancevillage/3rd/files"
 	"html/template"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -61,6 +63,16 @@ func TestBase_01 (t *testing.T) {
 func TestZipFile_CreateFileFromFile(t *testing.T) {
 	zip := files.ZipFile{}
 	err := zip.CreateFileFromFile("111/111.mp4", "/Users/sun/Pictures/视频素材/test.mp4")
+	if err != nil {
+		t.Error(err.Error())
+	}
+}
+
+func TestSpaceFilepath(t *testing.T) {
+	path := "./111/ni hao /test.mp4"
+	dir := filepath.Dir(path)
+	t.Log(dir)
+	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		t.Error(err.Error())
 	}
