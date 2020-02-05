@@ -7,6 +7,7 @@ import (
 	"github.com/advancevillage/3rd/files"
 	"html/template"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -76,4 +77,23 @@ func TestSpaceFilepath(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
+}
+
+func TestCommand(t *testing.T) {
+	var stdoutBuf bytes.Buffer	//标准输出流
+	var stderrBuf bytes.Buffer	//标准错误流
+	var stdinBuf  bytes.Reader	//标准输入流
+	cmd := exec.Command("python", "screen_record.py", "-t", "0000", "-f", "./222 333/test.mp4", "start")
+	cmd.Stdin  = &stdinBuf
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	if err := cmd.Start(); err != nil {
+		t.Error(err.Error())
+		return
+	}
+	if err := cmd.Wait(); err != nil {
+		t.Error(err.Error())
+		return
+	}
+	t.Log(string(stdoutBuf.Bytes()), string(stderrBuf.Bytes()))
 }
