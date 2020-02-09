@@ -150,3 +150,45 @@ func BenchmarkAesEncryptAndDecrypt(b *testing.B) {
 	}
 }
 
+func TestAdd(t *testing.T) {
+	input := []struct {
+		num []int
+		sum int
+	}{
+		{[]int{1,2,3}, 6},
+		{[]int{-1,-2,-3}, -6},
+		{[]int{-1,1,0}, 0},
+		{[]int{-1,1,0,-2, 2}, 0},
+		{[]int{-0,1,+0,-2, 2}, 1},
+	}
+
+	for i := range input {
+		if input[i].sum == utils.Add(input[i].num[:]...) {
+			continue
+		} else {
+			t.Error(input[i])
+		}
+	}
+}
+
+func TestValidateEmail(t *testing.T) {
+	input := []struct{
+		Email string
+		Result bool
+	} {
+		{"ç$€§/az@gmail.com", false},
+		{"abcd@gmail_yahoo.com", false},
+		{"abcd@gmail-yahoo.com", true},
+		{"abcd@gmailyahoo", false},
+		{"abcd@gmail.yahoo", true},
+	}
+
+	for i :=range input {
+		if input[i].Result == utils.ValidateEmail(input[i].Email) {
+			t.Log(input[i])
+		} else {
+			t.Error(input[i])
+		}
+	}
+}
+

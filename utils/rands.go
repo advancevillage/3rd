@@ -50,3 +50,11 @@ func RandsInt(up int) int {
 func RandsNumberString(n int) string {
 	return rands(n, numberBytes)
 }
+
+func Add(a ...int) int {
+	sum := 0
+	for i := 0; i < len(a); i++ {
+		sum += a[i]
+	}
+	return sum
+}
