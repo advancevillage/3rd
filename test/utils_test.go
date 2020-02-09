@@ -2,6 +2,7 @@
 package test
 
 import (
+	"crypto/sha1"
 	"fmt"
 	"github.com/advancevillage/3rd/times"
 	"github.com/advancevillage/3rd/utils"
@@ -183,6 +184,12 @@ func TestValidateEmail(t *testing.T) {
 		{"abcd@gmail.yahoo", true},
 	}
 
+	h := sha1.New()
+	_, err := h.Write([]byte("richard"))
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Log(fmt.Sprintf("%x", h.Sum(nil)))
 	for i :=range input {
 		if input[i].Result == utils.ValidateEmail(input[i].Email) {
 			t.Log(input[i])
