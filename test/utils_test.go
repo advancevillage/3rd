@@ -182,6 +182,7 @@ func TestValidateEmail(t *testing.T) {
 		{"abcd@gmail-yahoo.com", true},
 		{"abcd@gmailyahoo", false},
 		{"abcd@gmail.yahoo", true},
+		{"abcd@gmail.yahoo.....", false},
 	}
 
 	h := sha1.New()
