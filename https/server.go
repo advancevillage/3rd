@@ -89,14 +89,14 @@ func (c *Context) JSON(code int, body interface{}) {
 	c.ctx.JSON(code, body)
 }
 
-func (c *Context) WriteCookie(name string, value string, path string, domain string) error {
+func (c *Context) WriteCookie(name string, value string, path string, domain string, secure bool, httpOnly bool) error {
 	maxAge := 2 * 3600 //秒
 	cipherText, err := utils.EncryptUseAes([]byte(value))
 	if err != nil {
 		return err
 	}
 	text := base64.StdEncoding.EncodeToString(cipherText)
-	c.ctx.SetCookie(name, text, maxAge, path, domain, false, true)
+	c.ctx.SetCookie(name, text, maxAge, path, domain, secure, httpOnly)
 	return nil
 }
 
