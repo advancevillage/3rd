@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func NewAwsES(ak string, sk string, region string, domain string, logger logs.Logs) (*AwsES, error) {
+func NewAwsES(ak string, sk string, region string, domain string, logger logs.Logs) (Storage, error) {
 	var err error
 	es := AwsES{}
 	es.logger = logger

@@ -13,7 +13,7 @@ import (
 //@link: https://www.kancloud.cn/liupengjie/go/570150
 //@link: https://www.do1618.com/archives/1355/no-elasticsearch-node-available/
 
-func NewTES(urls []string, logger logs.Logs) (*TES, error) {
+func NewTES(urls []string, logger logs.Logs) (Storage, error) {
 	var err error
 	tes := &TES{}
 	tes.urls = urls

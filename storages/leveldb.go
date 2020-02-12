@@ -7,7 +7,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-func NewLevelDB(schema string, logger logs.Logs) (*LevelDB, error) {
+func NewLevelDB(schema string, logger logs.Logs) (Storage, error) {
 	var err error
 	l := &LevelDB{}
 	l.logger = logger

@@ -19,7 +19,7 @@ const (
 	identification = "_3rd_internal_id_"
 )
 
-func NewMongoDB(url string, logger logs.Logs) (*MongoDB, error) {
+func NewMongoDB(url string, logger logs.Logs) (StorageExd, error) {
 	var err error
 	mgo := MongoDB{}
 	mgo.logger = logger

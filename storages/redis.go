@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func NewRedis(host string, port int, auth string, schema int, logger logs.Logs) (*Redis, error) {
+func NewRedis(host string, port int, auth string, schema int, logger logs.Logs) (Storage, error) {
 	r := &Redis{}
 	r.host = host
 	r.port = port
