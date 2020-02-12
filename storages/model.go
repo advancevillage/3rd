@@ -47,6 +47,15 @@ type Storage interface {
 	QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error)
 }
 
+type StorageExd interface {
+	Storage
+	CreateStorageV2Exd(index string, key string, body []byte) error
+	DeleteStorageV2Exd(index string, key ...string) error
+	UpdateStorageV2Exd(index string, key string, body []byte) error
+	QueryStorageV2Exd(index string, key  string) ([]byte, error)
+}
+
+
 type Mysql struct {
 	master *Database
 	slaves []*Database

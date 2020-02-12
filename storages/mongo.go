@@ -105,6 +105,51 @@ func (s *MongoDB) QueryStorageV2(index string, key  string) ([]byte, error) {
 	return s.QueryDocument(index, index, where)
 }
 
+func (s *MongoDB) CreateStorageV2Exd(index string, key string, field string, body []byte) error {
+	var object = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &object)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	object[identification] = field
+	return s.CreateDocument(index, key, object)
+}
+
+func (s *MongoDB) DeleteStorageV2Exd(index string, key string, field ...string) error {
+	var where = make(map[string]interface{})
+	for i := range key {
+		where[identification] = field[i]
+		err := s.DeleteDocument(index, key, where)
+		if err != nil {
+			s.logger.Error(err.Error())
+		} else {
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *MongoDB) UpdateStorageV2Exd(index string, key string, field string, body []byte) error {
+	var set = make(map[string]interface{})
+	var err error
+	err = json.Unmarshal(body, &set)
+	if err != nil {
+		s.logger.Error(err.Error())
+		return err
+	}
+	var where = make(map[string]interface{})
+	where[identification] = field
+	return s.UpdateDocument(index, key, where, set)
+}
+
+func (s *MongoDB) QueryStorageV2Exd(index string, key string, field  string) ([]byte, error) {
+	var where = make(map[string]interface{})
+	where[identification] = field
+	return s.QueryDocument(index, key, where)
+}
+
 func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
 	return s.QueryDocuments(index, index, where, int64(limit), int64(offset), sort)
 }

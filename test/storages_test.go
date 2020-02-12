@@ -234,6 +234,39 @@ func TestMongoDB(t *testing.T) {
 	}
 }
 
+func TestMongoExd(t *testing.T) {
+	logger, err := logs.NewTxtLogger("mongo.log", 512, 4)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	mgo, err := storages.NewMongoDB("mongodb://admin:password@localhost:27017", logger)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	index := "richard"
+	key := "111111"
+	object := struct {
+		Id   string `json:"id,omitempty"`
+		Name string `json:"name,omitempty"`
+		Age  int 	`json:"age,omitempty"`
+	}{
+		Id: utils.SnowFlakeIdString(),
+		Name: utils.RandsString(12),
+		Age: utils.RandsInt(100),
+	}
+	buf, err := json.Marshal(object)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	err = mgo.CreateStorageV2Exd(index, key, object.Id, buf)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	return
+}
+
 func TestMongoDB_QueryV3(t *testing.T) {
 	logger := logs.NewStdLogger()
 	mgo, err := storages.NewMongoDB("mongodb://admin:password@localhost:27017", logger)

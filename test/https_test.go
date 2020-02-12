@@ -19,7 +19,7 @@ func TestServer_StartServer(t *testing.T) {
 			AccountId: "1aa79ea8-0c3f-11ea-9753-0242ac120002",
 			Pong: "pong",
 		}
-		err := ctx.WriteCookie("cookie", "richard", "/", "localhost")
+		err := ctx.WriteCookie("cookie", "richard", "/", "localhost", false, false)
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -59,7 +59,7 @@ func TestServer_AwsLambda(t *testing.T) {
 			AccountId: "1aa79ea8-0c3f-11ea-9753-0242ac120002",
 			Pong: "pong",
 		}
-		err := ctx.WriteCookie("cookie", "richard", "/", "localhost")
+		err := ctx.WriteCookie("cookie", "richard", "/", "localhost", false, false)
 		if err != nil {
 			log.Println(err.Error())
 		}
