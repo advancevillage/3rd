@@ -150,6 +150,10 @@ func (s *MongoDB) QueryStorageV2Exd(index string, key string, field  string) ([]
 	return s.QueryDocument(index, key, where)
 }
 
+func (s *MongoDB) SearchStorageV2Exd(index string, key string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
+	return s.QueryDocuments(index, key, where, int64(limit), int64(offset), sort)
+}
+
 func (s *MongoDB) QueryStorageV3(index string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error) {
 	return s.QueryDocuments(index, index, where, int64(limit), int64(offset), sort)
 }

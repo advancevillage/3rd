@@ -52,7 +52,8 @@ type StorageExd interface {
 	CreateStorageV2Exd(index string, key string, field string, body []byte) error
 	DeleteStorageV2Exd(index string, key string, field ...string) error
 	UpdateStorageV2Exd(index string, key string, field string, body []byte) error
-	QueryStorageV2Exd(index string, key string, field  string) ([]byte, error)
+	QueryStorageV2Exd(index string,  key string, field  string) ([]byte, error)
+	SearchStorageV2Exd(index string, key string, where map[string]interface{}, limit int, offset int, sort map[string]interface{}) ([][]byte, int64, error)
 }
 
 
