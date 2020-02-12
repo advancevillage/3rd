@@ -49,10 +49,10 @@ type Storage interface {
 
 type StorageExd interface {
 	Storage
-	CreateStorageV2Exd(index string, key string, body []byte) error
-	DeleteStorageV2Exd(index string, key ...string) error
-	UpdateStorageV2Exd(index string, key string, body []byte) error
-	QueryStorageV2Exd(index string, key  string) ([]byte, error)
+	CreateStorageV2Exd(index string, key string, field string, body []byte) error
+	DeleteStorageV2Exd(index string, key string, field ...string) error
+	UpdateStorageV2Exd(index string, key string, field string, body []byte) error
+	QueryStorageV2Exd(index string, key string, field  string) ([]byte, error)
 }
 
 
