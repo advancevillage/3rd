@@ -172,6 +172,7 @@ func TestMongoDB(t *testing.T) {
 	where := make(map[string]interface{})
 	sort  := make(map[string]interface{})
 	sort["createTime"] = -1
+	where["createTime"] =  map[string]interface{}{"$gt": 0}
 	items, total, err := mgo.SearchStorageV2Exd(index, key, where, 99, 0, sort)
 	if err != nil {
 		t.Error(err.Error())
