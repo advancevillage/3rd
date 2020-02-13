@@ -19,11 +19,11 @@ func TestStorageRedis(t *testing.T) {
 		t.Error(err.Error())
 		return
 	}
-	err = redis.StrSet("richard", []byte("ShowU, A More Beautiful Self"), 600)
+	err = redis.CreateStorage("richard", []byte("ShowU, A More Beautiful Self"))
 	if err != nil {
 		t.Error(err.Error())
 	}
-	value, err := redis.StrGet("richard")
+	value, err := redis.QueryStorage("richard")
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -44,48 +44,15 @@ func BenchmarkStorageRedis(b *testing.B) {
 	key := "richard"
 	value := []byte("ShowU, A More Beautiful Self")
 	for i := 0; i < b.N; i++ {
-		err = redis.StrSet(key, value, 600)
+		err = redis.CreateStorage(key, value)
 		if err != nil {
 			b.Error(err.Error())
 		}
-		_, err := redis.StrGet(key)
+		_, err := redis.QueryStorage(key)
 		if err != nil {
 			b.Error(err.Error())
 			return
 		}
-	}
-}
-
-func TestStorageRedis_List(t *testing.T) {
-	logger, err := logs.NewTxtLogger("storage.log", 512, 4)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	redis, err := storages.NewRedis("192.168.1.101", 6379, "", 0, logger)
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-	values := [][]byte {
-		[]byte("richard"),
-		[]byte("sun"),
-	}
-	key := "kelly"
-	err = redis.ListPush(true, key, values)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	_, err = redis.ListPop(false, key)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	err = redis.ListDelete(key, values[0])
-	if err != nil {
-		t.Error(err.Error())
-	}
-	err = redis.ListPush(false, key, nil)
-	if err != nil {
-		t.Error(err.Error())
 	}
 }
 
@@ -196,42 +163,22 @@ func TestMongoDB(t *testing.T) {
 	if err != nil {
 		t.Error(err.Error())
 	}
-	mgo, err := storages.NewMongoDB("mongodb://localhost:27017", logger)
+	mgo, err := storages.NewMongoDB("mongodb://admin:password@localhost:27017", logger)
 	if err != nil {
 		t.Error(err.Error())
 	}
-	index := "richard"
-	key := "666666"
-	object := struct {
-		Id  int64 	`json:"id,omitempty"`
-		Name string `json:"name,omitempty"`
-		Age  int 	`json:"age,omitempty"`
-	}{
-		Id: utils.SnowFlakeId(),
-		Name: utils.RandsString(12),
-		Age: utils.RandsInt(100),
-	}
-	err = mgo.CreateDocument(index, key, object)
+	index := "carts"
+	key := "233349905152741376"
+	where := make(map[string]interface{})
+	sort  := make(map[string]interface{})
+	sort["createTime"] = -1
+	items, total, err := mgo.SearchStorageV2Exd(index, key, where, 99, 0, sort)
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	body, err := mgo.QueryDocument(index, key, map[string]interface{}{"id":object.Id})
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-	t.Log(body)
-	err = mgo.UpdateDocument(index, key, map[string]interface{}{"id":object.Id}, map[string]interface{}{"Name": "111111", "Age": 100})
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
-	err = mgo.DeleteDocument(index, key, map[string]interface{}{"id":object.Id})
-	if err != nil {
-		t.Error(err.Error())
-		return
-	}
+	t.Log(items, total)
+
 }
 
 func TestMongoExd(t *testing.T) {
@@ -398,7 +345,7 @@ func BenchmarkMongo(b *testing.B) {
 		object.Id = utils.SnowFlakeId()
 		object.Name = utils.RandsString(10)
 		object.Age = utils.RandsInt(100)
-		err = mgo.CreateDocument(index, key, object)
+		err = mgo.CreateStorageV2(index, key, []byte("11"))
 		if err != nil {
 			b.Error(err.Error())
 		}
