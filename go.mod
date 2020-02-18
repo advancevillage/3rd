@@ -6,6 +6,7 @@ require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.5.0
 	github.com/aws/aws-lambda-go v1.13.3
 	github.com/aws/aws-sdk-go v1.25.25
+	github.com/braintree-go/braintree-go v0.22.0
 	github.com/etcd-io/etcd v3.3.18+incompatible
 	github.com/gin-gonic/gin v1.4.0
 	github.com/go-redis/redis v6.15.6+incompatible
