@@ -309,14 +309,14 @@ func TestMongoDBExd(t *testing.T) {
 		Count   int    `json:"count,omitempty"`
 		Version int    `json:"version,omitempty"`
 	}{
-		Id: 13,
+		Id: 14,
 		GoodsId: "0000000000000000",
 		ColorId: "0000000000000001",
 		SizeId: "00000000000000002",
 		SizeValue: "38",
 		ColorName: "red",
 		Count: 100,
-		Version: 3,
+		Version: 4,
 	}
 	buf, err := json.Marshal(stock)
 	if err != nil {
@@ -336,9 +336,10 @@ func TestMongoDBExd(t *testing.T) {
 	where["goodsId"] = "0000000000000000"
 	where["sizeId"]  = "00000000000000002"
 	where["colorId"] = "0000000000000001"
-	where["version"] = 3
+	where["version"] = 4
 
 	stock.Version += 1
+	stock.Count   += 10
 	stock.Id       = 10
 
 	buf, err = json.Marshal(stock)
@@ -362,11 +363,34 @@ func TestMongoDBExd(t *testing.T) {
 		return
 	}
 
-	err = mgo.UpdateStorageV2Exd(index, stock.GoodsId, where, strconv.Itoa(stock.Id), buf)
-	if err != nil {
-		t.Error(err.Error())
-		return
+
+	for {
+		err = mgo.UpdateStorageV2Exd(index, stock.GoodsId, where, strconv.Itoa(stock.Id), buf)
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+		buf, err = mgo.QueryStorageV2Exd(index, stock.GoodsId, strconv.Itoa(stock.Id))
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+		err = json.Unmarshal(buf, &stock)
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+		where["version"] = stock.Version
+		stock.Count--
+		stock.Version++
+		buf, err = json.Marshal(stock)
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
 	}
+
 
 }
 
