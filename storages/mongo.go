@@ -117,8 +117,10 @@ func (s *MongoDB) CreateStorageV2Exd(index string, key string, field string, bod
 	return s.CreateDocument(index, key, object)
 }
 
-func (s *MongoDB) DeleteStorageV2Exd(index string, key string, field ...string) error {
-	var where = make(map[string]interface{})
+func (s *MongoDB) DeleteStorageV2Exd(index string, key string, where map[string]interface{}, field ...string) error {
+	if where == nil {
+		where = make(map[string]interface{})
+	}
 	for i := range key {
 		where[identification] = field[i]
 		err := s.DeleteDocument(index, key, where)
@@ -131,7 +133,7 @@ func (s *MongoDB) DeleteStorageV2Exd(index string, key string, field ...string) 
 	return nil
 }
 
-func (s *MongoDB) UpdateStorageV2Exd(index string, key string, field string, body []byte) error {
+func (s *MongoDB) UpdateStorageV2Exd(index string, key string, where map[string]interface{}, field string, body []byte) error {
 	var set = make(map[string]interface{})
 	var err error
 	err = json.Unmarshal(body, &set)
@@ -139,7 +141,9 @@ func (s *MongoDB) UpdateStorageV2Exd(index string, key string, field string, bod
 		s.logger.Error(err.Error())
 		return err
 	}
-	var where = make(map[string]interface{})
+	if where == nil {
+		where = make(map[string]interface{})
+	}
 	where[identification] = field
 	return s.UpdateDocument(index, key, where, set)
 }

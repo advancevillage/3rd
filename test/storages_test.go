@@ -6,6 +6,7 @@ import (
 	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/storages"
 	"github.com/advancevillage/3rd/utils"
+	"strconv"
 	"testing"
 )
 
@@ -292,6 +293,83 @@ func TestMongoDBStorageInterface(t *testing.T) {
 	}
 }
 
+func TestMongoDBExd(t *testing.T) {
+	mgo, err := storages.NewMongoDB("mongodb://admin:password@localhost:27017", logs.NewStdLogger())
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+	stock := struct {
+		Id  int `json:"id"`
+		GoodsId string `json:"goodsId,omitempty"`
+		ColorId string `json:"colorId,omitempty"`
+		SizeId  string `json:"sizeId,omitempty"`
+		SizeValue string `json:"sizeValue,omitempty"`
+		ColorName string `json:"colorName,omitempty"`
+		Count   int    `json:"count,omitempty"`
+		Version int    `json:"version,omitempty"`
+	}{
+		Id: 13,
+		GoodsId: "0000000000000000",
+		ColorId: "0000000000000001",
+		SizeId: "00000000000000002",
+		SizeValue: "38",
+		ColorName: "red",
+		Count: 100,
+		Version: 3,
+	}
+	buf, err := json.Marshal(stock)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	index := "stocks"
+
+	err = mgo.CreateStorageV2Exd(index, stock.GoodsId, strconv.Itoa(stock.Id), buf)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	where := make(map[string]interface{})
+	where["goodsId"] = "0000000000000000"
+	where["sizeId"]  = "00000000000000002"
+	where["colorId"] = "0000000000000001"
+	where["version"] = 3
+
+	stock.Version += 1
+	stock.Id       = 10
+
+	buf, err = json.Marshal(stock)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	err = mgo.UpdateStorageV2Exd(index, stock.GoodsId, where, strconv.Itoa(stock.Id), buf)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	stock.Version += 1
+	stock.Count   -= 60
+
+	buf, err = json.Marshal(stock)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	err = mgo.UpdateStorageV2Exd(index, stock.GoodsId, where, strconv.Itoa(stock.Id), buf)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+}
+
 //goos: darwin
 //goarch: amd64
 //pkg: github.com/advancevillage/3rd/test
@@ -416,5 +494,6 @@ func BenchmarkMongoDBStorageInterface_QueryV2(b *testing.B) {
 	}
 	b.Log(failCount)
 }
+
 
 
