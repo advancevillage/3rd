@@ -2,6 +2,7 @@
 package test
 
 import (
+	"errors"
 	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/rpcs"
 	"testing"
@@ -16,7 +17,7 @@ func TestRpcServer_StartServer(t *testing.T) {
 	}
 	rcvr := make([]interface{}, 0)
 	rcvr = append(rcvr, new(Edwin))
-	server := rpcs.NewServer("100.100.20.172", 11311, logger, rcvr)
+	server := rpcs.NewServer("100.100.20.206", 11311, logger, rcvr)
 	err = server.StartServer()
 	if err != nil {
 		t.Error(err.Error())
@@ -28,11 +29,23 @@ type Edwin int
 // 定义 rpc method 第一个参数是请求对象，
 // 第二参数是返回对象, 返回值是返回 rpc
 // 内部调用过程中出现的错误信息
-func (this *Edwin) Add(args map[string]float64,res *float64) error  {
-   *res = args["num1"] + args["num2"]
+type Number struct {
+	A int
+	B int
+	C int
+}
+
+func (s *Edwin) Add(args *Number,res *Number) error  {
+   if args == nil {
+   	   return errors.New("args is nil")
+   }
+   res.C = args.A + args.B
    return  nil
 }
-func (this *Edwin) Multi(args map[string]interface{},res *float64) error {
-	*res = args["num1"].(float64) * args["num2"].(float64)
-	return nil
+func (s *Edwin) Multi(args *Number,res *Number) error  {
+	if args == nil {
+		return errors.New("args is nil")
+	}
+	res.C = args.A * args.B
+	return  nil
 }
