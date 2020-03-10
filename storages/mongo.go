@@ -121,7 +121,7 @@ func (s *MongoDB) DeleteStorageV2Exd(index string, key string, where map[string]
 	if where == nil {
 		where = make(map[string]interface{})
 	}
-	for i := range key {
+	for i := range field {
 		where[identification] = field[i]
 		err := s.DeleteDocument(index, key, where)
 		if err != nil {
