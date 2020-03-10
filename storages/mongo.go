@@ -9,7 +9,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"strings"
 	"time"
 )
 
@@ -289,7 +288,7 @@ func (s *MongoDB) DeleteDocument(database string, collect string, where map[stri
 	var d  bson.D
 	for k :=range where {
 		e := bson.E{
-			Key: strings.ToLower(k),
+			Key: k,
 			Value: where[k],
 		}
 		d = append(d, e)
