@@ -264,7 +264,25 @@ func (s *MongoDB) UpdateDocument(database string, collect string, where map[stri
 		d = append(d, e)
 	}
 	var ds  bson.D
+	var opt = "$set"
 	for k :=range set {
+		switch set[k] {
+		case "$set":
+			opt = "$set"
+			continue
+		case "$unset":
+			opt = "$unset"
+			continue
+		case "$inc":
+			opt = "$inc"
+			continue
+		case "$pop":
+			opt = "$pop"
+			continue
+		case "$push":
+			opt = "$push"
+			continue
+		}
 		e := bson.E{
 			Key: k,
 			Value: set[k],
@@ -272,7 +290,7 @@ func (s *MongoDB) UpdateDocument(database string, collect string, where map[stri
 		ds = append(ds, e)
 	}
 	update := bson.D{
-		{"$set", ds},
+		{opt, ds},
 	}
 	collection := s.conn.Database(database).Collection(collect)
 	ctx, cancel := context.WithTimeout(context.Background(), MongoDBTimeout * time.Second)
