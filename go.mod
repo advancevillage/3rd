@@ -14,6 +14,7 @@ require (
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gobwas/ws v1.0.2
+	github.com/graphql-go/graphql v0.7.9
 	github.com/mailru/easyjson v0.7.0
 	github.com/olivere/elastic/v7 v7.0.9
 	github.com/syndtr/goleveldb v1.0.0

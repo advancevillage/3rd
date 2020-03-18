@@ -14,10 +14,16 @@ import (
 )
 
 func NewRequest(headers map[string]string, timeout int64, retryCount uint) *Client {
+	if retryCount <= 0 {
+		retryCount = 1
+	}
+	if timeout <= 10 {
+		timeout = 10
+	}
 	return &Client{
 		headers:headers,
 		timeout:timeout,
-		retryCount: retryCount + 1,
+		retryCount: retryCount,
 	}
 }
 
@@ -69,7 +75,6 @@ func (r *Client) GET(uri string,  params map[string]string, headers map[string]s
 func (r *Client) POST(uri string, headers map[string]string, buf []byte) ([]byte, error) {
 	client := &http.Client{Timeout: time.Second * time.Duration(r.timeout)}
 	request, err := http.NewRequest(http.MethodPost, uri, bytes.NewReader(buf))
-	request.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return nil, err
 	}
