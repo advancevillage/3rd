@@ -5,11 +5,15 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/advancevillage/3rd/files"
+	"github.com/advancevillage/3rd/utils"
+	"github.com/mholt/archiver/v3"
 	"html/template"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPDFFile_CreateFileFromBuffer(t *testing.T) {
@@ -46,6 +50,49 @@ func TestZipFile_CreateFileFromBuffer(t *testing.T) {
 		t.Error(err.Error())
 	}
 	return
+}
+
+func TestRarFileParse(t *testing.T) {
+	rar := archiver.NewRar()
+	filename := "资质图片.rar"
+	uuid := utils.RandsString(4)
+	//先解压压缩文件
+	err := rar.Unarchive(filename, uuid)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	defer func() { _ = rar.Close() }()
+	//i/o 操作较慢
+	time.Sleep(time.Second)
+	//分析文件目录
+	dir := uuid + string(filepath.Separator) +  filename[:len(filename)-4]
+	folders, err := ioutil.ReadDir(dir)
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	for i := range folders {
+		folder := folders[i]
+		name := folder.Name()
+		if !folder.IsDir() {
+			continue
+		}
+		path := dir + string(filepath.Separator) + name
+		fs, err := ioutil.ReadDir(path)
+		if err != nil {
+			continue
+		}
+		//遍历文件夹下的文件
+		for j := range fs {
+			f := fs[j]
+			if f.IsDir() {
+				continue
+			}
+			filename := f.Name()
+			t.Log(fmt.Sprintf("%s  %s", name, filename))
+		}
+	}
 }
 
 func TestBase_01 (t *testing.T) {

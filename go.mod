@@ -16,6 +16,7 @@ require (
 	github.com/gobwas/ws v1.0.2
 	github.com/graphql-go/graphql v0.7.9
 	github.com/mailru/easyjson v0.7.0
+	github.com/mholt/archiver/v3 v3.3.0
 	github.com/olivere/elastic/v7 v7.0.9
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
