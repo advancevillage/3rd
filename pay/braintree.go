@@ -23,11 +23,7 @@ func NewBrainTree(url string, merchant string, public string, private string, lo
 	}
 }
 
-//交易接口
-//信用卡 CreditCard
-//金额   Money
-//返回交易信息  Transaction
-func (s *BrainTreePay) CreateClientToken() (string, error) {
+func (s *BrainTreePay) CreateClientToken(callback *string) error {
 	params := make(map[string]interface{})
 	params["query"] = "" +
 		"mutation CreateClientToken($input: CreateClientTokenInput){" +
@@ -44,17 +40,17 @@ func (s *BrainTreePay) CreateClientToken() (string, error) {
 	}
 	buf, err := json.Marshal(params)
 	if err != nil {
-		return "", err
+		return err
 	}
 	body, err := s.client.POST(s.urlRoot, nil, buf)
 	if err != nil {
 		s.logger.Alert(err.Error())
-		return "", err
+		return err
 	}
 	brain, err := s.response(body)
 	if err != nil {
 		s.logger.Alert(err.Error())
-		return "", err
+		return err
 	}
 	if v, ok := brain.Extensions["requestId"]; ok {
 		s.logger.Info("BrainTree requestId: ", v)
@@ -67,46 +63,48 @@ func (s *BrainTreePay) CreateClientToken() (string, error) {
 			s.logger.Alert("BrainTree Error: %s", string(buf))
 		}
 	}
+	if len(brain.Errors) > 0 {
+		return errors.New("response data error")
+	}
 	i, ok := brain.Data["createClientToken"]
 	if !ok {
 		s.logger.Error("BrainTree Error: %s", "response data error")
-		return "", errors.New("response data error")
+		return errors.New("response data error")
 	}
 	buf, err = json.Marshal(i)
 	if err != nil {
-		return "", err
+		return err
 	}
 	v := make(map[string]string)
 	err = json.Unmarshal(buf, &v)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if _, ok := v["clientToken"]; !ok {
-		return "", errors.New("response data error")
+		return errors.New("response data error")
 	}
-	return v["clientToken"], nil
+	*callback = v["clientToken"]
+	return nil
 }
 
-func (s *BrainTreePay) Transaction(nonce string) error {
+//美元结算
+func (s *BrainTreePay) Payment(nonce string, amount float64, callback *map[string]string) error {
 	params := make(map[string]interface{})
 	params["query"] = "" +
-		"mutation VaultWithTypeFragment($input: VaultPaymentMethodInput) {" +
-		"	vaultPaymentMethod(input: $input) {" +
-		"		paymentMethod {" +
+		"mutation Payment($input: ChargePaymentMethodInput!) {" +
+		"	chargePaymentMethod(input: $input) {" +
+		"		transaction {" +
 		"			id " +
-		"  			usage " +
-		"			details {" +
-		"				__typename " +
-		"			} " +
-		"			verification {" +
-		"				status" +
-		"			}" +
+		"  			status " +
 		"		}" +
 		"   }" +
 		"}"
 	params["variables"] = map[string]interface{} {
 		"input": map[string]interface{} {
 			"paymentMethodId": nonce,
+			"transaction": map[string]interface{} {
+				"amount": amount,
+			},
 		},
 	}
 	buf, err := json.Marshal(params)
@@ -134,7 +132,150 @@ func (s *BrainTreePay) Transaction(nonce string) error {
 			s.logger.Alert("BrainTree Error: %s", string(buf))
 		}
 	}
-	s.logger.Info("%s", string(body))
+	if len(brain.Errors) > 0 {
+		return errors.New("response data error")
+	}
+	i, ok := brain.Data["chargePaymentMethod"]
+	if !ok {
+		s.logger.Error("BrainTree Error: %s", "response data error")
+		return errors.New("response data error")
+	}
+	buf, err = json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	j := make(map[string]interface{})
+	err = json.Unmarshal(buf, &j)
+	if err != nil {
+		return err
+	}
+	k, ok := j["transaction"]
+	if !ok {
+		return errors.New("response data error")
+	}
+	buf, err = json.Marshal(k)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]string)
+	err = json.Unmarshal(buf, &v)
+	if err != nil {
+		return err
+	}
+	if _, ok := v["id"]; !ok {
+		return errors.New("response data error")
+	}
+	if _, ok := v["status"]; !ok {
+		return errors.New("response data error")
+	}
+	*callback = v
+	return nil
+}
+
+//退款结算
+func (s *BrainTreePay) Refund(transactionId string, amount float64, callback *map[string]string) error {
+	params := make(map[string]interface{})
+	params["query"] = "" +
+		"mutation Refund($input: RefundTransactionInput!){" +
+		"	refundTransaction(input: $input){" +
+		"		refund {" +
+		"			id " +
+		"			status " +
+		"			amount {" +
+		"				value " +
+		"			}" +
+		"		}" +
+		"   }" +
+		"}"
+	params["variables"] = map[string]interface{} {
+		"input": map[string]interface{} {
+			"transactionId": transactionId,
+			"refund": map[string]interface{} {
+				"amount": amount,
+			},
+		},
+	}
+	buf, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	body, err := s.client.POST(s.urlRoot, nil, buf)
+	if err != nil {
+		s.logger.Alert(err.Error())
+		return err
+	}
+	brain, err := s.response(body)
+	if err != nil {
+		s.logger.Alert(err.Error())
+		return err
+	}
+	if v, ok := brain.Extensions["requestId"]; ok {
+		s.logger.Info("BrainTree requestId: ", v)
+	}
+	for i := range brain.Errors {
+		buf, err := json.Marshal(brain.Errors[i])
+		if err != nil {
+			continue
+		} else {
+			s.logger.Alert("BrainTree Error: %s", string(buf))
+		}
+	}
+	if len(brain.Errors) > 0 {
+		return errors.New("response data error")
+	}
+	i, ok := brain.Data["refundTransaction"]
+	if !ok {
+		s.logger.Error("BrainTree Error: %s", "response data error")
+		return errors.New("response data error")
+	}
+	buf, err = json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	j := make(map[string]interface{})
+	err = json.Unmarshal(buf, &j)
+	if err != nil {
+		return err
+	}
+	k, ok := j["refund"]
+	if !ok {
+		return errors.New("response data error")
+	}
+	buf, err = json.Marshal(k)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = json.Unmarshal(buf, &v)
+	if err != nil {
+		return err
+	}
+	if _, ok := v["id"]; !ok {
+		return errors.New("response data error")
+	}
+	if _, ok := v["status"]; !ok {
+		return errors.New("response data error")
+	}
+	if _, ok := v["amount"]; !ok {
+		return errors.New("response data error")
+	}
+	back := make(map[string]string)
+	buf, err = json.Marshal(v["amount"])
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(buf, &back)
+	if err != nil {
+		return err
+	}
+	if _, ok := back["value"]; !ok {
+		return errors.New("response data error")
+	}
+	back["amount"] = back["value"]
+	back["id"]     = v["id"].(string)
+	back["status"] = v["status"].(string)
+	delete(back, "value")
+	*callback = back
 	return nil
 }
 
