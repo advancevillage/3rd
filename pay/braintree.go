@@ -10,7 +10,7 @@ import (
 	"github.com/advancevillage/3rd/logs"
 )
 
-func NewBrainTree(url string, merchant string, public string, private string, logger logs.Logs) *BrainTreePay {
+func NewBrainTree(url string, merchant string, public string, private string, logger logs.Logs) IPay {
 	header := make(map[string]string)
 	header["Braintree-Version"] = "2019-01-01"
 	header["Content-Type"]      = "application/json"
@@ -23,7 +23,7 @@ func NewBrainTree(url string, merchant string, public string, private string, lo
 	}
 }
 
-func (s *BrainTreePay) CreateClientToken(callback *string) error {
+func (s *BrainTreePay) ClientToken(callback *string) error {
 	params := make(map[string]interface{})
 	params["query"] = "" +
 		"mutation CreateClientToken($input: CreateClientTokenInput){" +
@@ -88,7 +88,7 @@ func (s *BrainTreePay) CreateClientToken(callback *string) error {
 }
 
 //美元结算
-func (s *BrainTreePay) Payment(nonce string, amount float64, callback *map[string]string) error {
+func (s *BrainTreePay) Transaction(nonce string, amount float64, callback *map[string]string) error {
 	params := make(map[string]interface{})
 	params["query"] = "" +
 		"mutation Payment($input: ChargePaymentMethodInput!) {" +
@@ -172,8 +172,70 @@ func (s *BrainTreePay) Payment(nonce string, amount float64, callback *map[strin
 	return nil
 }
 
+func (s *BrainTreePay) TransactionStatus(transactionId string, callback *map[string]string) error {
+	params := make(map[string]interface{})
+	params["query"] = "{" +
+		"node(id: "+ fmt.Sprintf("\"%s\"", transactionId) + ") {" +
+		"	... on Transaction {" +
+		"		id" +
+		"		status" +
+		"	}" +
+		"}" +
+		"}"
+	buf, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	body, err := s.client.POST(s.urlRoot, nil, buf)
+	if err != nil {
+		s.logger.Alert(err.Error())
+		return err
+	}
+	brain, err := s.response(body)
+	if err != nil {
+		s.logger.Alert(err.Error())
+		return err
+	}
+	if v, ok := brain.Extensions["requestId"]; ok {
+		s.logger.Info("BrainTree requestId: ", v)
+	}
+	for i := range brain.Errors {
+		buf, err := json.Marshal(brain.Errors[i])
+		if err != nil {
+			continue
+		} else {
+			s.logger.Alert("BrainTree Error: %s", string(buf))
+		}
+	}
+	if len(brain.Errors) > 0 {
+		return errors.New("response data error")
+	}
+	i, ok := brain.Data["node"]
+	if !ok {
+		s.logger.Error("BrainTree Error: %s", "response data error")
+		return errors.New("response data error")
+	}
+	buf, err = json.Marshal(i)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]string)
+	err = json.Unmarshal(buf, &v)
+	if err != nil {
+		return err
+	}
+	if _, ok := v["id"]; !ok {
+		return errors.New("response data error")
+	}
+	if _, ok := v["status"]; !ok {
+		return errors.New("response data error")
+	}
+	*callback = v
+	return nil
+}
+
 //退款结算
-func (s *BrainTreePay) Refund(transactionId string, amount float64, callback *map[string]string) error {
+func (s *BrainTreePay) Refund(transactionId string, amount float64, refundOrderId string, callback *map[string]string) error {
 	params := make(map[string]interface{})
 	params["query"] = "" +
 		"mutation Refund($input: RefundTransactionInput!){" +
@@ -181,6 +243,7 @@ func (s *BrainTreePay) Refund(transactionId string, amount float64, callback *ma
 		"		refund {" +
 		"			id " +
 		"			status " +
+		"			orderId " +
 		"			amount {" +
 		"				value " +
 		"			}" +
@@ -192,6 +255,7 @@ func (s *BrainTreePay) Refund(transactionId string, amount float64, callback *ma
 			"transactionId": transactionId,
 			"refund": map[string]interface{} {
 				"amount": amount,
+				"orderId": refundOrderId,
 			},
 		},
 	}

@@ -7,7 +7,10 @@ import (
 )
 
 type IPay interface {
-
+	ClientToken(callback *string) error
+	Transaction(nonce string, amount float64, callback *map[string]string) error
+	TransactionStatus(transactionId string, callback *map[string]string) error
+	Refund(transactionId string, amount float64, refundOrderId string, callback *map[string]string) error
 }
 
 
