@@ -3,9 +3,11 @@ package caches
 
 import (
 	"errors"
+
 	"github.com/advancevillage/3rd/logs"
 	"github.com/advancevillage/3rd/storages"
-	"github.com/go-redis/redis"
+
+	"github.com/go-redis/redis/v8"
 )
 
 var (
@@ -18,13 +20,13 @@ const (
 
 type ICache interface {
 	DeleteCache(key ...string) error
-	QueryCache(key  string, timeout int) ([]byte, error)
+	QueryCache(key string, timeout int) ([]byte, error)
 	UpdateCache(key string, body []byte, timeout int) error
 	CreateCache(key string, body []byte, timeout int) error
 
 	CreateCacheV2(index string, key string, body []byte) error
 	UpdateCacheV2(index string, key string, body []byte) error
-	QueryCacheV2(index string, key  string) ([]byte, error)
+	QueryCacheV2(index string, key string) ([]byte, error)
 	DeleteCacheV2(index string, key ...string) error
 }
 
@@ -35,18 +37,18 @@ type IMessage interface {
 }
 
 type Cache struct {
-	conn     *redis.Client
-	logger   logs.Logs
-	storage  storages.Storage
+	conn    *redis.Client
+	logger  logs.Logs
+	storage storages.Storage
 }
 
 type Storage struct {
-	conn     *redis.Client
-	logger   logs.Logs
+	conn   *redis.Client
+	logger logs.Logs
 }
 
 type Message struct {
-	conn     *redis.Client
-	logger   logs.Logs
-	schema   int
+	conn   *redis.Client
+	logger logs.Logs
+	schema int
 }

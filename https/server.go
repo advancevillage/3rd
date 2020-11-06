@@ -4,15 +4,17 @@ package https
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/advancevillage/3rd/files"
-	"github.com/advancevillage/3rd/utils"
-	"github.com/gin-gonic/gin"
 	"io"
 	"io/ioutil"
 	"os"
+
+	"github.com/advancevillage/3rd/files"
+	"github.com/advancevillage/3rd/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
-func NewServer(host string, port int, router []Router, middleware ...Handler) *Server {
+func NewServer(host string, port int, router []Router, middleware ...Handler) IServer {
 	s := Server{}
 	s.host = host
 	s.port = port
@@ -41,7 +43,7 @@ func (s *Server) StartServer() error {
 
 func (s *Server) handle(method string, path string, f Handler) {
 	handler := func(ctx *gin.Context) {
-		c := Context{ctx:ctx}
+		c := Context{ctx: ctx}
 		f(&c)
 	}
 	s.engine.Handle(method, path, handler)
@@ -51,12 +53,12 @@ func (s *Server) plugin(middleware []Handler) {
 	handlers := make([]gin.HandlerFunc, 0, len(middleware))
 	for i := range middleware {
 		handler := func(ctx *gin.Context) {
-			c := Context{ctx:ctx}
+			c := Context{ctx: ctx}
 			middleware[i](&c)
 		}
 		handlers = append(handlers, handler)
 	}
-	s.engine.Use(handlers[:] ...)
+	s.engine.Use(handlers[:]...)
 }
 
 //@param q 查询参数
