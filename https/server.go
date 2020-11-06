@@ -2,6 +2,7 @@
 package https
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -51,10 +52,10 @@ func (s *Server) handle(method string, path string, f Handler) {
 
 func (s *Server) plugin(middleware []Handler) {
 	handlers := make([]gin.HandlerFunc, 0, len(middleware))
-	for i := range middleware {
+	for _, f := range middleware {
 		handler := func(ctx *gin.Context) {
 			c := Context{ctx: ctx}
-			middleware[i](&c)
+			f(&c)
 		}
 		handlers = append(handlers, handler)
 	}
