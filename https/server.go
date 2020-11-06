@@ -52,6 +52,9 @@ func (s *Server) handle(method string, path string, f Handler) {
 func (s *Server) plugin(middleware []Handler) {
 	handlers := make([]gin.HandlerFunc, 0, len(middleware))
 	for _, f := range middleware {
+		if f == nil {
+			continue
+		}
 		handler := func(ctx *gin.Context) {
 			c := Context{ctx: ctx}
 			f(&c)
