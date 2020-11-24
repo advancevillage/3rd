@@ -6,6 +6,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/advancevillage/3rd/utils"
 
@@ -21,6 +27,8 @@ const (
 )
 
 type IHttpServer interface {
+	StartServer()
+	StopServer()
 }
 
 type IHttpContext interface {
@@ -37,11 +45,15 @@ type IHttpContext interface {
 	WriteCookie(name string, value string, path string, domain string, secure bool, httpOnly bool) error
 }
 
-type HttpContext struct {
+type httpContext struct {
 	engine *gin.Context
 }
 
-func (c *HttpContext) ReadParam(q string) string {
+func newHttpContext(ctx *gin.Context) IHttpContext {
+	return &httpContext{engine: ctx}
+}
+
+func (c *httpContext) ReadParam(q string) string {
 	var value = c.engine.PostForm(q)
 	if len(value) <= 0 {
 		value = c.engine.Query(q)
@@ -55,7 +67,7 @@ func (c *HttpContext) ReadParam(q string) string {
 	return value
 }
 
-func (c *HttpContext) ReadBody() ([]byte, error) {
+func (c *httpContext) ReadBody() ([]byte, error) {
 	var buf, err = ioutil.ReadAll(c.engine.Request.Body)
 	if err != nil {
 		return nil, err
@@ -63,17 +75,17 @@ func (c *HttpContext) ReadBody() ([]byte, error) {
 	return buf, nil
 }
 
-func (c *HttpContext) ReadHeader(h string) string {
+func (c *httpContext) ReadHeader(h string) string {
 	return c.engine.GetHeader(h)
 }
 
-func (c *HttpContext) WriteHeader(headers map[string]string) {
+func (c *httpContext) WriteHeader(headers map[string]string) {
 	for key := range headers {
 		c.engine.Header(key, headers[key])
 	}
 }
 
-func (c *HttpContext) WriteCookie(name string, value string, path string, domain string, secure bool, httpOnly bool) error {
+func (c *httpContext) WriteCookie(name string, value string, path string, domain string, secure bool, httpOnly bool) error {
 	var maxAge = 2 * 3600 //秒
 	var cipherText, err = utils.EncryptUseAes([]byte(value))
 	if err != nil {
@@ -84,7 +96,7 @@ func (c *HttpContext) WriteCookie(name string, value string, path string, domain
 	return nil
 }
 
-func (c *HttpContext) ReadCookie(name string) (string, error) {
+func (c *httpContext) ReadCookie(name string) (string, error) {
 	var value, err = c.engine.Cookie(name)
 	if err != nil {
 		return "", err
@@ -97,11 +109,16 @@ func (c *HttpContext) ReadCookie(name string) (string, error) {
 	return string(plainText), err
 }
 
-func (c *HttpContext) Write(code int, body interface{}) {
+func (c *httpContext) Write(code int, body interface{}) {
 	c.engine.JSON(code, body)
 }
 
-type FuncHandler func(*HttpContext)
+type FuncHandler func(IHttpContext)
+
+type IRouter interface {
+	Add(method string, path string, f FuncHandler)
+	Iterator(f func(method string, path string, f FuncHandler))
+}
 
 type router struct {
 	method string
@@ -109,10 +126,19 @@ type router struct {
 	f      FuncHandler
 }
 
-type RouteTable []*router
+type routeTable []*router
 
-func (c *RouteTable) Add(method string, path string, f FuncHandler) {
+func NewRouter() IRouter {
+	return &routeTable{}
+}
+func (c *routeTable) Add(method string, path string, f FuncHandler) {
 	*c = append(*c, &router{method: method, path: path, f: f})
+}
+
+func (c *routeTable) Iterator(f func(method string, path string, f FuncHandler)) {
+	for _, v := range *c {
+		f(v.method, v.path, v.f)
+	}
 }
 
 type httpServer struct {
@@ -120,37 +146,72 @@ type httpServer struct {
 	port   int
 	app    context.Context
 	cancel context.CancelFunc
-	rt     RouteTable
+	rt     IRouter
+	srv    *http.Server
 	mux    *gin.Engine
 }
 
-func NewHttpServer(host string, port int, rt RouteTable, m ModeType) IHttpServer {
+func NewHttpServer(host string, port int, rt IRouter, m ModeType) IHttpServer {
 	var s = httpServer{}
 	s.host = host
 	s.port = port
 	s.rt = rt
+	s.app, s.cancel = context.WithCancel(context.Background())
 	gin.SetMode(string(m))
 	s.mux = gin.New()
+	s.srv = &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", host, port),
+		Handler: s.mux,
+	}
 	//init server
 	s.initServer()
 	return &s
 }
 
-func (s *httpServer) StartServer() error {
-	return s.mux.Run(fmt.Sprintf("%s:%d", s.host, s.port))
+func (s *httpServer) StartServer() {
+	go s.start()
+	go s.waitQuitSignal()
+	select {
+	case <-s.app.Done():
+		s.close()
+	}
+}
+
+func (s *httpServer) StopServer() {
+	s.close()
+}
+
+func (s *httpServer) start() {
+	var err = s.srv.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("listen %s:%d fail. %s\n", s.host, s.port, err.Error())
+	}
+}
+
+func (s *httpServer) close() {
+	var ctx, cancel = context.WithTimeout(context.TODO(), 3*time.Second)
+	defer cancel()
+	if err := s.srv.Shutdown(ctx); err != nil {
+		log.Fatalf("server forced to shutdown: %s\n", err.Error())
+	}
 }
 
 func (s *httpServer) initServer() {
 	//init router
-	for _, v := range s.rt {
-		s.handle(v.method, v.path, v.f)
-	}
+	s.rt.Iterator(s.handle)
 }
 
 func (s *httpServer) handle(method string, path string, f FuncHandler) {
 	handler := func(ctx *gin.Context) {
-		var hc = HttpContext{engine: ctx}
-		f(&hc)
+		var hc = newHttpContext(ctx)
+		f(hc)
 	}
 	s.mux.Handle(method, path, handler)
+}
+
+func (s *httpServer) waitQuitSignal() {
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	<-c
+	s.cancel()
 }
