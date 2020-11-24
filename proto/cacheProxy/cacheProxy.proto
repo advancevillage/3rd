@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package cacheProxy;
+
+option go_package=".;cacheProxy";
+
+
+message CacheOpt {
+  string Password = 1;
+  int32 MaxRetries = 2;
+  int64 MinRetryBackoff = 3;
+  int64 MaxRetryBackoff = 4;
+  int64 DialTimeout = 5;
+  int64 ReadTimeout = 6;
+  int64 WriteTimeout = 7;
+  int32 PoolSize = 8;
+  int32 MinIdleConns = 9;
+  int64 MaxConnAge = 10;
+  int64 PoolTimeout = 11;
+  int64 IdleTimeout = 12;
+  int64 IdleCheckFrequency = 13;
+
+  ClusterOpt  Cluster = 14;
+  SingleOpt   Single = 15;
+  FailOverOpt FailOver = 16;
+};
+
+message ClusterOpt {
+  repeated string addr= 1;
+  int32 MaxRedirects = 2;
+  bool RouteByLatency = 3;
+  bool RouteRandomly = 4;
+};
+
+message SingleOpt {
+  string addr = 1;
+};
+
+message FailOverOpt {
+  repeated string Sentinels = 1;
+  string MasterName = 2;
+  string SentinelUsername = 3;
+  string SentinelPassword = 4;
+};

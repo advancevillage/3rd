@@ -4,69 +4,8 @@
 <img src="https://camo.githubusercontent.com/80a3f4387388a340de7d3b66176e2a53c56d2ea5/687474703a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d7265642e7376673f7374796c653d666c6174" alt="license" style="max-width:100%;"/>
 <img src="https://camo.githubusercontent.com/98181c2cd08d758e1824b7466ebd326f5f81c1ac/68747470733a2f2f6170702e666f7373612e696f2f6170692f70726f6a656374732f6769742532426769746875622e636f6d2532466f6c6976657265253246656c61737469632e7376673f747970653d736869656c64" alt="FOSSA Status" style="max-width:100%;"/>
 
-
-### feature
- * 文件操作 files
-   * xml
-     * []byte ---> xxx.xml
-   * pdf 
-     * []byte ---> xxx.pdf
-     * url    ---> xxx.pdf
-   * zip
-     * []byte ---> xxx.zip
- * 日志
-   * txt
- * 通知
-   * email
- * 池
-   * goroutine pool
- * 队列
-   * 普通队列 t
- * 存储
-   * LevelDB
-   * ES7
-   * Redis
- * 缓存
-   * Redis
- * WebSocket
- * RPC 
- * HTTP
-   * client
-      * get
-      * post
-      * postForm
-   * server
- * 工具包
-   * uuid
-   * snow flake id
-   * 数值处理
-   * 随机数/随机字符串
-   * 时间处理
-        
-#### init
-````shell
-    export GOPROXY=https://goproxy.cn
-    export GO111MODULE=on
-    
-    check list
-    https://goproxy.io/github.com/go-redis/redis/@v/
-                       -------------------------
-                              package
-                                 |
-                               *.info
+### 编码设计原则
+````
+    1: 错误处理由调用者处理： 函数实现遇到err直接退出,不进行日志的处理
 ````
 
-#### go mod
-````shell
-    //清缓存
-    $ go clean -modcache
-
-    go.mod：依赖列表和版本约束。
-    go.sum：记录module文件hash值，用于安全校验
-````
-
-#### question
-````md
-    q: $GOPATH/go.mod exists but should not
-    a: mod 不能与gopath共存
-````

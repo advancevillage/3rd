@@ -1,24 +1,16 @@
 module github.com/advancevillage/3rd
 
-go 1.13
+go 1.15
 
 require (
-	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.5.0
-	github.com/aws/aws-lambda-go v1.13.3
-	github.com/aws/aws-sdk-go v1.25.25
+	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redis/redis/v8 v8.3.3
-	github.com/go-sql-driver/mysql v1.4.1
-	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
-	github.com/gobwas/pool v0.2.0 // indirect
-	github.com/gobwas/ws v1.0.2
-	github.com/kr/pretty v0.2.1 // indirect
-	github.com/mailru/easyjson v0.7.0 // indirect
-	github.com/mholt/archiver/v3 v3.3.0
-	github.com/olivere/elastic/v7 v7.0.9
-	github.com/syndtr/goleveldb v1.0.0
-	github.com/tidwall/pretty v1.0.2 // indirect
-	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
-	github.com/xdg/stringprep v1.0.0 // indirect
-	go.mongodb.org/mongo-driver v1.1.4
+	github.com/go-sql-driver/mysql v1.5.0
+	github.com/golang/protobuf v1.4.3
+	github.com/romanyx/polluter v1.2.2
+	github.com/stretchr/testify v1.6.1
+	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
+	google.golang.org/protobuf v1.23.0
+	gopkg.in/yaml.v2 v2.3.0
 )

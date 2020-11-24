@@ -42,19 +42,6 @@ func RandsString(n int) string {
 	return rands(n, letterBytes)
 }
 
-func RandsInt(up int) int {
-	rand.Seed(time.Now().UnixNano())
-	return rand.Intn(up)
-}
-
-func RandsNumberString(n int) string {
+func RandsNumber(n int) string {
 	return rands(n, numberBytes)
-}
-
-func Add(a ...int) int {
-	sum := 0
-	for i := 0; i < len(a); i++ {
-		sum += a[i]
-	}
-	return sum
 }

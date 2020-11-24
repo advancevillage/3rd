@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package dbproxy;
+
+option go_package=".;dbproxy";
+
+
+//行数据
+message SqlRow {
+    repeated bytes column = 1; //列
+};
+
+
+message ExecuteSqlResponse {
+    repeated SqlRow rows = 1;
+    int64 insertId = 2;                 // 对于insert操作如果涉及到自增字段，可通过insert_id返回
+    int64 affectedRows = 3;             // 返回受影响的行数
+};
