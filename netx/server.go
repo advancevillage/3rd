@@ -1,5 +1,5 @@
 //author: richard
-package net
+package netx
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -113,17 +114,17 @@ func (c *httpContext) Write(code int, body interface{}) {
 	c.engine.JSON(code, body)
 }
 
-type FuncHandler func(IHttpContext)
+type HttpFuncHandler func(IHttpContext)
 
 type IRouter interface {
-	Add(method string, path string, f FuncHandler)
-	Iterator(f func(method string, path string, f FuncHandler))
+	Add(method string, path string, f HttpFuncHandler)
+	Iterator(f func(method string, path string, f HttpFuncHandler))
 }
 
 type router struct {
 	method string
 	path   string
-	f      FuncHandler
+	f      HttpFuncHandler
 }
 
 type routeTable []*router
@@ -131,11 +132,11 @@ type routeTable []*router
 func NewRouter() IRouter {
 	return &routeTable{}
 }
-func (c *routeTable) Add(method string, path string, f FuncHandler) {
+func (c *routeTable) Add(method string, path string, f HttpFuncHandler) {
 	*c = append(*c, &router{method: method, path: path, f: f})
 }
 
-func (c *routeTable) Iterator(f func(method string, path string, f FuncHandler)) {
+func (c *routeTable) Iterator(f func(method string, path string, f HttpFuncHandler)) {
 	for _, v := range *c {
 		f(v.method, v.path, v.f)
 	}
@@ -170,7 +171,7 @@ func NewHttpServer(host string, port int, rt IRouter, m ModeType) IHttpServer {
 
 func (s *httpServer) StartServer() {
 	go s.start()
-	go s.waitQuitSignal()
+	go waitQuitSignal(s.cancel)
 	select {
 	case <-s.app.Done():
 		s.close()
@@ -201,7 +202,7 @@ func (s *httpServer) initServer() {
 	s.rt.Iterator(s.handle)
 }
 
-func (s *httpServer) handle(method string, path string, f FuncHandler) {
+func (s *httpServer) handle(method string, path string, f HttpFuncHandler) {
 	handler := func(ctx *gin.Context) {
 		var hc = newHttpContext(ctx)
 		f(hc)
@@ -209,9 +210,136 @@ func (s *httpServer) handle(method string, path string, f FuncHandler) {
 	s.mux.Handle(method, path, handler)
 }
 
-func (s *httpServer) waitQuitSignal() {
+//@overview: 监听信号处理
+func waitQuitSignal(cancel context.CancelFunc) {
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	<-c
-	s.cancel()
+	cancel()
+}
+
+//tcp
+type ITcpContext interface {
+	Read([]byte) error
+	Write([]byte) error
+}
+
+//tcp request handler func
+type TcpFuncHandler func(ITcpContext)
+
+type tcpContext struct {
+	conn net.Conn
+}
+
+func (c *tcpContext) Read(b []byte) error {
+	var err error
+	_, err = c.conn.Read(b)
+	return err
+}
+
+func (c *tcpContext) Write(b []byte) error {
+	defer c.conn.Close()
+
+	var err error
+	_, err = c.conn.Write(b)
+	return err
+}
+
+func newTcpContext(conn net.Conn) ITcpContext {
+	return &tcpContext{conn: conn}
+}
+
+type ITcpServer interface {
+	StartServer()
+}
+
+//@overview: tcp server. 目标是更多请求更少的内存消耗
+//@author: richard.sun
+type tcpServer struct {
+	host   string
+	port   int
+	app    context.Context
+	cancel context.CancelFunc
+	err    error
+	f      TcpFuncHandler
+}
+
+func NewTcpServer(host string, port int, handler TcpFuncHandler) (ITcpServer, error) {
+	//1. 参数校验
+	if handler == nil || port < 0 || port > 65535 {
+		return nil, fmt.Errorf("port(%d) or handler(%v) param is invalid", port, handler)
+	}
+	var s = &tcpServer{}
+	s.host = host
+	s.port = port
+	s.app, s.cancel = context.WithCancel(context.Background())
+	s.f = handler
+
+	return s, nil
+}
+
+func (s *tcpServer) start() {
+	var (
+		err      error
+		delay    time.Duration
+		protocol = "tcp"
+		addr     = fmt.Sprintf("%s:%d", s.host, s.port)
+		l        net.Listener
+		conn     net.Conn
+	)
+	//1. 监听端口
+	l, err = net.Listen(protocol, addr)
+	if err != nil {
+		s.err = fmt.Errorf("listen %s fail. %s\n", addr, err.Error())
+		s.cancel()
+		return
+	}
+	//2. 监听请求
+	for {
+		conn, err = l.Accept()
+		//accept fail
+		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				switch {
+				case delay < 5*time.Millisecond:
+					delay = 5 * time.Millisecond
+				case delay < time.Second:
+					delay = 2 * delay
+				case delay >= time.Second:
+					delay = time.Second
+				}
+				var t = time.NewTicker(delay)
+				select {
+				case <-t.C:
+					t.Stop()
+				case <-s.app.Done():
+					t.Stop()
+					return
+				}
+			}
+			continue
+		}
+		delay = 0
+		//处理
+		go s.handler(conn)
+	}
+}
+
+func (s *tcpServer) StartServer() {
+	go s.start()
+	go waitQuitSignal(s.cancel)
+	select {
+	case <-s.app.Done():
+		s.close()
+	}
+}
+
+func (s *tcpServer) handler(conn net.Conn) {
+	s.f(newTcpContext(conn))
+}
+
+func (s *tcpServer) close() {
+	if s.err != nil {
+		fmt.Println(s.err.Error())
+	}
 }

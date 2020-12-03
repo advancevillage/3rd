@@ -1,4 +1,4 @@
-package net
+package netx
 
 import (
 	"bytes"
@@ -78,7 +78,12 @@ func (c *httpClient) GET(ctx context.Context, uri string, params map[string]stri
 	}
 	//5. 发送HTTP请求
 	for i := uint(0); i < c.retry; i++ {
-		response, err = client.Do(request)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			response, err = client.Do(request)
+		}
 		if err == nil {
 			break
 		}
@@ -130,7 +135,12 @@ func (c *httpClient) POST(ctx context.Context, uri string, headers map[string]st
 	}
 	//4. 发送HTTP请求
 	for i := uint(0); i < c.retry; i++ {
-		response, err = client.Do(request)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			response, err = client.Do(request)
+		}
 		if err == nil {
 			break
 		}
@@ -188,7 +198,12 @@ func (c *httpClient) PostForm(ctx context.Context, uri string, params map[string
 	}
 	//5. 发送HTTP请求
 	for i := uint(0); i < c.retry; i++ {
-		response, err = client.Do(request)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			response, err = client.Do(request)
+		}
 		if err == nil {
 			break
 		}
@@ -270,7 +285,12 @@ func (c *httpClient) Upload(ctx context.Context, uri string, params map[string]s
 	}
 	//7. 发送请求
 	for i := uint(0); i < c.retry; i++ {
-		response, err = client.Do(request)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			response, err = client.Do(request)
+		}
 		if err == nil {
 			break
 		}

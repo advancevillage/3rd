@@ -1,4 +1,4 @@
-package net
+package netx
 
 import (
 	"context"
@@ -16,14 +16,14 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-var serverTestData = map[string]struct {
+var httpServerTestData = map[string]struct {
 	rs      IRouter
 	host    string
 	port    int
 	method  string
 	path    string
 	params  map[string]string
-	handler FuncHandler
+	handler HttpFuncHandler
 	except  string
 }{
 	//测试Get请求并携带Query
@@ -45,8 +45,8 @@ var serverTestData = map[string]struct {
 	},
 }
 
-func Test_Server(t *testing.T) {
-	for n, p := range serverTestData {
+func Test_HttpServer(t *testing.T) {
+	for n, p := range httpServerTestData {
 		f := func(t *testing.T) {
 			p.rs.Add(p.method, p.path, p.handler)
 			var s = NewHttpServer(p.host, p.port, p.rs, DebugMode)
@@ -65,6 +65,37 @@ func Test_Server(t *testing.T) {
 			}
 			s.StopServer()
 			assert.Equal(t, p.except, string(buf))
+		}
+		t.Run(n, f)
+	}
+}
+
+//tcp unit test
+var tcpServerTestData = map[string]struct {
+	host    string
+	port    int
+	handler TcpFuncHandler
+	except  interface{}
+	err     error
+}{
+	"case1": {
+		host: "localhost",
+		port: rand.Intn(4096) + 4096,
+		handler: func(ctx ITcpContext) {
+
+		},
+	},
+}
+
+func Test_TcpServer(t *testing.T) {
+	for n, p := range tcpServerTestData {
+		f := func(t *testing.T) {
+			var s, err = NewTcpServer(p.host, p.port, p.handler)
+			if err != nil {
+				assert.Equal(t, err, p.err)
+				return
+			}
+			s.StartServer()
 		}
 		t.Run(n, f)
 	}
