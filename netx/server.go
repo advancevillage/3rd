@@ -218,36 +218,25 @@ func waitQuitSignal(cancel context.CancelFunc) {
 	cancel()
 }
 
-//tcp
-type ITcpContext interface {
-	Read([]byte) error
+//tcp request handler func
+type ITcpWriter interface {
 	Write([]byte) error
 }
 
-//tcp request handler func
-type TcpFuncHandler func(ITcpContext)
-
-type tcpContext struct {
+type tcpWriter struct {
 	conn net.Conn
 }
 
-func (c *tcpContext) Read(b []byte) error {
-	var err error
-	_, err = c.conn.Read(b)
+func newTcpWriter(conn net.Conn) ITcpWriter {
+	return &tcpWriter{conn: conn}
+}
+
+func (c *tcpWriter) Write(b []byte) error {
+	var _, err = c.conn.Write(b)
 	return err
 }
 
-func (c *tcpContext) Write(b []byte) error {
-	defer c.conn.Close()
-
-	var err error
-	_, err = c.conn.Write(b)
-	return err
-}
-
-func newTcpContext(conn net.Conn) ITcpContext {
-	return &tcpContext{conn: conn}
-}
+type TcpFuncHandler func(ITcpWriter, []byte)
 
 type ITcpServer interface {
 	StartServer()
@@ -261,10 +250,11 @@ type tcpServer struct {
 	app    context.Context
 	cancel context.CancelFunc
 	err    error
+	ctt    time.Duration //conntection timeout
 	f      TcpFuncHandler
 }
 
-func NewTcpServer(host string, port int, handler TcpFuncHandler) (ITcpServer, error) {
+func NewTcpServer(host string, port int, handler TcpFuncHandler, ctt time.Duration) (ITcpServer, error) {
 	//1. 参数校验
 	if handler == nil || port < 0 || port > 65535 {
 		return nil, fmt.Errorf("port(%d) or handler(%v) param is invalid", port, handler)
@@ -274,6 +264,7 @@ func NewTcpServer(host string, port int, handler TcpFuncHandler) (ITcpServer, er
 	s.port = port
 	s.app, s.cancel = context.WithCancel(context.Background())
 	s.f = handler
+	s.ctt = ctt
 
 	return s, nil
 }
@@ -311,7 +302,6 @@ func (s *tcpServer) start() {
 				var t = time.NewTicker(delay)
 				select {
 				case <-t.C:
-					t.Stop()
 				case <-s.app.Done():
 					t.Stop()
 					return
@@ -335,7 +325,28 @@ func (s *tcpServer) StartServer() {
 }
 
 func (s *tcpServer) handler(conn net.Conn) {
-	s.f(newTcpContext(conn))
+	//1. 关闭链接
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(s.ctt))
+	//2. 处理流
+	var c = newTcpWriter(conn)
+	var buf = make([]byte, 10)
+	var err error
+
+	for {
+		select {
+		case <-s.app.Done():
+			return
+		default:
+			//todo 支持协议定义
+			_, err = conn.Read(buf)
+			if err != nil {
+				return
+			}
+			s.f(c, buf)
+			conn.SetDeadline(time.Now().Add(s.ctt))
+		}
+	}
 }
 
 func (s *tcpServer) close() {

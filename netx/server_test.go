@@ -81,8 +81,13 @@ var tcpServerTestData = map[string]struct {
 	"case1": {
 		host: "localhost",
 		port: rand.Intn(4096) + 4096,
-		handler: func(ctx ITcpContext) {
-
+		handler: func(w ITcpWriter, r []byte) {
+			fmt.Print(r)
+			var msg = "recieved!\n"
+			var err = w.Write([]byte(msg))
+			if err != nil {
+				fmt.Print(err.Error())
+			}
 		},
 	},
 }
@@ -90,7 +95,8 @@ var tcpServerTestData = map[string]struct {
 func Test_TcpServer(t *testing.T) {
 	for n, p := range tcpServerTestData {
 		f := func(t *testing.T) {
-			var s, err = NewTcpServer(p.host, p.port, p.handler)
+			fmt.Println(p.host, p.port)
+			var s, err = NewTcpServer(p.host, p.port, p.handler, time.Hour)
 			if err != nil {
 				assert.Equal(t, err, p.err)
 				return
