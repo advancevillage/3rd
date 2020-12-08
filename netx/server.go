@@ -2,9 +2,14 @@
 package netx
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -25,6 +30,10 @@ const (
 	DebugMode   = ModeType(gin.DebugMode)
 	TestMode    = ModeType(gin.TestMode)
 	ReleaseMode = ModeType(gin.ReleaseMode)
+)
+
+var (
+	ErrPartPackage = errors.New("receive part package")
 )
 
 type IHttpServer interface {
@@ -251,20 +260,19 @@ type tcpServer struct {
 	cancel context.CancelFunc
 	err    error
 	ctt    time.Duration //conntection timeout
-	f      TcpFuncHandler
+	p      IProtocol
 }
 
-func NewTcpServer(host string, port int, handler TcpFuncHandler, ctt time.Duration) (ITcpServer, error) {
+func NewTcpServerWithProtocol(host string, port int, p IProtocol) (ITcpServer, error) {
 	//1. 参数校验
-	if handler == nil || port < 0 || port > 65535 {
-		return nil, fmt.Errorf("port(%d) or handler(%v) param is invalid", port, handler)
+	if port < 0 || port > 65535 {
+		return nil, fmt.Errorf("port(%d) param is invalid", port)
 	}
 	var s = &tcpServer{}
 	s.host = host
 	s.port = port
 	s.app, s.cancel = context.WithCancel(context.Background())
-	s.f = handler
-	s.ctt = ctt
+	s.p = p
 
 	return s, nil
 }
@@ -327,24 +335,35 @@ func (s *tcpServer) StartServer() {
 func (s *tcpServer) handler(conn net.Conn) {
 	//1. 关闭链接
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(s.ctt))
 	//2. 处理流
-	var c = newTcpWriter(conn)
-	var buf = make([]byte, 10)
+	var r = bufio.NewReader(conn)
 	var err error
+	var n int32
+	var b []byte
 
 	for {
 		select {
 		case <-s.app.Done():
 			return
 		default:
-			//todo 支持协议定义
-			_, err = conn.Read(buf)
-			if err != nil {
+			//1. 解析协议Header
+			n, err = s.readHeader(r)
+			if err == io.EOF {
 				return
 			}
-			s.f(c, buf)
-			conn.SetDeadline(time.Now().Add(s.ctt))
+			if err != nil {
+				continue
+			}
+			//2. 解析协议Body
+			b, err = s.readBody(r, n)
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
+				continue
+			}
+			//3. 协议数据处理
+			s.p.Write(conn, b)
 		}
 	}
 }
@@ -353,4 +372,36 @@ func (s *tcpServer) close() {
 	if s.err != nil {
 		fmt.Println(s.err.Error())
 	}
+}
+
+func (s *tcpServer) readHeader(r *bufio.Reader) (int32, error) {
+	//1. 解析协议Header
+	var hLen = s.p.HeaderLength()
+	var bLen = int32(0)
+	var h, err = r.Peek(int(hLen))
+	if err == io.EOF {
+		return 0, io.EOF
+	}
+	if err != nil {
+		return 0, err
+	}
+	//2. 解析Body长度
+	err = binary.Read(bytes.NewBuffer(h), binary.BigEndian, &bLen)
+	if err != nil {
+		return 0, err
+	}
+	//3. 是否是完成的包
+	if int32(r.Buffered()) < (hLen + bLen) {
+		return 0, ErrPartPackage
+	}
+	return hLen + bLen, nil
+}
+
+func (s *tcpServer) readBody(r *bufio.Reader, n int32) ([]byte, error) {
+	var b = make([]byte, n)
+	var nn, err = r.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[s.p.HeaderLength():nn], nil
 }

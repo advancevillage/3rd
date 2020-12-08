@@ -1,8 +1,11 @@
 package netx
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -74,20 +77,15 @@ func Test_HttpServer(t *testing.T) {
 var tcpServerTestData = map[string]struct {
 	host    string
 	port    int
-	handler TcpFuncHandler
+	handler func(io.Writer, []byte)
 	except  interface{}
 	err     error
 }{
 	"case1": {
 		host: "localhost",
 		port: rand.Intn(4096) + 4096,
-		handler: func(w ITcpWriter, r []byte) {
-			fmt.Print(r)
-			var msg = "recieved!\n"
-			var err = w.Write([]byte(msg))
-			if err != nil {
-				fmt.Print(err.Error())
-			}
+		handler: func(w io.Writer, b []byte) {
+			w.Write(b)
 		},
 	},
 }
@@ -96,7 +94,7 @@ func Test_TcpServer(t *testing.T) {
 	for n, p := range tcpServerTestData {
 		f := func(t *testing.T) {
 			fmt.Println(p.host, p.port)
-			var s, err = NewTcpServer(p.host, p.port, p.handler, time.Hour)
+			var s, err = NewTcpServerWithProtocol(p.host, p.port, NewHBProtocol(4, p.handler))
 			if err != nil {
 				assert.Equal(t, err, p.err)
 				return
@@ -105,4 +103,15 @@ func Test_TcpServer(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
+}
+
+func Test_Bin(t *testing.T) {
+	var buf = []byte{0, 0, 0, 0x04}
+	var r = bytes.NewBuffer(buf)
+	var l = int32(0)
+	var err = binary.Read(r, binary.BigEndian, &l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(l)
 }
