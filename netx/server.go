@@ -3,10 +3,8 @@ package netx
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -337,6 +335,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 	defer conn.Close()
 	//2. 处理流
 	var r = bufio.NewReader(conn)
+	var w = bufio.NewWriter(conn)
 	var err error
 	var n int32
 	var b []byte
@@ -347,7 +346,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 			return
 		default:
 			//1. 解析协议Header
-			n, err = s.readHeader(r)
+			n, err = s.p.ReadHeader(r)
 			if err == io.EOF {
 				return
 			}
@@ -355,7 +354,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 				continue
 			}
 			//2. 解析协议Body
-			b, err = s.readBody(r, n)
+			b, err = s.p.ReadBody(r, n)
 			if err == io.EOF {
 				return
 			}
@@ -363,7 +362,10 @@ func (s *tcpServer) handler(conn net.Conn) {
 				continue
 			}
 			//3. 协议数据处理
-			s.p.Write(conn, b)
+			err = s.p.Write(w, b)
+			if err == io.EOF {
+				return
+			}
 		}
 	}
 }
@@ -372,36 +374,4 @@ func (s *tcpServer) close() {
 	if s.err != nil {
 		fmt.Println(s.err.Error())
 	}
-}
-
-func (s *tcpServer) readHeader(r *bufio.Reader) (int32, error) {
-	//1. 解析协议Header
-	var hLen = s.p.HeaderLength()
-	var bLen = int32(0)
-	var h, err = r.Peek(int(hLen))
-	if err == io.EOF {
-		return 0, io.EOF
-	}
-	if err != nil {
-		return 0, err
-	}
-	//2. 解析Body长度
-	err = binary.Read(bytes.NewBuffer(h), binary.BigEndian, &bLen)
-	if err != nil {
-		return 0, err
-	}
-	//3. 是否是完成的包
-	if int32(r.Buffered()) < (hLen + bLen) {
-		return 0, ErrPartPackage
-	}
-	return hLen + bLen, nil
-}
-
-func (s *tcpServer) readBody(r *bufio.Reader, n int32) ([]byte, error) {
-	var b = make([]byte, n)
-	var nn, err = r.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b[s.p.HeaderLength():nn], nil
 }

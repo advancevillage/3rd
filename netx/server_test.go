@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -77,15 +76,16 @@ func Test_HttpServer(t *testing.T) {
 var tcpServerTestData = map[string]struct {
 	host    string
 	port    int
-	handler func(io.Writer, []byte)
+	handler ProtocolFunc
 	except  interface{}
 	err     error
 }{
 	"case1": {
 		host: "localhost",
 		port: rand.Intn(4096) + 4096,
-		handler: func(w io.Writer, b []byte) {
-			w.Write(b)
+		handler: func(req *ProtocolRequest) (*ProtocolResponse, error) {
+			var b = "receive " + string(req.Body)
+			return &ProtocolResponse{Body: []byte(b)}, nil
 		},
 	},
 }
