@@ -2,7 +2,6 @@
 package netx
 
 import (
-	"bufio"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -226,51 +225,34 @@ func waitQuitSignal(cancel context.CancelFunc) {
 }
 
 //tcp request handler func
-type ITcpWriter interface {
-	Write([]byte) error
-}
-
-type tcpWriter struct {
-	conn net.Conn
-}
-
-func newTcpWriter(conn net.Conn) ITcpWriter {
-	return &tcpWriter{conn: conn}
-}
-
-func (c *tcpWriter) Write(b []byte) error {
-	var _, err = c.conn.Write(b)
-	return err
-}
-
-type TcpFuncHandler func(ITcpWriter, []byte)
-
 type ITcpServer interface {
 	StartServer()
+}
+
+type TcpServerOpt struct {
+	Host string
+	Port int
+	CTT  time.Duration       //conntection timeout
+	PC   ProtocolConstructor //协议生成器
+	PH   ProtocolHandler     //协议处理器
 }
 
 //@overview: tcp server. 目标是更多请求更少的内存消耗
 //@author: richard.sun
 type tcpServer struct {
-	host   string
-	port   int
+	cfg    *TcpServerOpt
 	app    context.Context
 	cancel context.CancelFunc
-	err    error
-	ctt    time.Duration //conntection timeout
-	p      IProtocol
 }
 
-func NewTcpServerWithProtocol(host string, port int, p IProtocol) (ITcpServer, error) {
+func NewTcpServerWithProtocol(cfg *TcpServerOpt) (ITcpServer, error) {
 	//1. 参数校验
-	if port < 0 || port > 65535 {
-		return nil, fmt.Errorf("port(%d) param is invalid", port)
+	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 {
+		return nil, errors.New("opts param is invalid")
 	}
 	var s = &tcpServer{}
-	s.host = host
-	s.port = port
 	s.app, s.cancel = context.WithCancel(context.Background())
-	s.p = p
+	s.cfg = cfg
 
 	return s, nil
 }
@@ -280,14 +262,14 @@ func (s *tcpServer) start() {
 		err      error
 		delay    time.Duration
 		protocol = "tcp"
-		addr     = fmt.Sprintf("%s:%d", s.host, s.port)
+		addr     = fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 		l        net.Listener
 		conn     net.Conn
 	)
 	//1. 监听端口
 	l, err = net.Listen(protocol, addr)
 	if err != nil {
-		s.err = fmt.Errorf("listen %s fail. %s\n", addr, err.Error())
+		fmt.Printf("listen %s fail. %s\n", addr, err.Error())
 		s.cancel()
 		return
 	}
@@ -326,52 +308,45 @@ func (s *tcpServer) StartServer() {
 	go waitQuitSignal(s.cancel)
 	select {
 	case <-s.app.Done():
-		s.close()
 	}
 }
 
 func (s *tcpServer) handler(conn net.Conn) {
 	//1. 关闭链接
 	defer conn.Close()
-	//2. 处理流
-	var r = bufio.NewReader(conn)
-	var w = bufio.NewWriter(conn)
+	//2. 上下文处理
+	var ctx, cancel = context.WithCancel(s.app)
+	defer cancel()
+	//3. 协议编&解码器
+	var p = s.cfg.PC(conn)
 	var err error
-	var n int32
-	var b []byte
+	var buf []byte
 
 	for {
 		select {
 		case <-s.app.Done():
 			return
 		default:
-			//1. 解析协议Header
-			n, err = s.p.ReadHeader(r)
+			//1. 解包
+			conn.SetReadDeadline(time.Now().Add(s.cfg.CTT))
+			buf, err = p.Unpacket(ctx)
+			if err == io.EOF { //链接关闭
+				return
+			}
+			p.HandleError(ctx, err)
+			//2. 包处理
+			buf, err = s.cfg.PH(ctx, buf)
 			if err == io.EOF {
 				return
 			}
-			if err != nil {
-				continue
-			}
-			//2. 解析协议Body
-			b, err = s.p.ReadBody(r, n)
+			p.HandleError(ctx, err)
+			//3. 封包
+			conn.SetWriteDeadline(time.Now().Add(s.cfg.CTT))
+			err = p.Packet(ctx, buf)
 			if err == io.EOF {
 				return
 			}
-			if err != nil {
-				continue
-			}
-			//3. 协议数据处理
-			err = s.p.Write(w, b)
-			if err == io.EOF {
-				return
-			}
+			p.HandleError(ctx, err)
 		}
-	}
-}
-
-func (s *tcpServer) close() {
-	if s.err != nil {
-		fmt.Println(s.err.Error())
 	}
 }
