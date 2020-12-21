@@ -29,10 +29,6 @@ const (
 	ReleaseMode = ModeType(gin.ReleaseMode)
 )
 
-var (
-	ErrPartPackage = errors.New("receive part package")
-)
-
 type IHttpServer interface {
 	StartServer()
 	StopServer()
@@ -334,6 +330,9 @@ func (s *tcpServer) handler(conn net.Conn) {
 			buf, err = p.Unpacket(ctx)
 			if err == io.EOF { //链接关闭
 				return
+			}
+			if err == ErrPartPackage {
+				continue
 			}
 			p.HandleError(ctx, err)
 			//2. 包处理

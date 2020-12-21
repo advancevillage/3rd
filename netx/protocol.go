@@ -10,6 +10,13 @@ import (
 	"net"
 )
 
+var (
+	ErrPartPackage  = errors.New("protocol part package") //粘包
+	ErrParsePackage = errors.New("protocol parse package")
+	ErrReadPackage  = errors.New("protocol read package error")
+	ErrWritePackage = errors.New("protocol write package error")
+)
+
 type IProtocol interface {
 	//@overview: 解包
 	//@author: richard.sun
@@ -53,27 +60,38 @@ func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	if p.reader.Buffered() < (bLen + p.hLen) {
-		return nil, errors.New("part package")
+		return nil, ErrPartPackage
 	}
 	//2. 拆包
 	//example:  A/AB/A1A2B/AB1B2
 	var body = make([]byte, bLen+p.hLen)
 	n, err = p.reader.Read(body)
 	if err != nil || n < (bLen+p.hLen) {
-		return nil, errors.New("protocol parse error")
+		return nil, ErrParsePackage
 	}
 	return body[p.hLen:], nil
 }
 
 func (p *HB) Packet(ctx context.Context, body []byte) error {
-	var pkg, err = p.writeHeader(ctx, body)
+	//1. 构造Header信息
+	var h, err = p.writeHeader(ctx, body)
 	if err != nil {
 		return err
 	}
+	//2. 构造Body信息
+	var pkg = new(bytes.Buffer)
 	var n int
-	n, err = p.writer.Write(pkg)
-	if err != nil || n < len(pkg) {
-		return errors.New("protocol packet error")
+	n, err = pkg.Write(h)
+	if err != nil || n < p.hLen {
+		return ErrWritePackage
+	}
+	n, err = pkg.Write(body)
+	if err != nil || n < len(body) {
+		return ErrWritePackage
+	}
+	n, err = p.writer.Write(pkg.Bytes())
+	if err != nil || n < pkg.Len() {
+		return ErrWritePackage
 	}
 	err = p.writer.Flush()
 	if err != nil {
@@ -95,27 +113,22 @@ func (p *HB) readHeader(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	//2. 解析字节流 大端
-	var bLen int
+	var bLen int32
 	err = binary.Read(bytes.NewBuffer(b[:p.hLen]), binary.BigEndian, &bLen)
 	if err != nil {
 		return 0, err
 	}
 	//3. 返回包长度
-	return bLen, nil
+	return int(bLen), nil
 }
 
 func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 	var bLen = len(body)
-	var pkg = make([]byte, bLen+p.hLen)
+	var h = new(bytes.Buffer)
 	//1. 消息头
-	var err = binary.Write(bytes.NewBuffer(pkg[:p.hLen]), binary.BigEndian, bLen)
+	var err = binary.Write(h, binary.BigEndian, int32(bLen))
 	if err != nil {
 		return nil, err
 	}
-	//2. 消息体
-	err = binary.Write(bytes.NewBuffer(pkg[p.hLen:]), binary.BigEndian, body)
-	if err != nil {
-		return nil, err
-	}
-	return pkg, nil
+	return h.Bytes(), nil
 }
