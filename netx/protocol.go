@@ -2,6 +2,7 @@ package netx
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -48,23 +49,18 @@ func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
 	//1. 预分析协议
 	var bLen, err = p.readHeader(ctx)
 	var n int
-	var ni = 0
 	if err != nil {
 		return nil, err
 	}
-	//2. 拆包
-	var body = make([]byte, bLen+p.hLen)
-	n, err = p.reader.Read(body[:p.hLen])
-	if err != nil {
-		return nil, errors.New("protocol parse error")
+	if p.reader.Buffered() < (bLen + p.hLen) {
+		return nil, errors.New("part package")
 	}
-	ni = n
-	for ni < bLen {
-		n, err = p.reader.Read(body[ni:])
-		if err != nil {
-			return nil, errors.New("protocol parse error")
-		}
-		ni += n
+	//2. 拆包
+	//example:  A/AB/A1A2B/AB1B2
+	var body = make([]byte, bLen+p.hLen)
+	n, err = p.reader.Read(body)
+	if err != nil || n < (bLen+p.hLen) {
+		return nil, errors.New("protocol parse error")
 	}
 	return body[p.hLen:], nil
 }
@@ -99,15 +95,27 @@ func (p *HB) readHeader(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	//2. 解析字节流 大端
-	var x = binary.BigEndian.Uint32(b)
+	var bLen int
+	err = binary.Read(bytes.NewBuffer(b[:p.hLen]), binary.BigEndian, &bLen)
+	if err != nil {
+		return 0, err
+	}
 	//3. 返回包长度
-	return int(x), nil
+	return bLen, nil
 }
 
 func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 	var bLen = len(body)
-	var pkg = make([]byte, p.hLen+bLen)
-	binary.BigEndian.PutUint32(pkg[:p.hLen], uint32(bLen))
-	copy(pkg[p.hLen:], body)
+	var pkg = make([]byte, bLen+p.hLen)
+	//1. 消息头
+	var err = binary.Write(bytes.NewBuffer(pkg[:p.hLen]), binary.BigEndian, bLen)
+	if err != nil {
+		return nil, err
+	}
+	//2. 消息体
+	err = binary.Write(bytes.NewBuffer(pkg[p.hLen:]), binary.BigEndian, body)
+	if err != nil {
+		return nil, err
+	}
 	return pkg, nil
 }

@@ -331,7 +331,6 @@ func (s *tcpServer) handler(conn net.Conn) {
 			return
 		default:
 			//1. 解包
-			conn.SetReadDeadline(time.Now().Add(s.cfg.CTT))
 			buf, err = p.Unpacket(ctx)
 			if err == io.EOF { //链接关闭
 				return
@@ -344,7 +343,6 @@ func (s *tcpServer) handler(conn net.Conn) {
 			}
 			p.HandleError(ctx, err)
 			//3. 封包
-			conn.SetWriteDeadline(time.Now().Add(s.cfg.CTT))
 			err = p.Packet(ctx, buf)
 			if err == io.EOF {
 				return
