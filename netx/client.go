@@ -3,15 +3,22 @@ package netx
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
+)
+
+var (
+	errConnectClosed = errors.New("connection closed")
 )
 
 type IHttpClient interface {
@@ -311,4 +318,153 @@ func (c *httpClient) Upload(ctx context.Context, uri string, params map[string]s
 		return nil, err
 	}
 	return buf, nil
+}
+
+type ITcpClient interface {
+	Send(context.Context, []byte) ([]byte, error)
+}
+
+type TcpClientOpt struct {
+	Address string              // 服务端地址 ip:port
+	Timeout time.Duration       // 客户端超时
+	Retry   int                 //重试次数
+	PC      ProtocolConstructor //协议生成器
+}
+
+//@overview: Tcp协议客户端应该具备超时、重试、断开重连、发送请求的基本功能
+type tcpClient struct {
+	cfg    *TcpClientOpt
+	p      IProtocol
+	conn   net.Conn
+	app    context.Context
+	cancel context.CancelFunc
+	mu     sync.Mutex
+	notify chan struct{}
+}
+
+func NewTcpClient(cfg *TcpClientOpt) (ITcpClient, error) {
+	//1. 参数检查
+	if cfg == nil || len(cfg.Address) <= 0 || cfg.Timeout <= 0 || cfg.Retry <= 0 || cfg.PC == nil {
+		return nil, errors.New("tcp client options invalid param")
+	}
+	//2. 构建客户端
+	var c = &tcpClient{}
+	c.cfg = cfg
+	c.app, c.cancel = context.WithCancel(context.Background())
+	go c.loop()
+	return c, nil
+}
+
+func (c *tcpClient) loop() {
+	var err error
+	for {
+		err = c.conntect(c.app)
+		if err != nil {
+			return
+		}
+		select {
+		case <-c.notify:
+			c.clear()
+		case <-c.app.Done():
+			c.conn.Close()
+			c.clear()
+			return
+		}
+	}
+}
+
+func (c *tcpClient) conntect(ctx context.Context) error {
+	fmt.Println(c.cfg.Address)
+	for {
+		var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
+		//1. 连接失败 重试连接
+		if err != nil {
+			fmt.Println("尝试重连")
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		//2. 连接失败
+		if err != nil {
+			return err
+		}
+		fmt.Println("连接成功")
+		//3. 连接成功
+		c.mu.Lock()
+		c.conn = conn
+		c.p = c.cfg.PC(c.conn)
+		c.notify = make(chan struct{})
+		c.mu.Unlock()
+		go c.heartbeet(c.notify)
+		break
+	}
+	return nil
+}
+
+func (c *tcpClient) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.conn = nil
+	c.p = nil
+}
+
+func (c *tcpClient) heartbeet(notify chan struct{}) {
+	defer close(notify)
+	var err error
+	for {
+		//1. 参数校验
+		select {
+		case <-c.app.Done():
+			return
+		default:
+			if c.p == nil { //连接建立失败
+				return
+			}
+			_, err = c.send(c.app, c.p, nil)
+			if err != nil {
+				return
+			}
+			time.Sleep(time.Second / 5)
+		}
+	}
+}
+
+func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) ([]byte, error) {
+	//0. 参数校验
+	if p == nil {
+		return nil, errConnectClosed
+	}
+	var (
+		b   []byte
+		err error
+	)
+	//1. 协议封包发送
+	for i := 0; i < c.cfg.Retry; i++ {
+		err = p.Packet(ctx, body)
+		if err != nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	err = p.Packet(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	//2. 协议接收解包
+	b, err = p.Unpacket(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (c *tcpClient) Send(ctx context.Context, body []byte) ([]byte, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.app.Done():
+		return nil, c.app.Err()
+	default:
+		return c.send(ctx, c.p, body)
+	}
 }

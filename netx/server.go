@@ -228,7 +228,6 @@ type ITcpServer interface {
 type TcpServerOpt struct {
 	Host string
 	Port int
-	CTT  time.Duration       //conntection timeout
 	PC   ProtocolConstructor //协议生成器
 	PH   ProtocolHandler     //协议处理器
 }
@@ -245,9 +244,6 @@ func NewTcpServer(cfg *TcpServerOpt) (ITcpServer, error) {
 	//1. 参数校验
 	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 {
 		return nil, errors.New("opts param is invalid")
-	}
-	if cfg.CTT < 5*time.Millisecond {
-		cfg.CTT = 5 * time.Millisecond
 	}
 	var s = &tcpServer{}
 	s.app, s.cancel = context.WithCancel(context.Background())

@@ -84,7 +84,7 @@ var tcpServerTestData = map[string]struct {
 		port: rand.Intn(4096) + 4096,
 		pc:   NewHBProtocol,
 		ph: func(ctx context.Context, body []byte) ([]byte, error) {
-			fmt.Println(body)
+			fmt.Println(string(body))
 			return []byte("receive"), nil
 		},
 	},
