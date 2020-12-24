@@ -327,7 +327,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 			if err == io.EOF { //链接关闭
 				return
 			}
-			if err == ErrPartPackage {
+			if err == errPartPackage {
 				continue
 			}
 			p.HandleError(ctx, err)

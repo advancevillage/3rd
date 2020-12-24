@@ -3,21 +3,25 @@ package netx
 import (
 	"context"
 	"fmt"
+	"log"
 	"testing"
 	"time"
+
+	"github.com/advancevillage/3rd/utils"
 )
 
 var tcpClientTestData = map[string]struct {
 	host string
 	port int
 	pc   ProtocolConstructor
-	msg  string
+	msg  int
 }{
+	//场景1: 小包
 	"case1": {
 		host: "localhost",
 		port: 6671,
 		pc:   NewHBProtocol,
-		msg:  "little package",
+		msg:  1500,
 	},
 }
 
@@ -26,7 +30,7 @@ func Test_tcpClient(t *testing.T) {
 		f := func(t *testing.T) {
 			var c, err = NewTcpClient(&TcpClientOpt{
 				Address: fmt.Sprintf("%s:%d", p.host, p.port),
-				Timeout: time.Second,
+				Timeout: time.Hour,
 				Retry:   3,
 				PC:      p.pc,
 			})
@@ -34,13 +38,15 @@ func Test_tcpClient(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
+			var i = 0
 			for {
-				b, err := c.Send(context.TODO(), []byte(p.msg))
+				msg := fmt.Sprintf("%s:%d", utils.RandsString(p.msg), i)
+				b, err := c.Send(context.TODO(), []byte(msg))
 				if err != nil {
-					//fmt.Println(err)
 					continue
 				}
-				fmt.Println(string(b))
+				i++
+				log.Println(string(b))
 			}
 		}
 		t.Run(n, f)

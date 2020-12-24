@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -364,6 +365,7 @@ func (c *tcpClient) loop() {
 		}
 		select {
 		case <-c.notify:
+			c.conn.Close()
 			c.clear()
 		case <-c.app.Done():
 			c.conn.Close()
@@ -379,16 +381,12 @@ func (c *tcpClient) conntect(ctx context.Context) error {
 		var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
 		//1. 连接失败 重试连接
 		if err != nil {
-			fmt.Println("尝试重连")
+			log.Println("尝试重连")
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
-		//2. 连接失败
-		if err != nil {
-			return err
-		}
-		fmt.Println("连接成功")
-		//3. 连接成功
+		log.Println("连接成功")
+		//2. 连接成功
 		c.mu.Lock()
 		c.conn = conn
 		c.p = c.cfg.PC(c.conn)
@@ -420,6 +418,12 @@ func (c *tcpClient) heartbeet(notify chan struct{}) {
 				return
 			}
 			_, err = c.send(c.app, c.p, nil)
+			if err == io.EOF {
+				return
+			}
+			if err == errPartPackage {
+				continue
+			}
 			if err != nil {
 				return
 			}
@@ -446,7 +450,6 @@ func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) ([]byte,
 		}
 		break
 	}
-	err = p.Packet(ctx, body)
 	if err != nil {
 		return nil, err
 	}

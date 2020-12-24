@@ -6,25 +6,26 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"log"
 	"net"
+	"sync"
 )
 
 var (
-	ErrPartPackage  = errors.New("protocol part package") //粘包
-	ErrParsePackage = errors.New("protocol parse package")
-	ErrReadPackage  = errors.New("protocol read package error")
-	ErrWritePackage = errors.New("protocol write package error")
+	errPartPackage  = errors.New("protocol part package") //粘包
+	errParsePackage = errors.New("protocol parse package")
+	errReadPackage  = errors.New("protocol read package error")
+	errWritePackage = errors.New("protocol write package error")
 )
 
 type IProtocol interface {
 	//@overview: 解包
 	//@author: richard.sun
-	//@note: 注意处理粘包问题
+	//@note: 注意处理粘包问题 共享net.Conn时注意多goroutine并发读
 	Unpacket(context.Context) ([]byte, error)
 	//@overview: 封包
 	//@author: richard.sun
-	//@note: 注意处理拆包问题
+	//@note: 注意处理拆包问题. 共享net.Conn时注意多goroutine并发写
 	Packet(context.Context, []byte) error
 	//@overview 错误订阅
 	//@author: richard.sun
@@ -42,6 +43,8 @@ type HB struct {
 	hLen   int
 	reader *bufio.Reader
 	writer *bufio.Writer
+	wmu    sync.Mutex
+	rmu    sync.Mutex
 }
 
 func NewHBProtocol(conn net.Conn) IProtocol {
@@ -54,22 +57,24 @@ func NewHBProtocol(conn net.Conn) IProtocol {
 
 func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
 	//1. 预分析协议
+	p.rmu.Lock()
+	defer p.rmu.Unlock()
+
 	var bLen, err = p.readHeader(ctx)
-	var n int
+	var b []byte
 	if err != nil {
 		return nil, err
 	}
 	if p.reader.Buffered() < (bLen + p.hLen) {
-		return nil, ErrPartPackage
+		return nil, errPartPackage
 	}
 	//2. 拆包
 	//example:  A/AB/A1A2B/AB1B2
-	var body = make([]byte, bLen+p.hLen)
-	n, err = p.reader.Read(body)
-	if err != nil || n < (bLen+p.hLen) {
-		return nil, ErrParsePackage
+	b, err = p.readBody(ctx, bLen+p.hLen)
+	if err != nil {
+		return nil, err
 	}
-	return body[p.hLen:], nil
+	return b, nil
 }
 
 func (p *HB) Packet(ctx context.Context, body []byte) error {
@@ -78,20 +83,36 @@ func (p *HB) Packet(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
+	body, err = p.writeBody(ctx, body)
+	if err != nil {
+		return err
+	}
 	//2. 构造Body信息
 	var pkg = new(bytes.Buffer)
 	var n int
 	n, err = pkg.Write(h)
-	if err != nil || n < p.hLen {
-		return ErrWritePackage
+	if err != nil {
+		return err
+	}
+	if n < p.hLen {
+		return errWritePackage
 	}
 	n, err = pkg.Write(body)
-	if err != nil || n < len(body) {
-		return ErrWritePackage
+	if err != nil {
+		return err
 	}
+	if n < len(body) {
+		return errWritePackage
+	}
+	p.wmu.Lock()
+	defer p.wmu.Unlock()
+
 	n, err = p.writer.Write(pkg.Bytes())
-	if err != nil || n < pkg.Len() {
-		return ErrWritePackage
+	if err != nil {
+		return err
+	}
+	if n < pkg.Len() {
+		return errWritePackage
 	}
 	err = p.writer.Flush()
 	if err != nil {
@@ -102,7 +123,7 @@ func (p *HB) Packet(ctx context.Context, body []byte) error {
 
 func (p *HB) HandleError(ctx context.Context, err error) {
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
@@ -122,6 +143,20 @@ func (p *HB) readHeader(ctx context.Context) (int, error) {
 	return int(bLen), nil
 }
 
+func (p *HB) readBody(ctx context.Context, pl int) ([]byte, error) {
+	var body = make([]byte, pl)
+	var n, err = p.reader.Read(body)
+	if err != nil || n < pl {
+		return nil, errParsePackage
+	}
+	var t = make([]byte, pl)
+	err = binary.Read(bytes.NewBuffer(body[:pl]), binary.BigEndian, t)
+	if err != nil {
+		return nil, err
+	}
+	return t[p.hLen:], nil
+}
+
 func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 	var bLen = len(body)
 	var h = new(bytes.Buffer)
@@ -131,4 +166,13 @@ func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 		return nil, err
 	}
 	return h.Bytes(), nil
+}
+
+func (p *HB) writeBody(ctx context.Context, body []byte) ([]byte, error) {
+	var b = new(bytes.Buffer)
+	var err = binary.Write(b, binary.BigEndian, body)
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }

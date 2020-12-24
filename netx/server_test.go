@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -84,8 +85,11 @@ var tcpServerTestData = map[string]struct {
 		port: rand.Intn(4096) + 4096,
 		pc:   NewHBProtocol,
 		ph: func(ctx context.Context, body []byte) ([]byte, error) {
-			fmt.Println(string(body))
-			return []byte("receive"), nil
+			var b []byte
+			b = append(b, []byte("receive ")...)
+			b = append(b, body...)
+			log.Println(string(b))
+			return b, nil
 		},
 	},
 }
