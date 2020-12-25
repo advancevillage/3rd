@@ -3,13 +3,13 @@ package netx
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/advancevillage/3rd/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,37 +73,96 @@ func Test_HttpServer(t *testing.T) {
 
 //tcp unit test
 var tcpServerTestData = map[string]struct {
-	host   string
-	port   int
-	ph     ProtocolHandler
-	pc     ProtocolConstructor
-	except interface{}
-	err    error
+	host string
+	port int
+	ph   ProtocolHandler
+	pc   ProtocolConstructor
+	msg  int
+	hs   int
+	mps  int
 }{
+	//发送小报文
 	"case1": {
 		host: "localhost",
-		port: rand.Intn(4096) + 4096,
 		pc:   NewHBProtocol,
 		ph: func(ctx context.Context, body []byte) ([]byte, error) {
-			var b []byte
-			b = append(b, []byte("receive ")...)
-			b = append(b, body...)
-			log.Println(string(b))
-			return b, nil
+			//fmt.Println("receive ", string(body))
+			return body, nil
 		},
+		msg: 16,
+		hs:  8,
+		mps: 4,
 	},
 }
 
 func Test_TcpServer(t *testing.T) {
+	rand.Seed(time.Now().Unix())
 	for n, p := range tcpServerTestData {
 		f := func(t *testing.T) {
-			fmt.Println(p.host, p.port)
-			var s, err = NewTcpServer(&TcpServerOpt{Host: p.host, Port: p.port, PC: p.pc, PH: p.ph})
+			p.port = rand.Intn(4096) + 8192
+			fmt.Println(p.host, p.port, time.Now().Unix())
+			var s ITcpServer
+			var c ITcpClient
+			var err error
+			//1. 构造服务端
+			s, err = NewTcpServer(&TcpServerOpt{Host: p.host, Port: p.port, PC: p.pc, PH: p.ph, PCCfg: &TcpProtocolOpt{MP: NewMultiPlexer(p.hs, p.mps)}})
 			if err != nil {
-				assert.Equal(t, err, p.err)
+				t.Fatal(err)
 				return
 			}
-			s.StartServer()
+			//2. 构造客户端
+			c, err = NewTcpClient(&TcpClientOpt{
+				Address: fmt.Sprintf("%s:%d", p.host, p.port),
+				Timeout: time.Hour,
+				Retry:   3,
+				PC:      p.pc,
+				PCCfg:   &TcpProtocolOpt{MP: NewMultiPlexer(p.hs, p.mps)},
+			})
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			//3. 启动服务端
+			go s.StartServer()
+			//4. 客户端发送请求
+			var tg = time.NewTicker(time.Minute * 5)
+			var table = make(map[string]struct{})
+			var i = 0
+			var b []byte
+			for {
+				select {
+				case <-tg.C:
+					if i <= 0 {
+						t.Fatal("unit test fail")
+					}
+					time.Sleep(time.Second * 5)
+					if len(table) > 0 {
+						for k := range table {
+							fmt.Println(k)
+						}
+						t.Fatal("table has pkg data", len(table))
+					}
+					s.StopServer()
+					return
+				default:
+					var msg = fmt.Sprintf("%s:%d", utils.RandsString(p.msg), i)
+					table[msg] = struct{}{}
+					//4. 服务端接收请求
+					b, err = c.Send(context.TODO(), []byte(msg))
+					if err != nil {
+						delete(table, msg)
+						continue
+					}
+					i++
+					//5. 验证传输数据的正确性
+					if len(b) <= 0 {
+						continue //心跳请求
+					}
+					if _, ok := table[string(b)]; ok {
+						delete(table, string(b))
+					}
+				}
+			}
 		}
 		t.Run(n, f)
 	}

@@ -223,13 +223,15 @@ func waitQuitSignal(cancel context.CancelFunc) {
 //tcp request handler func
 type ITcpServer interface {
 	StartServer()
+	StopServer()
 }
 
 type TcpServerOpt struct {
-	Host string
-	Port int
-	PC   ProtocolConstructor //协议生成器
-	PH   ProtocolHandler     //协议处理器
+	Host  string
+	Port  int
+	PC    ProtocolConstructor //协议生成器
+	PH    ProtocolHandler     //协议处理器
+	PCCfg *TcpProtocolOpt     //协议生成器配置
 }
 
 //@overview: tcp server. 目标是更多请求更少的内存消耗
@@ -242,7 +244,7 @@ type tcpServer struct {
 
 func NewTcpServer(cfg *TcpServerOpt) (ITcpServer, error) {
 	//1. 参数校验
-	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 {
+	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 || cfg.PCCfg == nil {
 		return nil, errors.New("opts param is invalid")
 	}
 	var s = &tcpServer{}
@@ -306,6 +308,10 @@ func (s *tcpServer) StartServer() {
 	}
 }
 
+func (s *tcpServer) StopServer() {
+	s.cancel()
+}
+
 func (s *tcpServer) handler(conn net.Conn) {
 	//1. 关闭链接
 	defer conn.Close()
@@ -313,7 +319,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 	var ctx, cancel = context.WithCancel(s.app)
 	defer cancel()
 	//3. 协议编&解码器
-	var p = s.cfg.PC(conn)
+	var p = s.cfg.PC(conn, s.cfg.PCCfg)
 	var err error
 	var buf []byte
 

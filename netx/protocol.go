@@ -9,6 +9,8 @@ import (
 	"log"
 	"net"
 	"sync"
+
+	"github.com/advancevillage/3rd/utils"
 )
 
 var (
@@ -33,23 +35,27 @@ type IProtocol interface {
 }
 
 //@overview: 协议构造器
-type ProtocolConstructor func(net.Conn) IProtocol
+type ProtocolConstructor func(net.Conn, *TcpProtocolOpt) IProtocol
 
 //@overview: 协议处理器
 type ProtocolHandler func(context.Context, []byte) ([]byte, error)
 
 //@overview: HB = header + body
 type HB struct {
-	hLen   int
 	reader *bufio.Reader
 	writer *bufio.Writer
 	wmu    sync.Mutex
 	rmu    sync.Mutex
+	cfg    *TcpProtocolOpt
 }
 
-func NewHBProtocol(conn net.Conn) IProtocol {
+type TcpProtocolOpt struct {
+	MP IMultiPlexer
+}
+
+func NewHBProtocol(conn net.Conn, cfg *TcpProtocolOpt) IProtocol {
 	return &HB{
-		hLen:   4,
+		cfg:    cfg,
 		reader: bufio.NewReader(conn),
 		writer: bufio.NewWriter(conn),
 	}
@@ -65,12 +71,12 @@ func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.reader.Buffered() < (bLen + p.hLen) {
+	if p.reader.Buffered() < (bLen + p.cfg.MP.Size()) {
 		return nil, errPartPackage
 	}
 	//2. 拆包
 	//example:  A/AB/A1A2B/AB1B2
-	b, err = p.readBody(ctx, bLen+p.hLen)
+	b, err = p.readBody(ctx, bLen+p.cfg.MP.Size())
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +100,7 @@ func (p *HB) Packet(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
-	if n < p.hLen {
+	if n < p.cfg.MP.Size() {
 		return errWritePackage
 	}
 	n, err = pkg.Write(body)
@@ -129,15 +135,25 @@ func (p *HB) HandleError(ctx context.Context, err error) {
 
 func (p *HB) readHeader(ctx context.Context) (int, error) {
 	//1. 解析协议头部信息
-	var b, err = p.reader.Peek(int(p.hLen))
+	var b, err = p.reader.Peek(p.cfg.MP.Size())
 	if err != nil {
 		return 0, err
 	}
 	//2. 解析字节流 大端
+	var h = make([]byte, p.cfg.MP.Size())
+	var hs []byte
 	var bLen int32
-	err = binary.Read(bytes.NewBuffer(b[:p.hLen]), binary.BigEndian, &bLen)
+	err = binary.Read(bytes.NewBuffer(b[:p.cfg.MP.Size()]), binary.BigEndian, h)
 	if err != nil {
 		return 0, err
+	}
+	hs, err = p.cfg.MP.Demulti(h)
+	if err != nil {
+		return 0, err
+	}
+	err = binary.Read(bytes.NewBuffer(hs), binary.LittleEndian, &bLen)
+	if err != nil {
+
 	}
 	//3. 返回包长度
 	return int(bLen), nil
@@ -154,18 +170,28 @@ func (p *HB) readBody(ctx context.Context, pl int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t[p.hLen:], nil
+	return t[p.cfg.MP.Size():], nil
 }
 
 func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 	var bLen = len(body)
-	var h = new(bytes.Buffer)
+	var b = new(bytes.Buffer)
 	//1. 消息头
-	var err = binary.Write(h, binary.BigEndian, int32(bLen))
+	var err = binary.Write(b, binary.LittleEndian, int32(bLen))
 	if err != nil {
 		return nil, err
 	}
-	return h.Bytes(), nil
+	var h []byte
+	h, err = p.cfg.MP.Multi(b.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	b.Reset()
+	err = binary.Write(b, binary.BigEndian, h)
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }
 
 func (p *HB) writeBody(ctx context.Context, body []byte) ([]byte, error) {
@@ -175,4 +201,47 @@ func (p *HB) writeBody(ctx context.Context, body []byte) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+//@overview: multiplexer. 复用器. 共享net.Conn
+type IMultiPlexer interface {
+	Demulti(h []byte) ([]byte, error)
+	Multi(h []byte) ([]byte, error)
+	Size() int
+}
+
+type mp struct {
+	id []byte
+	bi int //边界索引
+	hs int //头信息长度
+}
+
+func NewMultiPlexer(hs int, bi int) IMultiPlexer {
+	return &mp{
+		id: make([]byte, hs-bi),
+		hs: hs,
+		bi: bi,
+	}
+}
+
+func (m *mp) Size() int {
+	return m.hs
+}
+
+func (m *mp) Demulti(h []byte) ([]byte, error) {
+	if len(h) != m.hs {
+		return nil, errParsePackage
+	}
+	copy(m.id, h[m.bi:])
+	log.Println("demulti", string(h), string(m.id), string(h[:m.bi]))
+	h = h[:m.bi]
+	return h, nil
+}
+
+func (m *mp) Multi(b []byte) ([]byte, error) {
+	var h = make([]byte, m.hs)
+	copy(h[m.bi:], utils.SnowFlakeIdBytes(m.hs-m.bi))
+	copy(h[:m.bi], b)
+	log.Println("multi", string(b), string(h[m.bi:]), string(h))
+	return h, nil
 }

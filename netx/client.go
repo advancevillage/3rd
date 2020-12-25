@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -20,6 +19,8 @@ import (
 
 var (
 	errConnectClosed = errors.New("connection closed")
+	errConnected     = errors.New("connection connected")
+	errConnecting    = errors.New("connection connecting")
 )
 
 type IHttpClient interface {
@@ -330,6 +331,7 @@ type TcpClientOpt struct {
 	Timeout time.Duration       // 客户端超时
 	Retry   int                 //重试次数
 	PC      ProtocolConstructor //协议生成器
+	PCCfg   *TcpProtocolOpt     //协议生成器配置
 }
 
 //@overview: Tcp协议客户端应该具备超时、重试、断开重连、发送请求的基本功能
@@ -345,7 +347,7 @@ type tcpClient struct {
 
 func NewTcpClient(cfg *TcpClientOpt) (ITcpClient, error) {
 	//1. 参数检查
-	if cfg == nil || len(cfg.Address) <= 0 || cfg.Timeout <= 0 || cfg.Retry <= 0 || cfg.PC == nil {
+	if cfg == nil || len(cfg.Address) <= 0 || cfg.Timeout <= 0 || cfg.Retry <= 0 || cfg.PC == nil || cfg.PCCfg == nil {
 		return nil, errors.New("tcp client options invalid param")
 	}
 	//2. 构建客户端
@@ -376,23 +378,20 @@ func (c *tcpClient) loop() {
 }
 
 func (c *tcpClient) conntect(ctx context.Context) error {
-	fmt.Println(c.cfg.Address)
 	for {
 		var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
 		//1. 连接失败 重试连接
 		if err != nil {
-			log.Println("尝试重连")
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
-		log.Println("连接成功")
 		//2. 连接成功
 		c.mu.Lock()
 		c.conn = conn
-		c.p = c.cfg.PC(c.conn)
+		c.p = c.cfg.PC(c.conn, c.cfg.PCCfg)
 		c.notify = make(chan struct{})
 		c.mu.Unlock()
-		go c.heartbeet(c.notify)
+		go c.heartbeat(c.notify)
 		break
 	}
 	return nil
@@ -405,9 +404,10 @@ func (c *tcpClient) clear() {
 	c.p = nil
 }
 
-func (c *tcpClient) heartbeet(notify chan struct{}) {
+func (c *tcpClient) heartbeat(notify chan struct{}) {
 	defer close(notify)
 	var err error
+	var b []byte
 	for {
 		//1. 参数校验
 		select {
@@ -417,7 +417,7 @@ func (c *tcpClient) heartbeet(notify chan struct{}) {
 			if c.p == nil { //连接建立失败
 				return
 			}
-			_, err = c.send(c.app, c.p, nil)
+			b, err = c.send(c.app, c.p, nil)
 			if err == io.EOF {
 				return
 			}
@@ -427,6 +427,7 @@ func (c *tcpClient) heartbeet(notify chan struct{}) {
 			if err != nil {
 				return
 			}
+			fmt.Println("heartbeat", string(b))
 			time.Sleep(time.Second / 5)
 		}
 	}
