@@ -6,9 +6,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/advancevillage/3rd/utils"
 )
@@ -29,13 +29,10 @@ type IProtocol interface {
 	//@author: richard.sun
 	//@note: 注意处理拆包问题. 共享net.Conn时注意多goroutine并发写
 	Packet(context.Context, []byte) error
-	//@overview 错误订阅
-	//@author: richard.sun
-	HandleError(context.Context, error)
 }
 
 //@overview: 协议构造器
-type ProtocolConstructor func(net.Conn, *TcpProtocolOpt) IProtocol
+type ProtocolConstructor func(net.Conn) IProtocol
 
 //@overview: 协议处理器
 type ProtocolHandler func(context.Context, []byte) ([]byte, error)
@@ -46,16 +43,12 @@ type HB struct {
 	writer *bufio.Writer
 	wmu    sync.Mutex
 	rmu    sync.Mutex
-	cfg    *TcpProtocolOpt
+	hLen   int
 }
 
-type TcpProtocolOpt struct {
-	MP IMultiPlexer
-}
-
-func NewHBProtocol(conn net.Conn, cfg *TcpProtocolOpt) IProtocol {
+func NewHBProtocol(conn net.Conn) IProtocol {
 	return &HB{
-		cfg:    cfg,
+		hLen:   4,
 		reader: bufio.NewReader(conn),
 		writer: bufio.NewWriter(conn),
 	}
@@ -71,12 +64,33 @@ func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if p.reader.Buffered() < (bLen + p.cfg.MP.Size()) {
+	switch {
+	case p.reader.Size() < (bLen + p.hLen): //pkg size > buf size
+		b = make([]byte, bLen+p.hLen)
+		var bi = 0
+		var bn = p.reader.Size()
+		var n int
+		for bi < (bLen + p.hLen) {
+			n, err = p.reader.Read(b[bi : bi+bn])
+			if err != nil || n < bn {
+				return nil, errParsePackage
+			}
+			bi += bn
+			bn = utils.Min(bLen+p.hLen-bi, bn)
+			time.Sleep(50 * time.Millisecond)
+		}
+		var lb = make([]byte, bLen+p.hLen)
+		err = binary.Read(bytes.NewBuffer(b), binary.BigEndian, lb)
+		if err != nil {
+			return nil, err
+		}
+		return lb[p.hLen:], nil
+	case p.reader.Buffered() < (bLen + p.hLen): //pkg size <= buf size
 		return nil, errPartPackage
 	}
 	//2. 拆包
 	//example:  A/AB/A1A2B/AB1B2
-	b, err = p.readBody(ctx, bLen+p.cfg.MP.Size())
+	b, err = p.readBody(ctx, bLen+p.hLen)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +114,7 @@ func (p *HB) Packet(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
-	if n < p.cfg.MP.Size() {
+	if n < p.hLen {
 		return errWritePackage
 	}
 	n, err = pkg.Write(body)
@@ -127,33 +141,17 @@ func (p *HB) Packet(ctx context.Context, body []byte) error {
 	return nil
 }
 
-func (p *HB) HandleError(ctx context.Context, err error) {
-	if err != nil {
-		log.Println(err)
-	}
-}
-
 func (p *HB) readHeader(ctx context.Context) (int, error) {
 	//1. 解析协议头部信息
-	var b, err = p.reader.Peek(p.cfg.MP.Size())
+	var b, err = p.reader.Peek(p.hLen)
 	if err != nil {
 		return 0, err
 	}
 	//2. 解析字节流 大端
-	var h = make([]byte, p.cfg.MP.Size())
-	var hs []byte
 	var bLen int32
-	err = binary.Read(bytes.NewBuffer(b[:p.cfg.MP.Size()]), binary.BigEndian, h)
+	err = binary.Read(bytes.NewBuffer(b[:p.hLen]), binary.BigEndian, &bLen)
 	if err != nil {
 		return 0, err
-	}
-	hs, err = p.cfg.MP.Demulti(h)
-	if err != nil {
-		return 0, err
-	}
-	err = binary.Read(bytes.NewBuffer(hs), binary.LittleEndian, &bLen)
-	if err != nil {
-
 	}
 	//3. 返回包长度
 	return int(bLen), nil
@@ -170,24 +168,14 @@ func (p *HB) readBody(ctx context.Context, pl int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t[p.cfg.MP.Size():], nil
+	return t[p.hLen:], nil
 }
 
 func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
 	var bLen = len(body)
 	var b = new(bytes.Buffer)
 	//1. 消息头
-	var err = binary.Write(b, binary.LittleEndian, int32(bLen))
-	if err != nil {
-		return nil, err
-	}
-	var h []byte
-	h, err = p.cfg.MP.Multi(b.Bytes())
-	if err != nil {
-		return nil, err
-	}
-	b.Reset()
-	err = binary.Write(b, binary.BigEndian, h)
+	var err = binary.Write(b, binary.BigEndian, int32(bLen))
 	if err != nil {
 		return nil, err
 	}
@@ -201,47 +189,4 @@ func (p *HB) writeBody(ctx context.Context, body []byte) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
-}
-
-//@overview: multiplexer. 复用器. 共享net.Conn
-type IMultiPlexer interface {
-	Demulti(h []byte) ([]byte, error)
-	Multi(h []byte) ([]byte, error)
-	Size() int
-}
-
-type mp struct {
-	id []byte
-	bi int //边界索引
-	hs int //头信息长度
-}
-
-func NewMultiPlexer(hs int, bi int) IMultiPlexer {
-	return &mp{
-		id: make([]byte, hs-bi),
-		hs: hs,
-		bi: bi,
-	}
-}
-
-func (m *mp) Size() int {
-	return m.hs
-}
-
-func (m *mp) Demulti(h []byte) ([]byte, error) {
-	if len(h) != m.hs {
-		return nil, errParsePackage
-	}
-	copy(m.id, h[m.bi:])
-	log.Println("demulti", string(h), string(m.id), string(h[:m.bi]))
-	h = h[:m.bi]
-	return h, nil
-}
-
-func (m *mp) Multi(b []byte) ([]byte, error) {
-	var h = make([]byte, m.hs)
-	copy(h[m.bi:], utils.SnowFlakeIdBytes(m.hs-m.bi))
-	copy(h[:m.bi], b)
-	log.Println("multi", string(b), string(h[m.bi:]), string(h))
-	return h, nil
 }

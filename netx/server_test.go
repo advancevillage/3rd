@@ -78,8 +78,6 @@ var tcpServerTestData = map[string]struct {
 	ph   ProtocolHandler
 	pc   ProtocolConstructor
 	msg  int
-	hs   int
-	mps  int
 }{
 	//发送小报文
 	"case1": {
@@ -90,8 +88,114 @@ var tcpServerTestData = map[string]struct {
 			return body, nil
 		},
 		msg: 16,
-		hs:  8,
-		mps: 4,
+	},
+	"case2": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 31,
+	},
+	"case3": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 63,
+	},
+	"case4": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 128,
+	},
+	"case5": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 255,
+	},
+	"case6": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 511,
+	},
+	"case7": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 1024,
+	},
+	"case8": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 2048,
+	},
+	"case9": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 4096,
+	},
+	"case10": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 8192,
+	},
+	"case11": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 16384,
+	},
+	"case12": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 32768,
+	},
+	"case13": {
+		host: "localhost",
+		pc:   NewHBProtocol,
+		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+			//fmt.Println("receive ", string(body))
+			return body, nil
+		},
+		msg: 65535,
 	},
 }
 
@@ -100,12 +204,12 @@ func Test_TcpServer(t *testing.T) {
 	for n, p := range tcpServerTestData {
 		f := func(t *testing.T) {
 			p.port = rand.Intn(4096) + 8192
-			fmt.Println(p.host, p.port, time.Now().Unix())
+			fmt.Println(p.host, p.port, time.Now().Unix(), p.msg)
 			var s ITcpServer
 			var c ITcpClient
 			var err error
 			//1. 构造服务端
-			s, err = NewTcpServer(&TcpServerOpt{Host: p.host, Port: p.port, PC: p.pc, PH: p.ph, PCCfg: &TcpProtocolOpt{MP: NewMultiPlexer(p.hs, p.mps)}})
+			s, err = NewTcpServer(&TcpServerOpt{Host: p.host, Port: p.port, PC: p.pc, PH: p.ph})
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -116,7 +220,6 @@ func Test_TcpServer(t *testing.T) {
 				Timeout: time.Hour,
 				Retry:   3,
 				PC:      p.pc,
-				PCCfg:   &TcpProtocolOpt{MP: NewMultiPlexer(p.hs, p.mps)},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -124,8 +227,9 @@ func Test_TcpServer(t *testing.T) {
 			}
 			//3. 启动服务端
 			go s.StartServer()
+			time.Sleep(5 * time.Second)
 			//4. 客户端发送请求
-			var tg = time.NewTicker(time.Minute * 5)
+			var tg = time.NewTicker(time.Second * 60)
 			var table = make(map[string]struct{})
 			var i = 0
 			var b []byte
@@ -137,12 +241,11 @@ func Test_TcpServer(t *testing.T) {
 					}
 					time.Sleep(time.Second * 5)
 					if len(table) > 0 {
-						for k := range table {
-							fmt.Println(k)
-						}
 						t.Fatal("table has pkg data", len(table))
 					}
+					c.Close()
 					s.StopServer()
+					fmt.Printf("unit pass %d samples. fail %d\n", i, len(table))
 					return
 				default:
 					var msg = fmt.Sprintf("%s:%d", utils.RandsString(p.msg), i)
@@ -150,14 +253,16 @@ func Test_TcpServer(t *testing.T) {
 					//4. 服务端接收请求
 					b, err = c.Send(context.TODO(), []byte(msg))
 					if err != nil {
+						fmt.Println(err)
 						delete(table, msg)
 						continue
 					}
 					i++
-					//5. 验证传输数据的正确性
-					if len(b) <= 0 {
-						continue //心跳请求
+					switch n {
+					case "case9", "case10", "case11", "case12", "case13":
+						//fmt.Println(i)
 					}
+					//5. 验证传输数据的正确性
 					if _, ok := table[string(b)]; ok {
 						delete(table, string(b))
 					}

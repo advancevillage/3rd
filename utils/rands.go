@@ -45,3 +45,11 @@ func RandsString(n int) string {
 func RandsNumber(n int) string {
 	return rands(n, numberBytes)
 }
+
+func Min(x, y int) int {
+	if x < y {
+		return x
+	} else {
+		return y
+	}
+}

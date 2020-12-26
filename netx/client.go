@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -324,6 +325,7 @@ func (c *httpClient) Upload(ctx context.Context, uri string, params map[string]s
 
 type ITcpClient interface {
 	Send(context.Context, []byte) ([]byte, error)
+	Close()
 }
 
 type TcpClientOpt struct {
@@ -331,7 +333,6 @@ type TcpClientOpt struct {
 	Timeout time.Duration       // 客户端超时
 	Retry   int                 //重试次数
 	PC      ProtocolConstructor //协议生成器
-	PCCfg   *TcpProtocolOpt     //协议生成器配置
 }
 
 //@overview: Tcp协议客户端应该具备超时、重试、断开重连、发送请求的基本功能
@@ -347,7 +348,7 @@ type tcpClient struct {
 
 func NewTcpClient(cfg *TcpClientOpt) (ITcpClient, error) {
 	//1. 参数检查
-	if cfg == nil || len(cfg.Address) <= 0 || cfg.Timeout <= 0 || cfg.Retry <= 0 || cfg.PC == nil || cfg.PCCfg == nil {
+	if cfg == nil || len(cfg.Address) <= 0 || cfg.Timeout <= 0 || cfg.Retry <= 0 || cfg.PC == nil {
 		return nil, errors.New("tcp client options invalid param")
 	}
 	//2. 构建客户端
@@ -379,22 +380,26 @@ func (c *tcpClient) loop() {
 
 func (c *tcpClient) conntect(ctx context.Context) error {
 	for {
-		var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
-		//1. 连接失败 重试连接
-		if err != nil {
-			time.Sleep(50 * time.Millisecond)
-			continue
+		select {
+		case <-c.app.Done():
+			return nil
+		default:
+			var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
+			//1. 连接失败 重试连接
+			if err != nil {
+				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+			//2. 连接成功
+			c.mu.Lock()
+			c.conn = conn
+			c.p = c.cfg.PC(c.conn)
+			c.notify = make(chan struct{})
+			c.mu.Unlock()
+			go c.heartbeat()
+			return nil
 		}
-		//2. 连接成功
-		c.mu.Lock()
-		c.conn = conn
-		c.p = c.cfg.PC(c.conn, c.cfg.PCCfg)
-		c.notify = make(chan struct{})
-		c.mu.Unlock()
-		go c.heartbeat(c.notify)
-		break
 	}
-	return nil
 }
 
 func (c *tcpClient) clear() {
@@ -404,30 +409,20 @@ func (c *tcpClient) clear() {
 	c.p = nil
 }
 
-func (c *tcpClient) heartbeat(notify chan struct{}) {
-	defer close(notify)
+func (c *tcpClient) heartbeat() {
+	defer close(c.notify)
 	var err error
-	var b []byte
 	for {
 		//1. 参数校验
 		select {
 		case <-c.app.Done():
 			return
 		default:
-			if c.p == nil { //连接建立失败
-				return
-			}
-			b, err = c.send(c.app, c.p, nil)
-			if err == io.EOF {
-				return
-			}
-			if err == errPartPackage {
-				continue
-			}
+			err = c.p.Packet(c.app, nil)
 			if err != nil {
+				log.Println(err.Error())
 				return
 			}
-			fmt.Println("heartbeat", string(b))
 			time.Sleep(time.Second / 5)
 		}
 	}
@@ -443,23 +438,26 @@ func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) ([]byte,
 		err error
 	)
 	//1. 协议封包发送
-	for i := 0; i < c.cfg.Retry; i++ {
+	select {
+	case <-c.notify:
+		return nil, errConnectClosed
+	default:
 		err = p.Packet(ctx, body)
 		if err != nil {
-			time.Sleep(50 * time.Millisecond)
-			continue
+			return nil, err
 		}
-		break
-	}
-	if err != nil {
-		return nil, err
 	}
 	//2. 协议接收解包
-	b, err = p.Unpacket(ctx)
-	if err != nil {
-		return nil, err
+	select {
+	case <-c.notify:
+		return nil, errConnectClosed
+	default:
+		b, err = p.Unpacket(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return b, nil
 	}
-	return b, nil
 }
 
 func (c *tcpClient) Send(ctx context.Context, body []byte) ([]byte, error) {
@@ -468,7 +466,14 @@ func (c *tcpClient) Send(ctx context.Context, body []byte) ([]byte, error) {
 		return nil, ctx.Err()
 	case <-c.app.Done():
 		return nil, c.app.Err()
+	case <-c.notify:
+		return nil, errConnectClosed
 	default:
 		return c.send(ctx, c.p, body)
 	}
+}
+
+func (c *tcpClient) Close() {
+	c.cancel()
+	time.Sleep(time.Second * 5)
 }

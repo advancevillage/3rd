@@ -227,11 +227,10 @@ type ITcpServer interface {
 }
 
 type TcpServerOpt struct {
-	Host  string
-	Port  int
-	PC    ProtocolConstructor //协议生成器
-	PH    ProtocolHandler     //协议处理器
-	PCCfg *TcpProtocolOpt     //协议生成器配置
+	Host string
+	Port int
+	PC   ProtocolConstructor //协议生成器
+	PH   ProtocolHandler     //协议处理器
 }
 
 //@overview: tcp server. 目标是更多请求更少的内存消耗
@@ -244,7 +243,7 @@ type tcpServer struct {
 
 func NewTcpServer(cfg *TcpServerOpt) (ITcpServer, error) {
 	//1. 参数校验
-	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 || cfg.PCCfg == nil {
+	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 {
 		return nil, errors.New("opts param is invalid")
 	}
 	var s = &tcpServer{}
@@ -270,33 +269,39 @@ func (s *tcpServer) start() {
 		s.cancel()
 		return
 	}
+	defer l.Close()
 	//2. 监听请求
 	for {
-		conn, err = l.Accept()
-		//accept fail
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				switch {
-				case delay < 5*time.Millisecond:
-					delay = 5 * time.Millisecond
-				case delay < time.Second:
-					delay = 2 * delay
-				case delay >= time.Second:
-					delay = time.Second
+		select {
+		case <-s.app.Done():
+			return
+		default:
+			conn, err = l.Accept()
+			//accept fail
+			if err != nil {
+				if ne, ok := err.(net.Error); ok && ne.Temporary() {
+					switch {
+					case delay < 5*time.Millisecond:
+						delay = 5 * time.Millisecond
+					case delay < time.Second:
+						delay = 2 * delay
+					case delay >= time.Second:
+						delay = time.Second
+					}
+					var t = time.NewTicker(delay)
+					select {
+					case <-t.C:
+					case <-s.app.Done():
+						t.Stop()
+						return
+					}
 				}
-				var t = time.NewTicker(delay)
-				select {
-				case <-t.C:
-				case <-s.app.Done():
-					t.Stop()
-					return
-				}
+				continue
 			}
-			continue
+			delay = 0
+			//处理
+			go s.handler(conn)
 		}
-		delay = 0
-		//处理
-		go s.handler(conn)
 	}
 }
 
@@ -305,6 +310,7 @@ func (s *tcpServer) StartServer() {
 	go waitQuitSignal(s.cancel)
 	select {
 	case <-s.app.Done():
+		time.Sleep(time.Second * 10)
 	}
 }
 
@@ -319,7 +325,7 @@ func (s *tcpServer) handler(conn net.Conn) {
 	var ctx, cancel = context.WithCancel(s.app)
 	defer cancel()
 	//3. 协议编&解码器
-	var p = s.cfg.PC(conn, s.cfg.PCCfg)
+	var p = s.cfg.PC(conn)
 	var err error
 	var buf []byte
 
@@ -330,25 +336,26 @@ func (s *tcpServer) handler(conn net.Conn) {
 		default:
 			//1. 解包
 			buf, err = p.Unpacket(ctx)
-			if err == io.EOF { //链接关闭
+			switch {
+			case err == io.EOF:
 				return
-			}
-			if err == errPartPackage {
+			case err == errPartPackage:
+				continue
+			case len(buf) <= 0:
 				continue
 			}
-			p.HandleError(ctx, err)
 			//2. 包处理
 			buf, err = s.cfg.PH(ctx, buf)
-			if err == io.EOF {
+			switch {
+			case err == io.EOF:
 				return
 			}
-			p.HandleError(ctx, err)
 			//3. 封包
 			err = p.Packet(ctx, buf)
-			if err == io.EOF {
+			switch {
+			case err == io.EOF:
 				return
 			}
-			p.HandleError(ctx, err)
 		}
 	}
 }
