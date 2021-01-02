@@ -9,3 +9,6 @@ test/111
 test/database
 test/*.log
 aws/*
+*.key
+*.pub
+*.pem
