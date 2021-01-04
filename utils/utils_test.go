@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,23 +75,6 @@ PQIDAQAB
 -----END PUBLIC KEY-----
 `,
 	},
-	"case5": {
-		sm:     ES256,
-		except: true,
-		exp:    5,
-		sct: `
------BEGIN EC PRIVATE KEY-----
-MHQCAQEEIMUd7tyAbj4VfHQ4J104rYEHzwTHICNjfOAcSP8XJh80oAcGBSuBBAAK
-oUQDQgAEOCRJvdjKIfiPfkejhAR5f/r64R85H+bSbvXVsDzuq4paMeoO/LnbVmJX
-Yh1izu2fgh8rMSWh+b7bMonqxgX1Ew==
------END EC PRIVATE KEY-----
-|
------BEGIN PUBLIC KEY-----
-MFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEOCRJvdjKIfiPfkejhAR5f/r64R85H+bS
-bvXVsDzuq4paMeoO/LnbVmJXYh1izu2fgh8rMSWh+b7bMonqxgX1Ew==
------END PUBLIC KEY-----
-`,
-	},
 }
 
 func Test_jwtClient(t *testing.T) {
@@ -118,6 +102,32 @@ func Test_jwtClient(t *testing.T) {
 				return
 			}
 			assert.Equal(t, p.except, b)
+		}
+		t.Run(n, f)
+	}
+}
+
+var uuidTestData = map[string]struct {
+	except string
+	count  int
+}{
+	"case1": {
+		except: `\b[0-9a-f]{8}\b-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-\b[0-9a-f]{12}\b`,
+		count:  10000,
+	},
+}
+
+func Test_uuid(t *testing.T) {
+	for n, p := range uuidTestData {
+		f := func(t *testing.T) {
+			var valid = regexp.MustCompile(p.except)
+			for i := 0; i < p.count; i++ {
+				var uuid = UUID()
+				if !valid.MatchString(uuid) {
+					t.Fatal(uuid)
+					return
+				}
+			}
 		}
 		t.Run(n, f)
 	}

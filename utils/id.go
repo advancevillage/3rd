@@ -36,7 +36,7 @@ func generator(a time.Time) uuid {
 	u[12] = u[3]>>7 | (u[9]<<1)&0x1F
 	u[13] = u[4] >> 2 & 0x1F
 	u[14] = u[5]>>5 | (u[3]<<3)&0x1F
-	u[15] = u[9] & 0x1F
+	u[15] = u[9]&0x1F | (u[6]<<4)&0x1F
 	return u
 }
 
