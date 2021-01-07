@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -201,6 +202,7 @@ var tcpServerTestData = map[string]struct {
 	},
 }
 
+//go test -v -count=1 -timeout 20m -test.run Test_TcpServer .
 func Test_TcpServer(t *testing.T) {
 	rand.Seed(time.Now().Unix())
 	for n, p := range tcpServerTestData {
@@ -232,51 +234,35 @@ func Test_TcpServer(t *testing.T) {
 			time.Sleep(5 * time.Second)
 			//4. 客户端发送请求
 			var tg = time.NewTicker(time.Second * 60)
-			var table = make(map[string]struct{})
-			var i = 0
-			var b []byte
-			var body []byte
+			var table = map[string]struct{}{}
+			var count int
 			//5. 接受服务端数据流
-			go func() {
-				for {
-					body, err = c.Receive(context.TODO())
-					if err != nil {
-						t.Fatal(err)
-						return
-					}
-					//5. 验证传输数据的正确性
-					if _, ok := table[string(body)]; ok {
-						delete(table, string(b))
-					}
-				}
-			}()
 			for {
 				select {
 				case <-tg.C:
-					if i <= 0 {
-						t.Fatal("unit test fail")
-					}
 					time.Sleep(time.Second * 5)
-					if len(table) > 0 {
-						t.Fatal("table has pkg data", len(table))
-					}
+					fmt.Println(n, "pass", count)
 					s.StopServer()
-					fmt.Printf("unit pass %d samples. fail %d\n", i, len(table))
+					assert.Equal(t, 0, len(table))
 					return
 				default:
-					var msg = fmt.Sprintf("%s:%d", utils.RandsString(p.msg), i)
+					var msg = utils.RandsString(p.msg)
 					table[msg] = struct{}{}
 					//4. 服务端接收请求
 					err = c.Send(context.TODO(), []byte(msg))
 					if err != nil {
-						fmt.Println(err)
 						delete(table, msg)
 						continue
 					}
-					i++
-					switch n {
-					case "case9", "case10", "case11", "case12", "case13":
-						//fmt.Println(i)
+					count++
+					var b, e = c.Receive(context.TODO())
+					if e != nil {
+						t.Fatal(e)
+						return
+					}
+					//验证传输数据的正确性
+					if _, ok := table[string(b)]; ok {
+						delete(table, string(b))
 					}
 				}
 			}
@@ -305,6 +291,7 @@ func Test_OneTcpServer(t *testing.T) {
 func Test_OneTcpClient(t *testing.T) {
 	var host = "localhost"
 	var port = 8888
+	var count = 1000
 	log.Printf("%s:%d\n", host, port)
 	var c ITcpClient
 	var err error
@@ -315,7 +302,7 @@ func Test_OneTcpClient(t *testing.T) {
 	}
 	time.Sleep(5 * time.Second)
 	go func() {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < count; i++ {
 			var b, e = c.Receive(context.TODO())
 			if e != nil {
 				t.Fatal(e)
@@ -324,14 +311,20 @@ func Test_OneTcpClient(t *testing.T) {
 			log.Println("receive", string(b))
 		}
 	}()
-	for i := 0; i < 10; i++ {
-		var msg = utils.RandsString(4096)
-		log.Println("send", msg)
-		err = c.Send(context.TODO(), []byte(msg))
-		if err != nil {
-			t.Fatal(err)
-			return
-		}
+	var wg sync.WaitGroup
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var msg = utils.RandsString(16)
+			log.Println("send", msg)
+			err = c.Send(context.TODO(), []byte(msg))
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+		}()
 	}
+	wg.Wait()
 	time.Sleep(time.Minute)
 }
