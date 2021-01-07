@@ -13,8 +13,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -22,6 +24,7 @@ var (
 	errConnectClosed = errors.New("connection closed")
 	errConnected     = errors.New("connection connected")
 	errConnecting    = errors.New("connection connecting")
+	errReconnected   = errors.New("reconnection")
 )
 
 type IHttpClient interface {
@@ -324,8 +327,8 @@ func (c *httpClient) Upload(ctx context.Context, uri string, params map[string]s
 }
 
 type ITcpClient interface {
-	Send(context.Context, []byte) ([]byte, error)
-	Close()
+	Send(context.Context, []byte) error
+	Receive(context.Context) ([]byte, error)
 }
 
 type TcpClientOpt struct {
@@ -344,6 +347,7 @@ type tcpClient struct {
 	cancel context.CancelFunc
 	mu     sync.Mutex
 	notify chan struct{}
+	wg     sync.WaitGroup
 }
 
 func NewTcpClient(cfg *TcpClientOpt) (ITcpClient, error) {
@@ -355,30 +359,30 @@ func NewTcpClient(cfg *TcpClientOpt) (ITcpClient, error) {
 	var c = &tcpClient{}
 	c.cfg = cfg
 	c.app, c.cancel = context.WithCancel(context.Background())
+	c.notify = make(chan struct{})
 	go c.loop()
 	return c, nil
 }
 
 func (c *tcpClient) loop() {
 	var err error
+	go c.halfOpen()
 	for {
-		err = c.conntect(c.app)
+		err = c.connect(c.app)
 		if err != nil {
 			return
 		}
 		select {
 		case <-c.notify:
 			c.conn.Close()
-			c.clear()
 		case <-c.app.Done():
 			c.conn.Close()
-			c.clear()
 			return
 		}
 	}
 }
 
-func (c *tcpClient) conntect(ctx context.Context) error {
+func (c *tcpClient) connect(ctx context.Context) error {
 	for {
 		select {
 		case <-c.app.Done():
@@ -387,14 +391,14 @@ func (c *tcpClient) conntect(ctx context.Context) error {
 			var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
 			//1. 连接失败 重试连接
 			if err != nil {
+				log.Println(err)
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
 			//2. 连接成功
 			c.mu.Lock()
 			c.conn = conn
-			c.p = c.cfg.PC(c.conn)
-			c.notify = make(chan struct{})
+			c.p = c.cfg.PC(c.app, c.conn)
 			c.mu.Unlock()
 			go c.heartbeat()
 			return nil
@@ -402,15 +406,12 @@ func (c *tcpClient) conntect(ctx context.Context) error {
 	}
 }
 
-func (c *tcpClient) clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.conn = nil
-	c.p = nil
+func (c *tcpClient) reconnect() {
+	c.notify <- struct{}{}
 }
 
 func (c *tcpClient) heartbeat() {
-	defer close(c.notify)
+	defer c.reconnect()
 	var err error
 	for {
 		//1. 参数校验
@@ -418,9 +419,8 @@ func (c *tcpClient) heartbeat() {
 		case <-c.app.Done():
 			return
 		default:
-			err = c.p.Packet(c.app, nil)
+			err = c.send(c.app, c.p, nil)
 			if err != nil {
-				log.Println(err.Error())
 				return
 			}
 			time.Sleep(time.Second / 5)
@@ -428,29 +428,38 @@ func (c *tcpClient) heartbeat() {
 	}
 }
 
-func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) ([]byte, error) {
-	//0. 参数校验
+func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) error {
+	var err error
 	if p == nil {
-		return nil, errConnectClosed
+		return errConnecting
 	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-p.Done():
+		return errReconnected
+	default:
+		err = p.Packet(ctx, body)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func (c *tcpClient) receive(ctx context.Context, p IProtocol) ([]byte, error) {
 	var (
 		b   []byte
 		err error
 	)
-	//1. 协议封包发送
-	select {
-	case <-c.notify:
-		return nil, errConnectClosed
-	default:
-		err = p.Packet(ctx, body)
-		if err != nil {
-			return nil, err
-		}
+	if p == nil {
+		return nil, errConnecting
 	}
-	//2. 协议接收解包
 	select {
-	case <-c.notify:
-		return nil, errConnectClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-p.Done():
+		return nil, errReconnected
 	default:
 		b, err = p.Unpacket(ctx)
 		if err != nil {
@@ -460,20 +469,44 @@ func (c *tcpClient) send(ctx context.Context, p IProtocol, body []byte) ([]byte,
 	}
 }
 
-func (c *tcpClient) Send(ctx context.Context, body []byte) ([]byte, error) {
+func (c *tcpClient) Send(ctx context.Context, body []byte) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.app.Done():
+		return c.app.Err()
+	case <-c.notify:
+		return errReconnected
+	default:
+		return c.send(ctx, c.p, body)
+	}
+}
+
+func (c *tcpClient) Receive(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-c.app.Done():
 		return nil, c.app.Err()
 	case <-c.notify:
-		return nil, errConnectClosed
+		return nil, errReconnected
 	default:
-		return c.send(ctx, c.p, body)
+		return c.receive(ctx, c.p)
 	}
 }
 
-func (c *tcpClient) Close() {
+func (c *tcpClient) halfOpen() {
+	var pp = make(chan os.Signal)
+	signal.Notify(pp, syscall.SIGPIPE)
+	select {
+	case <-c.app.Done():
+	case <-pp:
+		c.reconnect()
+	}
+}
+
+func (c *tcpClient) close() {
 	c.cancel()
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second)
+	close(c.notify)
 }

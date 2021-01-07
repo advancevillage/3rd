@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -82,118 +83,119 @@ var tcpServerTestData = map[string]struct {
 	//发送小报文
 	"case1": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 16,
 	},
 	"case2": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
+
 		msg: 31,
 	},
 	"case3": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 63,
 	},
 	"case4": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 128,
 	},
 	"case5": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 255,
 	},
 	"case6": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 511,
 	},
 	"case7": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 1024,
 	},
 	"case8": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 2048,
 	},
 	"case9": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 4096,
 	},
 	"case10": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 8192,
 	},
 	"case11": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 16384,
 	},
 	"case12": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 32768,
 	},
 	"case13": {
 		host: "localhost",
-		pc:   NewHBProtocol,
-		ph: func(ctx context.Context, body []byte) ([]byte, error) {
+		pc:   NewStream,
+		ph: func(ctx context.Context, body []byte) []byte {
 			//fmt.Println("receive ", string(body))
-			return body, nil
+			return body
 		},
 		msg: 65535,
 	},
@@ -243,7 +245,6 @@ func Test_TcpServer(t *testing.T) {
 					if len(table) > 0 {
 						t.Fatal("table has pkg data", len(table))
 					}
-					c.Close()
 					s.StopServer()
 					fmt.Printf("unit pass %d samples. fail %d\n", i, len(table))
 					return
@@ -251,7 +252,7 @@ func Test_TcpServer(t *testing.T) {
 					var msg = fmt.Sprintf("%s:%d", utils.RandsString(p.msg), i)
 					table[msg] = struct{}{}
 					//4. 服务端接收请求
-					b, err = c.Send(context.TODO(), []byte(msg))
+					err = c.Send(context.TODO(), []byte(msg))
 					if err != nil {
 						fmt.Println(err)
 						delete(table, msg)
@@ -271,4 +272,36 @@ func Test_TcpServer(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
+}
+
+func Test_OneTcpServer(t *testing.T) {
+	var host = "localhost"
+	var port = 8888
+	var ph = func(ctx context.Context, body []byte) []byte {
+		return body
+	}
+	log.Printf("%s:%d\n", host, port)
+	var s ITcpServer
+	var err error
+	s, err = NewTcpServer(&TcpServerOpt{Host: host, Port: port, PC: NewStream, PH: ph})
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	s.StartServer()
+}
+
+func Test_OneTcpClient(t *testing.T) {
+	var host = "localhost"
+	var port = 8888
+	log.Printf("%s:%d\n", host, port)
+	var c ITcpClient
+	var err error
+	c, err = NewTcpClient(&TcpClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: time.Hour, PC: NewStream, Retry: 3})
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	log.Println(c)
+	time.Sleep(time.Minute * 10)
 }

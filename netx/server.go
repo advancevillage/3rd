@@ -6,13 +6,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -239,6 +239,7 @@ type tcpServer struct {
 	cfg    *TcpServerOpt
 	app    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 func NewTcpServer(cfg *TcpServerOpt) (ITcpServer, error) {
@@ -310,7 +311,7 @@ func (s *tcpServer) StartServer() {
 	go waitQuitSignal(s.cancel)
 	select {
 	case <-s.app.Done():
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second)
 	}
 }
 
@@ -320,42 +321,37 @@ func (s *tcpServer) StopServer() {
 
 func (s *tcpServer) handler(conn net.Conn) {
 	//1. 关闭链接
+	s.wg.Add(1)
+	defer s.wg.Done()
 	defer conn.Close()
 	//2. 上下文处理
 	var ctx, cancel = context.WithCancel(s.app)
 	defer cancel()
 	//3. 协议编&解码器
-	var p = s.cfg.PC(conn)
+	var p = s.cfg.PC(ctx, conn)
 	var err error
-	var buf []byte
+	var body []byte
 
 	for {
 		select {
 		case <-s.app.Done():
 			return
+		case <-p.Done():
+			return
 		default:
 			//1. 解包
-			buf, err = p.Unpacket(ctx)
-			switch {
-			case err == io.EOF:
-				return
-			case err == errPartPackage:
-				continue
-			case len(buf) <= 0:
+			body, err = p.Unpacket(ctx)
+			if err != nil {
 				continue
 			}
-			//2. 包处理
-			buf, err = s.cfg.PH(ctx, buf)
-			switch {
-			case err == io.EOF:
-				return
-			}
-			//3. 封包
-			err = p.Packet(ctx, buf)
-			switch {
-			case err == io.EOF:
-				return
-			}
+			go s.handleFunc(ctx, p, body)
 		}
 	}
+}
+
+func (s *tcpServer) handleFunc(ctx context.Context, p IProtocol, body []byte) {
+	s.wg.Add(1)
+	defer s.wg.Done()
+	var buf = s.cfg.PH(ctx, body)
+	p.Packet(ctx, buf)
 }

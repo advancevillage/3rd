@@ -6,11 +6,10 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
+	"log"
 	"net"
-	"sync"
 	"time"
-
-	"github.com/advancevillage/3rd/utils"
 )
 
 var (
@@ -29,164 +28,235 @@ type IProtocol interface {
 	//@author: richard.sun
 	//@note: 注意处理拆包问题. 共享net.Conn时注意多goroutine并发写
 	Packet(context.Context, []byte) error
+	//@overview: 协议连接关闭
+	Done() <-chan struct{}
 }
 
 //@overview: 协议构造器
-type ProtocolConstructor func(net.Conn) IProtocol
+type ProtocolConstructor func(context.Context, net.Conn) IProtocol
 
 //@overview: 协议处理器
-type ProtocolHandler func(context.Context, []byte) ([]byte, error)
+type ProtocolHandler func(context.Context, []byte) []byte
 
-//@overview: HB = header + body
-type HB struct {
+//@overview: Stream
+type frame []byte
+
+func (m *frame) Bytes() []byte {
+	return *m
+}
+
+type Stream struct {
+	ws     chan frame
+	rs     chan frame
+	ec     chan error
+	app    context.Context
+	cancel context.CancelFunc
+	quit   chan struct{}
 	reader *bufio.Reader
 	writer *bufio.Writer
-	wmu    sync.Mutex
-	rmu    sync.Mutex
 	hLen   int
 }
 
-func NewHBProtocol(conn net.Conn) IProtocol {
-	return &HB{
-		hLen:   4,
-		reader: bufio.NewReader(conn),
-		writer: bufio.NewWriter(conn),
+func NewStream(ctx context.Context, conn net.Conn) IProtocol {
+	var s = &Stream{}
+	s.ws = make(chan frame, 512)
+	s.rs = make(chan frame, 512)
+	s.ec = make(chan error, 128)
+	s.app, s.cancel = context.WithCancel(ctx)
+	s.reader = bufio.NewReader(conn)
+	s.writer = bufio.NewWriter(conn)
+	s.quit = make(chan struct{})
+	s.hLen = 4
+
+	go s.readLoop()
+	go s.writeLoop()
+	go s.errorLoop()
+
+	return s
+}
+
+func (s *Stream) Done() <-chan struct{} {
+	return s.quit
+}
+
+func (s *Stream) Unpacket(ctx context.Context) ([]byte, error) {
+	select {
+	case <-s.app.Done():
+		return nil, s.app.Err()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+		var f = <-s.rs
+		return f.Bytes(), nil
 	}
 }
 
-func (p *HB) Unpacket(ctx context.Context) ([]byte, error) {
-	//1. 预分析协议
-	p.rmu.Lock()
-	defer p.rmu.Unlock()
-
-	var bLen, err = p.readHeader(ctx)
-	var b []byte
-	if err != nil {
-		return nil, err
+func (s *Stream) Packet(ctx context.Context, body []byte) error {
+	select {
+	case <-s.app.Done():
+		return s.app.Err()
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		s.writePkt(body)
+		return nil
 	}
-	switch {
-	case p.reader.Size() < (bLen + p.hLen): //pkg size > buf size
-		b = make([]byte, bLen+p.hLen)
-		var bi = 0
-		var bn = p.reader.Size()
-		var n int
-		for bi < (bLen + p.hLen) {
-			n, err = p.reader.Read(b[bi : bi+bn])
-			if err != nil || n < bn {
-				return nil, errParsePackage
-			}
-			bi += bn
-			bn = utils.Min(bLen+p.hLen-bi, bn)
-			time.Sleep(50 * time.Millisecond)
+}
+
+func (s *Stream) readLoop() {
+	for {
+		select {
+		case <-s.app.Done():
+			return
+		default:
+			b := s.read()
+			s.rs <- frame(b)
 		}
-		var lb = make([]byte, bLen+p.hLen)
-		err = binary.Read(bytes.NewBuffer(b), binary.BigEndian, lb)
+	}
+}
+
+func (s *Stream) writeLoop() {
+	for v := range s.ws {
+		log.Println("writeLoop", v.Bytes())
+		s.writer.Write(v.Bytes())
+		s.writer.Flush()
+	}
+}
+
+func (s *Stream) read() []byte {
+	var (
+		bLen  int
+		pLen  int
+		body  []byte
+		err   error
+		delay = 1
+	)
+	for {
+		switch {
+		case (time.Duration(delay) * time.Millisecond) >= time.Second:
+			s.ec <- io.EOF
+		case err != nil:
+			delay <<= 1
+			time.Sleep(time.Duration(delay) * time.Millisecond)
+		default:
+			delay = 1
+		}
+		select {
+		case <-s.app.Done():
+			return nil
+		default:
+			bLen, err = s.readHeader()
+			if err != nil {
+				s.ec <- err
+				continue
+			}
+			pLen = bLen + s.hLen //包总长度 = 包头长度 + 包体长度
+			body, err = s.readPkt(pLen)
+			if err != nil {
+				s.ec <- err
+				continue
+			}
+			if pLen <= s.hLen {
+				continue
+			}
+			return body
+		}
+	}
+}
+
+func (s *Stream) readHeader() (int, error) {
+	//1. 解析协议头部信息
+	var b, err = s.reader.Peek(s.hLen)
+	if err != nil {
+		return 0, err
+	}
+	//2. 解析字节流 大端
+	var bLen int32
+	err = binary.Read(bytes.NewBuffer(b[:s.hLen]), binary.BigEndian, &bLen)
+	if err != nil {
+		return 0, err
+	}
+	//3. 返回包体长度
+	return int(bLen), nil
+}
+
+func (s *Stream) readPkt(pLen int) ([]byte, error) {
+	//1. 读取Header
+	var (
+		b   = make([]byte, pLen)
+		n   int
+		nn  int
+		err error
+	)
+	n, err = s.reader.Read(b[:s.hLen])
+	if err != nil || n < s.hLen {
+		return nil, errReadPackage
+	}
+	//2. 读取Body
+	for n < pLen {
+		nn, err = s.reader.Read(b[n:])
 		if err != nil {
 			return nil, err
 		}
-		return lb[p.hLen:], nil
-	case p.reader.Buffered() < (bLen + p.hLen): //pkg size <= buf size
-		return nil, errPartPackage
+		n += nn
 	}
-	//2. 拆包
-	//example:  A/AB/A1A2B/AB1B2
-	b, err = p.readBody(ctx, bLen+p.hLen)
+	//3. 解码网络字节流
+	var body = make([]byte, pLen-s.hLen)
+	err = binary.Read(bytes.NewBuffer(b[s.hLen:]), binary.BigEndian, body)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (p *HB) Packet(ctx context.Context, body []byte) error {
-	//1. 构造Header信息
-	var h, err = p.writeHeader(ctx, body)
+func (s *Stream) writeHeader(b *bytes.Buffer, bLen int) error {
+	var (
+		n   int
+		h   = make([]byte, s.hLen)
+		err = binary.Write(b, binary.BigEndian, int32(bLen))
+	)
 	if err != nil {
-		return err
+		return nil
 	}
-	body, err = p.writeBody(ctx, body)
-	if err != nil {
-		return err
-	}
-	//2. 构造Body信息
-	var pkg = new(bytes.Buffer)
-	var n int
-	n, err = pkg.Write(h)
-	if err != nil {
-		return err
-	}
-	if n < p.hLen {
+	copy(h, b.Bytes())
+	b.Reset()
+	n, err = b.Write(h)
+	if n < s.hLen || err != nil {
 		return errWritePackage
 	}
-	n, err = pkg.Write(body)
-	if err != nil {
-		return err
-	}
-	if n < len(body) {
-		return errWritePackage
-	}
-	p.wmu.Lock()
-	defer p.wmu.Unlock()
-
-	n, err = p.writer.Write(pkg.Bytes())
-	if err != nil {
-		return err
-	}
-	if n < pkg.Len() {
-		return errWritePackage
-	}
-	err = p.writer.Flush()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
-func (p *HB) readHeader(ctx context.Context) (int, error) {
-	//1. 解析协议头部信息
-	var b, err = p.reader.Peek(p.hLen)
+func (s *Stream) writePkt(body []byte) {
+	var (
+		bLen = len(body)
+		err  error
+		b    = new(bytes.Buffer)
+	)
+	err = s.writeHeader(b, bLen)
 	if err != nil {
-		return 0, err
+		s.ec <- err
+		return
 	}
-	//2. 解析字节流 大端
-	var bLen int32
-	err = binary.Read(bytes.NewBuffer(b[:p.hLen]), binary.BigEndian, &bLen)
+	err = binary.Write(b, binary.BigEndian, body)
 	if err != nil {
-		return 0, err
+		s.ec <- err
+		return
 	}
-	//3. 返回包长度
-	return int(bLen), nil
+	s.ws <- frame(b.Bytes())
 }
 
-func (p *HB) readBody(ctx context.Context, pl int) ([]byte, error) {
-	var body = make([]byte, pl)
-	var n, err = p.reader.Read(body)
-	if err != nil || n < pl {
-		return nil, errParsePackage
-	}
-	var t = make([]byte, pl)
-	err = binary.Read(bytes.NewBuffer(body[:pl]), binary.BigEndian, t)
-	if err != nil {
-		return nil, err
-	}
-	return t[p.hLen:], nil
+func (s *Stream) close() {
+	s.cancel()
+	s.quit <- struct{}{}
+	time.Sleep(time.Second * 3)
 }
 
-func (p *HB) writeHeader(ctx context.Context, body []byte) ([]byte, error) {
-	var bLen = len(body)
-	var b = new(bytes.Buffer)
-	//1. 消息头
-	var err = binary.Write(b, binary.BigEndian, int32(bLen))
-	if err != nil {
-		return nil, err
+func (s *Stream) errorLoop() {
+	for e := range s.ec {
+		switch {
+		case e == io.EOF: //连接关闭
+			s.close()
+		}
 	}
-	return b.Bytes(), nil
-}
-
-func (p *HB) writeBody(ctx context.Context, body []byte) ([]byte, error) {
-	var b = new(bytes.Buffer)
-	var err = binary.Write(b, binary.BigEndian, body)
-	if err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
 }
