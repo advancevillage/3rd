@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"time"
 )
@@ -117,7 +116,6 @@ func (s *Stream) readLoop() {
 
 func (s *Stream) writeLoop() {
 	for v := range s.ws {
-		log.Println("writeLoop", v.Bytes())
 		s.writer.Write(v.Bytes())
 		s.writer.Flush()
 	}
@@ -206,7 +204,7 @@ func (s *Stream) readPkt(pLen int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return b, nil
+	return body, nil
 }
 
 func (s *Stream) writeHeader(b *bytes.Buffer, bLen int) error {

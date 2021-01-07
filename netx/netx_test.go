@@ -235,6 +235,21 @@ func Test_TcpServer(t *testing.T) {
 			var table = make(map[string]struct{})
 			var i = 0
 			var b []byte
+			var body []byte
+			//5. 接受服务端数据流
+			go func() {
+				for {
+					body, err = c.Receive(context.TODO())
+					if err != nil {
+						t.Fatal(err)
+						return
+					}
+					//5. 验证传输数据的正确性
+					if _, ok := table[string(body)]; ok {
+						delete(table, string(b))
+					}
+				}
+			}()
 			for {
 				select {
 				case <-tg.C:
@@ -262,10 +277,6 @@ func Test_TcpServer(t *testing.T) {
 					switch n {
 					case "case9", "case10", "case11", "case12", "case13":
 						//fmt.Println(i)
-					}
-					//5. 验证传输数据的正确性
-					if _, ok := table[string(b)]; ok {
-						delete(table, string(b))
 					}
 				}
 			}
@@ -302,6 +313,25 @@ func Test_OneTcpClient(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
-	log.Println(c)
-	time.Sleep(time.Minute * 10)
+	time.Sleep(5 * time.Second)
+	go func() {
+		for i := 0; i < 10; i++ {
+			var b, e = c.Receive(context.TODO())
+			if e != nil {
+				t.Fatal(e)
+				return
+			}
+			log.Println("receive", string(b))
+		}
+	}()
+	for i := 0; i < 10; i++ {
+		var msg = utils.RandsString(4096)
+		log.Println("send", msg)
+		err = c.Send(context.TODO(), []byte(msg))
+		if err != nil {
+			t.Fatal(err)
+			return
+		}
+	}
+	time.Sleep(time.Minute)
 }

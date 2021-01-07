@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -391,7 +390,6 @@ func (c *tcpClient) connect(ctx context.Context) error {
 			var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
 			//1. 连接失败 重试连接
 			if err != nil {
-				log.Println(err)
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
