@@ -16,6 +16,8 @@ var (
 	errParsePackage = errors.New("protocol parse package")
 	errReadPackage  = errors.New("protocol read package error")
 	errWritePackage = errors.New("protocol write package error")
+
+	errSessionTimeout = errors.New("session timeout")
 )
 
 type IProtocol interface {

@@ -9,6 +9,8 @@ require (
 	github.com/go-redis/redis/v8 v8.3.3
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.3
+	github.com/google/uuid v1.1.4
+	github.com/hashicorp/go.net v0.0.1
 	github.com/romanyx/polluter v1.2.2
 	github.com/stretchr/testify v1.6.1
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2

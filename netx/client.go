@@ -387,7 +387,7 @@ func (c *tcpClient) connect(ctx context.Context) error {
 		case <-c.app.Done():
 			return nil
 		default:
-			var conn, err = net.DialTimeout("tcp", c.cfg.Address, c.cfg.Timeout)
+			var conn, err = net.Dial("tcp", c.cfg.Address)
 			//1. 连接失败 重试连接
 			if err != nil {
 				time.Sleep(50 * time.Millisecond)

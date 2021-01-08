@@ -75,11 +75,12 @@ func Test_HttpServer(t *testing.T) {
 
 //tcp unit test
 var tcpServerTestData = map[string]struct {
-	host string
-	port int
-	ph   ProtocolHandler
-	pc   ProtocolConstructor
-	msg  int
+	host  string
+	port  int
+	ph    ProtocolHandler
+	pc    ProtocolConstructor
+	msg   int
+	count int
 }{
 	//发送小报文
 	"case1": {
@@ -89,7 +90,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 16,
+		msg:   16,
+		count: 2000,
 	},
 	"case2": {
 		host: "localhost",
@@ -98,8 +100,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-
-		msg: 31,
+		count: 2000,
+		msg:   31,
 	},
 	"case3": {
 		host: "localhost",
@@ -108,7 +110,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 63,
+		msg:   63,
+		count: 2000,
 	},
 	"case4": {
 		host: "localhost",
@@ -117,7 +120,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 128,
+		msg:   128,
+		count: 2000,
 	},
 	"case5": {
 		host: "localhost",
@@ -126,7 +130,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 255,
+		msg:   255,
+		count: 2000,
 	},
 	"case6": {
 		host: "localhost",
@@ -135,7 +140,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 511,
+		msg:   511,
+		count: 2000,
 	},
 	"case7": {
 		host: "localhost",
@@ -144,7 +150,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 1024,
+		msg:   1024,
+		count: 2000,
 	},
 	"case8": {
 		host: "localhost",
@@ -153,7 +160,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 2048,
+		msg:   2048,
+		count: 2000,
 	},
 	"case9": {
 		host: "localhost",
@@ -162,7 +170,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 4096,
+		msg:   4096,
+		count: 2000,
 	},
 	"case10": {
 		host: "localhost",
@@ -171,7 +180,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 8192,
+		msg:   8192,
+		count: 2000,
 	},
 	"case11": {
 		host: "localhost",
@@ -180,7 +190,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 16384,
+		msg:   16384,
+		count: 2000,
 	},
 	"case12": {
 		host: "localhost",
@@ -189,7 +200,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 32768,
+		msg:   32768,
+		count: 2000,
 	},
 	"case13": {
 		host: "localhost",
@@ -198,7 +210,8 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		msg: 65535,
+		msg:   65535,
+		count: 2000,
 	},
 }
 
@@ -280,7 +293,7 @@ func Test_OneTcpServer(t *testing.T) {
 	log.Printf("%s:%d\n", host, port)
 	var s ITcpServer
 	var err error
-	s, err = NewTcpServer(&TcpServerOpt{Host: host, Port: port, PC: NewStream, PH: ph})
+	s, err = NewSIPServer(&TcpServerOpt{Host: host, Port: port, PC: NewStream, PH: ph})
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -291,40 +304,84 @@ func Test_OneTcpServer(t *testing.T) {
 func Test_OneTcpClient(t *testing.T) {
 	var host = "localhost"
 	var port = 8888
-	var count = 1000
-	log.Printf("%s:%d\n", host, port)
-	var c ITcpClient
+	var c ISIPClient
 	var err error
-	c, err = NewTcpClient(&TcpClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: time.Hour, PC: NewStream, Retry: 3})
+	fmt.Printf("%s:%d\n", host, port)
+	c, err = NewSIPClent(&TcpClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: time.Second * 10, PC: NewStream, Retry: 3})
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 	time.Sleep(5 * time.Second)
-	go func() {
-		for i := 0; i < count; i++ {
-			var b, e = c.Receive(context.TODO())
+	var wg sync.WaitGroup
+	var count = 2000
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			var msg = utils.RandsString(12)
+			//fmt.Printf("send msg(%d) %s\n", index, msg)
+			var b, e = c.Send(context.TODO(), []byte(msg))
 			if e != nil {
 				t.Fatal(e)
 				return
 			}
-			log.Println("receive", string(b))
-		}
-	}()
-	var wg sync.WaitGroup
-	for i := 0; i < count; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var msg = utils.RandsString(16)
-			log.Println("send", msg)
-			err = c.Send(context.TODO(), []byte(msg))
+			//fmt.Printf("receive msg(%d) %s\n", index, string(b))
+			assert.Equal(t, string(b), msg)
+		}(i)
+	}
+	wg.Wait()
+}
+
+func Test_TcpSIPServer(t *testing.T) {
+	rand.Seed(time.Now().Unix())
+	for n, p := range tcpServerTestData {
+		f := func(t *testing.T) {
+			p.port = rand.Intn(4096) + 8192
+			fmt.Println(p.host, p.port, time.Now().Unix(), p.msg)
+			var s ISIPServer
+			var c ISIPClient
+			var err error
+			//1. 构造服务端
+			s, err = NewSIPServer(&TcpServerOpt{Host: p.host, Port: p.port, PC: p.pc, PH: p.ph})
 			if err != nil {
 				t.Fatal(err)
 				return
 			}
-		}()
+			//2. 构造客户端
+			c, err = NewSIPClent(&TcpClientOpt{
+				Address: fmt.Sprintf("%s:%d", p.host, p.port),
+				Timeout: time.Second * 10,
+				Retry:   3,
+				PC:      p.pc,
+			})
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			//3. 启动服务端
+			go s.StartServer()
+			time.Sleep(5 * time.Second)
+			//4. 客户端发送请求
+			var wg sync.WaitGroup
+			for i := 0; i < p.count; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					var msg = utils.RandsString(p.msg)
+					//4. 服务端接收请求
+					var b, e = c.Send(context.TODO(), []byte(msg))
+					if err != nil {
+						t.Fatal(e)
+						return
+					}
+					//验证传输数据的正确性
+					assert.Equal(t, string(b), msg)
+				}()
+			}
+			wg.Wait()
+			s.StopServer()
+		}
+		t.Run(n, f)
 	}
-	wg.Wait()
-	time.Sleep(time.Minute)
 }
