@@ -91,7 +91,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   16,
-		count: 2000,
+		count: 3000,
 	},
 	"case2": {
 		host: "localhost",
@@ -100,7 +100,7 @@ var tcpServerTestData = map[string]struct {
 			//fmt.Println("receive ", string(body))
 			return body
 		},
-		count: 2000,
+		count: 3000,
 		msg:   31,
 	},
 	"case3": {
@@ -111,7 +111,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   63,
-		count: 2000,
+		count: 3000,
 	},
 	"case4": {
 		host: "localhost",
@@ -121,7 +121,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   128,
-		count: 2000,
+		count: 3000,
 	},
 	"case5": {
 		host: "localhost",
@@ -131,7 +131,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   255,
-		count: 2000,
+		count: 3000,
 	},
 	"case6": {
 		host: "localhost",
@@ -141,7 +141,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   511,
-		count: 2000,
+		count: 3000,
 	},
 	"case7": {
 		host: "localhost",
@@ -151,7 +151,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   1024,
-		count: 2000,
+		count: 3000,
 	},
 	"case8": {
 		host: "localhost",
@@ -161,7 +161,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   2048,
-		count: 2000,
+		count: 3000,
 	},
 	"case9": {
 		host: "localhost",
@@ -171,7 +171,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   4096,
-		count: 2000,
+		count: 3000,
 	},
 	"case10": {
 		host: "localhost",
@@ -181,7 +181,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   8192,
-		count: 2000,
+		count: 3000,
 	},
 	"case11": {
 		host: "localhost",
@@ -191,7 +191,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   16384,
-		count: 2000,
+		count: 3000,
 	},
 	"case12": {
 		host: "localhost",
@@ -201,7 +201,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   32768,
-		count: 2000,
+		count: 3000,
 	},
 	"case13": {
 		host: "localhost",
@@ -211,7 +211,7 @@ var tcpServerTestData = map[string]struct {
 			return body
 		},
 		msg:   65535,
-		count: 2000,
+		count: 3000,
 	},
 }
 
@@ -314,7 +314,7 @@ func Test_OneTcpClient(t *testing.T) {
 	}
 	time.Sleep(5 * time.Second)
 	var wg sync.WaitGroup
-	var count = 2000
+	var count = 3000
 	for i := 0; i < count; i++ {
 		wg.Add(1)
 		go func(index int) {
