@@ -15,6 +15,7 @@ type ICache interface {
 	//hash
 	HashSet(ctx context.Context, key string, fields map[string]interface{}, ttl int) error
 	HashGet(ctx context.Context, key string, field string) ([]byte, error)
+	HashDel(ctx context.Context, key string, fields ...string) error
 	HashGetAll(ctx context.Context, key string) (map[string]string, error)
 	//pipeline hash
 	PHashGetAll(ctx context.Context, key ...string) (map[string]string, error)
@@ -122,6 +123,14 @@ func (c *redisClient) HashSet(ctx context.Context, key string, fields map[string
 	err = c.cli.Expire(ctx, key, time.Duration(ttl)*time.Second).Err()
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *redisClient) HashDel(ctx context.Context, key string, fields ...string) error {
+	var ret = c.cli.HDel(ctx, key, fields...)
+	if ret.Err() != nil {
+		return ret.Err()
 	}
 	return nil
 }
