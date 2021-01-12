@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -226,7 +227,7 @@ type ITcpServer interface {
 	StopServer()
 }
 
-type TcpServerOpt struct {
+type ServerOpt struct {
 	Host string
 	Port int
 	PC   ProtocolConstructor //协议生成器
@@ -236,13 +237,13 @@ type TcpServerOpt struct {
 //@overview: tcp server. 目标是更多请求更少的内存消耗
 //@author: richard.sun
 type tcpServer struct {
-	cfg    *TcpServerOpt
+	cfg    *ServerOpt
 	app    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func NewTcpServer(cfg *TcpServerOpt) (ITcpServer, error) {
+func NewTcpServer(cfg *ServerOpt) (ITcpServer, error) {
 	//1. 参数校验
 	if cfg == nil || cfg.Port < 0 || cfg.Port > 65535 {
 		return nil, errors.New("opts param is invalid")
@@ -354,4 +355,97 @@ func (s *tcpServer) handleFunc(ctx context.Context, p IProtocol, body []byte) {
 	defer s.wg.Done()
 	var buf = s.cfg.PH(ctx, body)
 	p.Packet(ctx, buf)
+}
+
+//udp server
+type IUdpServer interface {
+	StartServer()
+}
+
+type udpServer struct {
+	cfg    *ServerOpt
+	app    context.Context
+	cancel context.CancelFunc
+	conn   *net.UDPConn
+	wg     sync.WaitGroup
+	ec     chan error
+}
+
+func NewUdpServer(cfg *ServerOpt) (IUdpServer, error) {
+	//1. 检查参数
+	if cfg == nil || nil == net.ParseIP(cfg.Host) || cfg.Port <= 0 || cfg.Port > 65535 {
+		return nil, fmt.Errorf("invalid config param")
+	}
+	var u = &udpServer{}
+	u.ec = make(chan error, 64)
+	u.app, u.cancel = context.WithCancel(context.Background())
+	u.cfg = cfg
+
+	return u, nil
+}
+
+func (s *udpServer) StartServer() {
+	go s.errorLoop()
+	go s.start()
+	go waitQuitSignal(s.cancel)
+	select {
+	case <-s.app.Done():
+		close(s.ec)
+		time.Sleep(time.Second * 3)
+	}
+}
+
+func (s *udpServer) start() {
+	var (
+		err  error
+		addr *net.UDPAddr
+	)
+	//1. 监听服务端口
+	addr, err = net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port))
+	if err != nil {
+		fmt.Println(err.Error())
+		s.ec <- io.EOF
+		return
+	}
+	s.conn, err = net.ListenUDP("udp", addr)
+	if err != nil {
+		fmt.Println(err.Error())
+		s.ec <- io.EOF
+		return
+	}
+	defer s.conn.Close()
+	var (
+		n   int
+		buf = make([]byte, 1024)
+	)
+	for {
+		select {
+		case <-s.app.Done():
+			return
+		default:
+			//2. 接收报文
+			n, addr, err = s.conn.ReadFromUDP(buf)
+			if err != nil {
+				continue
+			}
+			//3. 处理报文
+			go s.handle(addr, buf[:n])
+		}
+	}
+}
+
+func (s *udpServer) handle(addr *net.UDPAddr, body []byte) {
+	s.wg.Add(1)
+	defer s.wg.Done()
+	var b = s.cfg.PH(s.app, body)
+	s.conn.WriteTo(b, addr)
+}
+
+func (s *udpServer) errorLoop() {
+	for e := range s.ec {
+		switch {
+		case e == io.EOF:
+			s.cancel()
+		}
+	}
 }

@@ -145,14 +145,14 @@ type ISIPServer interface {
 
 type sipServer struct {
 	tcpSvr ITcpServer
-	cfg    *TcpServerOpt
+	cfg    *ServerOpt
 	sLen   int
 }
 
-func NewSIPServer(cfg *TcpServerOpt) (ISIPServer, error) {
+func NewSIPServer(cfg *ServerOpt) (ISIPServer, error) {
 	var s = &sipServer{}
 	var err error
-	var tCfg = &TcpServerOpt{
+	var tCfg = &ServerOpt{
 		Host: cfg.Host,
 		Port: cfg.Port,
 		PC:   cfg.PC,
