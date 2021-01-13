@@ -395,6 +395,10 @@ func (s *udpServer) StartServer() {
 	}
 }
 
+func (s *udpServer) StopServer() {
+	s.ec <- io.EOF
+}
+
 func (s *udpServer) start() {
 	var (
 		err  error
@@ -416,7 +420,7 @@ func (s *udpServer) start() {
 	defer s.conn.Close()
 	var (
 		n   int
-		buf = make([]byte, 1024)
+		buf = make([]byte, 2048)
 	)
 	for {
 		select {
@@ -428,8 +432,10 @@ func (s *udpServer) start() {
 			if err != nil {
 				continue
 			}
+			var body = make([]byte, n)
+			copy(body, buf[:n])
 			//3. 处理报文
-			go s.handle(addr, buf[:n])
+			go s.handle(addr, body)
 		}
 	}
 }
@@ -438,7 +444,7 @@ func (s *udpServer) handle(addr *net.UDPAddr, body []byte) {
 	s.wg.Add(1)
 	defer s.wg.Done()
 	var b = s.cfg.PH(s.app, body)
-	s.conn.WriteTo(b, addr)
+	s.conn.WriteToUDP(b, addr)
 }
 
 func (s *udpServer) errorLoop() {
