@@ -360,6 +360,7 @@ func (s *tcpServer) handleFunc(ctx context.Context, p IProtocol, body []byte) {
 //udp server
 type IUdpServer interface {
 	StartServer()
+	StopServer()
 }
 
 type udpServer struct {

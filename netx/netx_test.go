@@ -232,7 +232,7 @@ func Test_TcpServer(t *testing.T) {
 				return
 			}
 			//2. 构造客户端
-			c, err = NewTcpClient(&TcpClientOpt{
+			c, err = NewTcpClient(&ClientOpt{
 				Address: fmt.Sprintf("%s:%d", p.host, p.port),
 				Timeout: time.Hour,
 				Retry:   3,
@@ -307,7 +307,7 @@ func Test_OneTcpClient(t *testing.T) {
 	var c ISIPClient
 	var err error
 	fmt.Printf("%s:%d\n", host, port)
-	c, err = NewSIPClent(&TcpClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: time.Second * 10, PC: NewStream, Retry: 3})
+	c, err = NewSIPClent(&ClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: time.Second * 10, PC: NewStream, Retry: 3})
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -349,7 +349,7 @@ func Test_TcpSIPServer(t *testing.T) {
 				return
 			}
 			//2. 构造客户端
-			c, err = NewSIPClent(&TcpClientOpt{
+			c, err = NewSIPClent(&ClientOpt{
 				Address: fmt.Sprintf("%s:%d", p.host, p.port),
 				Timeout: time.Second * 10,
 				Retry:   3,
@@ -388,12 +388,11 @@ func Test_TcpSIPServer(t *testing.T) {
 
 //udp server
 func Test_OneUdpServer(t *testing.T) {
-	var host = "192.168.1.100"
-	var port = 6666
+	var host = "192.168.1.101"
+	var port = 8888
 	var ph = func(ctx context.Context, body []byte) []byte {
 		return body
 	}
-	log.Printf("%s:%d\n", host, port)
 	var s IUdpServer
 	var err error
 	s, err = NewUdpServer(&ServerOpt{Host: host, Port: port, PC: NewStream, PH: ph})
@@ -402,4 +401,18 @@ func Test_OneUdpServer(t *testing.T) {
 		return
 	}
 	s.StartServer()
+}
+
+func Test_OneUdpClient(t *testing.T) {
+	var host = "192.168.1.101"
+	var port = 8888
+	var c IUdpClient
+	var err error
+	c, err = NewUdpClient(&ClientOpt{Address: fmt.Sprintf("%s:%d", host, port), Timeout: 10})
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	log.Println(c)
+	time.Sleep(time.Minute)
 }

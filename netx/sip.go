@@ -23,14 +23,14 @@ type sipClient struct {
 	tcpCli ITcpClient
 	mu     sync.RWMutex
 	sip    map[string]chan pkt
-	cfg    *TcpClientOpt
+	cfg    *ClientOpt
 	app    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	sLen   int //session id len uuid 36
 }
 
-func NewSIPClent(cfg *TcpClientOpt) (ISIPClient, error) {
+func NewSIPClent(cfg *ClientOpt) (ISIPClient, error) {
 	var c = &sipClient{}
 	var err error
 	c.tcpCli, err = NewTcpClient(cfg)
