@@ -335,6 +335,7 @@ type ClientOpt struct {
 	Timeout time.Duration       // 客户端超时
 	Retry   int                 //重试次数
 	PC      ProtocolConstructor //协议生成器
+	MaxSize int                 //最大包
 }
 
 //@overview: Tcp协议客户端应该具备超时、重试、断开重连、发送请求的基本功能
@@ -565,7 +566,8 @@ func (c *udpClient) receive(ctx context.Context) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
-		var body = make([]byte, 2048)
+		c.conn.SetDeadline(time.Now().Add(c.cfg.Timeout))
+		var body = make([]byte, c.cfg.MaxSize)
 		var n, err = c.conn.Read(body)
 		if err != nil {
 			return nil, err

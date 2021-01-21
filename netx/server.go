@@ -435,7 +435,6 @@ func (s *udpServer) start() {
 			}
 			var body = make([]byte, n)
 			copy(body, buf[:n])
-			buf = buf[:0]
 			//3. 处理报文
 			go s.handle(addr, body)
 		}

@@ -416,3 +416,82 @@ func Test_OneUdpClient(t *testing.T) {
 	log.Println(c)
 	time.Sleep(time.Minute)
 }
+
+var udpCSTestData = map[string]struct {
+	host  string
+	port  int
+	size  int
+	count int
+}{
+	"case1": {
+		host:  "192.168.1.101",
+		port:  6666,
+		size:  10,
+		count: 1000,
+	},
+}
+
+func Test_UdpCS(t *testing.T) {
+	for n, p := range udpCSTestData {
+		f := func(t *testing.T) {
+			var c IUdpClient
+			var s IUdpServer
+			var err error
+			var sm, rm = make(map[string]struct{}), make(map[string]struct{})
+			var ph = func(ctx context.Context, body []byte) []byte {
+				return body
+			}
+			s, err = NewUdpServer(&ServerOpt{Host: p.host, Port: p.port, PH: ph})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			c, err = NewUdpClient(&ClientOpt{Address: fmt.Sprintf("%s:%d", p.host, p.port), Timeout: 10 * time.Second, MaxSize: 1024})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			//1. 启动服务端
+			go s.StartServer()
+			time.Sleep(time.Second * 3)
+			//2. 启动客户端发送
+			go func() {
+				for i := 0; i < p.count; i++ {
+					var msg = utils.RandsString(p.size)
+					sm[msg] = struct{}{}
+					var e = c.Send(context.TODO(), []byte(msg))
+					if e != nil {
+						fmt.Println(err.Error())
+						t.Error(e)
+						return
+					}
+				}
+				time.Sleep(time.Second * 2)
+			}()
+			//3. 启动客户端接收
+			var ctx, cancel = context.WithTimeout(context.TODO(), time.Second*10)
+			defer cancel()
+			for {
+				var msg, err = c.Receive(ctx)
+				if err != nil {
+					break
+				}
+				rm[string(msg)] = struct{}{}
+			}
+			s.StopServer()
+			//4. 校验
+			for k := range sm {
+				if _, ok := rm[k]; ok {
+					delete(sm, k)
+					delete(rm, k)
+				}
+			}
+			if len(sm) <= 0 && len(rm) <= 0 {
+				t.Log("success")
+			} else {
+				t.Error("fail")
+			}
+		}
+		t.Run(n, f)
+	}
+}
