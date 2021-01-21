@@ -421,7 +421,7 @@ func (s *udpServer) start() {
 	defer s.conn.Close()
 	var (
 		n   int
-		buf = make([]byte, 2048)
+		buf = make([]byte, 576)
 	)
 	for {
 		select {
@@ -435,6 +435,7 @@ func (s *udpServer) start() {
 			}
 			var body = make([]byte, n)
 			copy(body, buf[:n])
+			buf = buf[:0]
 			//3. 处理报文
 			go s.handle(addr, body)
 		}
