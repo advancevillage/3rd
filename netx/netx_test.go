@@ -422,18 +422,75 @@ var udpCSTestData = map[string]struct {
 	port  int
 	size  int
 	count int
+	ms    int
 }{
 	"case1": {
-		host:  "192.168.1.101",
-		port:  6666,
+		host:  "127.0.0.1",
 		size:  10,
 		count: 1000,
+		ms:    1500,
+	},
+	"case2": {
+		host:  "127.0.0.1",
+		size:  20,
+		count: 1000,
+		ms:    1500,
+	},
+	"case3": {
+		host:  "127.0.0.1",
+		size:  40,
+		count: 1000,
+		ms:    1500,
+	},
+	"case4": {
+		host:  "127.0.0.1",
+		size:  80,
+		count: 1000,
+		ms:    1500,
+	},
+	"case5": {
+		host:  "127.0.0.1",
+		size:  160,
+		count: 1000,
+		ms:    1500,
+	},
+	"case6": {
+		host:  "127.0.0.1",
+		size:  320,
+		count: 1000,
+		ms:    1500,
+	},
+	"case7": {
+		host:  "127.0.0.1",
+		size:  640,
+		count: 1000,
+		ms:    1500,
+	},
+	"case8": {
+		host:  "127.0.0.1",
+		size:  1280,
+		count: 1000,
+		ms:    1500,
+	},
+	"case9": {
+		host:  "127.0.0.1",
+		size:  2560,
+		count: 1000,
+		ms:    3200,
+	},
+	"case10": {
+		host:  "127.0.0.1",
+		size:  5120,
+		count: 1000,
+		ms:    6400,
 	},
 }
 
 func Test_UdpCS(t *testing.T) {
+	rand.Seed(time.Now().Unix())
 	for n, p := range udpCSTestData {
 		f := func(t *testing.T) {
+			p.port = rand.Intn(4096) + 4096
 			var c IUdpClient
 			var s IUdpServer
 			var err error
@@ -441,12 +498,12 @@ func Test_UdpCS(t *testing.T) {
 			var ph = func(ctx context.Context, body []byte) []byte {
 				return body
 			}
-			s, err = NewUdpServer(&ServerOpt{Host: p.host, Port: p.port, PH: ph})
+			s, err = NewUdpServer(&ServerOpt{Host: p.host, Port: p.port, PH: ph, MaxSize: p.ms})
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			c, err = NewUdpClient(&ClientOpt{Address: fmt.Sprintf("%s:%d", p.host, p.port), Timeout: 10 * time.Second, MaxSize: 1024})
+			c, err = NewUdpClient(&ClientOpt{Address: fmt.Sprintf("%s:%d", p.host, p.port), Timeout: 10 * time.Second, MaxSize: p.ms})
 			if err != nil {
 				t.Error(err)
 				return

@@ -228,10 +228,11 @@ type ITcpServer interface {
 }
 
 type ServerOpt struct {
-	Host string
-	Port int
-	PC   ProtocolConstructor //协议生成器
-	PH   ProtocolHandler     //协议处理器
+	Host    string
+	Port    int
+	PC      ProtocolConstructor //协议生成器
+	PH      ProtocolHandler     //协议处理器
+	MaxSize int                 //最大报文长度
 }
 
 //@overview: tcp server. 目标是更多请求更少的内存消耗
@@ -421,7 +422,7 @@ func (s *udpServer) start() {
 	defer s.conn.Close()
 	var (
 		n   int
-		buf = make([]byte, 576)
+		buf = make([]byte, s.cfg.MaxSize)
 	)
 	for {
 		select {
