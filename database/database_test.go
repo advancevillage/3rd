@@ -3,7 +3,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,7 +32,7 @@ type class struct {
 }
 
 type testDBProxy struct {
-	mysql
+	dbCli IDBProxy
 }
 
 func newTestDBProxyService() (*testDBProxy, error) {
@@ -82,8 +81,8 @@ func (s *testDBProxy) RunInDBProxy(td map[string]interface{}, t *testing.T, f fu
 	//1. 将map[string]interface{} 转换成 yaml 字符串
 	var seed = strings.Join(result, "")
 	//2. 调用函数
-	RunUnitTest(seed, t, func(t *testing.T, u *sql.DB) {
-		s.db = u
+	RunUnitTest(seed, t, func(t *testing.T, dbCli IDBProxy) {
+		s.dbCli = dbCli
 		f(t)
 	})
 }
@@ -127,7 +126,7 @@ func TestMysql_ExecSql(t *testing.T) {
 			var ctx, cancel = context.WithTimeout(context.TODO(), 3*time.Second)
 			defer cancel()
 
-			var rows, err = s.ExecSql(ctx, testSchema, p.sqlStr)
+			var rows, err = s.dbCli.ExecSql(ctx, testSchema, p.sqlStr)
 			if err != nil {
 				t.Fatal(err)
 				return

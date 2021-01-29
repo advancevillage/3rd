@@ -56,7 +56,7 @@ func init() {
 	txdb.Register(testSchema, "mysql", strings.TrimPrefix(testDB, "mysql://"))
 }
 
-type DBProxyTestFunc func(t *testing.T, db *sql.DB)
+type DBProxyTestFunc func(t *testing.T, dbCli IDBProxy)
 
 //@overview: Mainly this package was created for testing purposes, to give the ability
 //to seed a database with records from simple .yaml files.
@@ -92,5 +92,6 @@ func RunUnitTest(yaml string, t *testing.T, f DBProxyTestFunc) {
 	}
 	defer db.Close()
 	//4. 回调函数
-	f(t, db)
+	var dbCli = &mysql{db: db}
+	f(t, dbCli)
 }
