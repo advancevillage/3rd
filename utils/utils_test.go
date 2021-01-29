@@ -132,3 +132,43 @@ func Test_uuid(t *testing.T) {
 		t.Run(n, f)
 	}
 }
+
+var uuid8TestData = map[string]struct {
+	except int
+	con    int
+}{
+	"case1": {
+		except: 1000,
+		con:    1000,
+	},
+	"case2": {
+		except: 10000,
+		con:    10000,
+	},
+	"case3": {
+		except: 20000,
+		con:    20000,
+	},
+	"case4": {
+		except: 30000,
+		con:    30000,
+	},
+	"case5": {
+		except: 40000,
+		con:    40000,
+	},
+}
+
+func Test_uuid8(t *testing.T) {
+	for n, p := range uuid8TestData {
+		f := func(t *testing.T) {
+			var m = make(map[string]struct{})
+			for i := 0; i < p.con; i++ {
+				var k = string(UUID8Byte())
+				m[k] = struct{}{}
+			}
+			assert.Equal(t, p.except, len(m))
+		}
+		t.Run(n, f)
+	}
+}

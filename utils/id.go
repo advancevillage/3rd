@@ -19,6 +19,10 @@ func UuId() []byte {
 	return []byte(UUID())
 }
 
+func UUID8Byte() []byte {
+	return UuId()[:8]
+}
+
 /////////SnowFlake
 //@link: https://segmentfault.com/a/1190000014767902
 //@link: https://www.dazhuanlan.com/2019/11/04/5dbfbb901bef2/
