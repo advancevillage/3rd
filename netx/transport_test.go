@@ -2,8 +2,6 @@ package netx
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
@@ -137,40 +135,32 @@ var macTestData = map[string]struct {
 
 func Test_mac(t *testing.T) {
 	for n, p := range macTestData {
-		var m = &tcpMac{}
 		key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
-		macc, err := aes.NewCipher(key)
+		var sct = Secrets{
+			MK:      key,
+			AK:      key,
+			Egress:  sha256.New(),
+			Ingress: sha256.New(),
+		}
+		var m, err = NewTcpMac(sct)
 		if err != nil {
 			t.Fatal(err)
 			return
 		}
-		encc, err := aes.NewCipher(key)
-		if err != nil {
-			t.Fatal(err)
-			return
-		}
-		iv := make([]byte, encc.BlockSize())
-		m.ens = cipher.NewCTR(encc, iv)
-		m.des = cipher.NewCTR(encc, iv)
-
-		m.macCipher = macc
-		m.egress = sha256.New()
-		m.ingress = sha256.New()
-
 		f := func(t *testing.T) {
 			//1. 设置期待值
 			p.expect = []byte(utils.RandsString(p.dLen))
 			var buf = make([]byte, 0, p.dLen<<1)
 			var w = bytes.NewBuffer(buf)
 			//2. 加密过程
-			var err = m.writeFrame(w, p.hSize, p.pad, p.flags, p.fId, p.expect)
+			var err = m.WriteFrame(w, p.hSize, p.pad, p.flags, p.fId, p.expect)
 			if err != nil {
 				assert.Equal(t, p.err, err)
 				return
 			}
 			//3. 解密过程
 			var flags, fId, data []byte
-			flags, fId, data, err = m.readFrame(w, p.hSize, p.pad)
+			flags, fId, data, err = m.ReadFrame(w, p.hSize, p.pad)
 			if err != nil {
 				assert.Equal(t, p.err, err)
 				return

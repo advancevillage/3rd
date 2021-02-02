@@ -29,6 +29,27 @@ type TransportOption struct {
 }
 
 type tcpConn struct {
+	mac ITcpMac
+}
+
+type ITcpMac interface {
+	ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error)
+	WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error
+}
+
+//@overview: 密钥信息
+//@author: richard.sun
+//@param:
+// AK  aes.cipher 加密算法key 密钥流
+// MK  aes.cipher 加密算法key 数据签名
+// Egress  加密算法
+// Ingress 加密算法
+// PubKey
+type Secrets struct {
+	AK      []byte
+	MK      []byte
+	Egress  hash.Hash
+	Ingress hash.Hash
 }
 
 //message auth code
@@ -46,6 +67,31 @@ type tcpMac struct {
 	macCipher cipher.Block
 	egress    hash.Hash
 	ingress   hash.Hash
+}
+
+func NewTcpMac(secret Secrets) (ITcpMac, error) {
+	var (
+		macc cipher.Block
+		encc cipher.Block
+		err  error
+	)
+	macc, err = aes.NewCipher(secret.MK)
+	if err != nil {
+		return nil, err
+	}
+	encc, err = aes.NewCipher(secret.AK)
+	if err != nil {
+		return nil, err
+	}
+	var iv = make([]byte, encc.BlockSize())
+	var m = &tcpMac{
+		ens:       cipher.NewCTR(encc, iv),
+		des:       cipher.NewCTR(encc, iv),
+		macCipher: macc,
+		egress:    secret.Egress,
+		ingress:   secret.Ingress,
+	}
+	return m, nil
 }
 
 //@overview: 读取加密帧. 基于自定义协议
@@ -68,7 +114,7 @@ type tcpMac struct {
 //1.  flags		[]byte  4
 //2.  frame id	[]byte  4
 //3.  data		[]byte
-func (m *tcpMac) readFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error) {
+func (m *tcpMac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error) {
 	var (
 		header = make([]byte, hSize)
 		err    error
@@ -117,7 +163,7 @@ func (m *tcpMac) readFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []b
 	return flags, fId, frameBuf[:frameSize], nil
 }
 
-func (m *tcpMac) writeFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
+func (m *tcpMac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
 	//1. 创建头信息大小
 	var (
 		err       error
