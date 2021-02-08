@@ -249,6 +249,33 @@ type ecdhe struct {
 	ephemeral Secrets
 }
 
+type IECDHE interface {
+	Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error)
+	Read(r io.Reader) (*ecdsa.PublicKey, []byte, error)
+	InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) error
+	Secrets() *Secrets
+}
+
+func NewECDHE256(pri *ecdsa.PrivateKey, rpub *ecdsa.PublicKey, host string, tcpPort int, udpPort int) (IECDHE, error) {
+	self, err := ecies.NewENodeByPP(pri, host, tcpPort, udpPort)
+	if err != nil {
+		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
+	}
+	remote, err := ecies.NewENodeByPub(rpub)
+	if err != nil {
+		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
+	}
+	ecies, err := ecies.NewECIES()
+	if err != nil {
+		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
+	}
+	return &ecdhe{
+		ecies:  ecies,
+		self:   self,
+		remote: remote,
+	}, nil
+}
+
 func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
 	//1. 构造参数
 	var (
@@ -389,4 +416,8 @@ func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub 
 	hs.ephemeral.Egress = sha256.New()
 	hs.ephemeral.Ingress = sha256.New()
 	return nil
+}
+
+func (hs *ecdhe) Secrets() *Secrets {
+	return &hs.ephemeral
 }

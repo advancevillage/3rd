@@ -18,7 +18,7 @@ type IENode interface {
 	GetTcpHost() string
 	GetPubKey() *ecdsa.PublicKey
 	GetPriKey() *ecdsa.PrivateKey
-	ENodeUrl() (string, error)
+	GetENodeUrl() (string, error)
 }
 
 //@overview: node, learn form eth.
@@ -108,6 +108,10 @@ func (e *enode) GetPriKey() *ecdsa.PrivateKey {
 	return e.pri
 }
 
+func (e *enode) GetENodeUrl() (string, error) {
+	return e.raw(), nil
+}
+
 func NewENodeByUrl(raw string) (IENode, error) {
 	return parse(raw)
 }
@@ -145,6 +149,12 @@ func NewENodeByPP(pp *ecdsa.PrivateKey, host string, tcpPort int, udpPort int) (
 	return &enode{tcpPort: tcpPort, udpPort: udpPort, tcpHost: ip, pub: &pp.PublicKey, pri: pp}, nil
 }
 
-func (e *enode) ENodeUrl() (string, error) {
-	return e.raw(), nil
+func NewENodeByPub(pub *ecdsa.PublicKey) (IENode, error) {
+	return &enode{
+		tcpPort: 0,
+		udpPort: 0,
+		tcpHost: nil,
+		pub:     pub,
+		pri:     nil,
+	}, nil
 }

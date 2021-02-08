@@ -68,7 +68,7 @@ func Test_enode(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			p.enodeUrl, err = enode.ENodeUrl()
+			p.enodeUrl, err = enode.GetENodeUrl()
 			if err != nil {
 				t.Fatal(err)
 				return
