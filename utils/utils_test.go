@@ -1,6 +1,10 @@
 package utils
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"fmt"
 	"regexp"
 	"testing"
 
@@ -168,6 +172,31 @@ func Test_uuid8(t *testing.T) {
 				m[k] = struct{}{}
 			}
 			assert.Equal(t, p.except, len(m))
+		}
+		t.Run(n, f)
+	}
+}
+
+var secp256r1TestData = map[string]struct {
+	key    []byte
+	except []byte
+}{
+	"case1": {},
+}
+
+func Test_secp256r1(t *testing.T) {
+	for n, p := range secp256r1TestData {
+		f := func(t *testing.T) {
+			var curve = elliptic.P256()
+			var iPri, err = ecdsa.GenerateKey(curve, rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			var iPub = append(iPri.PublicKey.X.Bytes(), iPri.PublicKey.Y.Bytes()...)
+			fmt.Printf("iPri %x\n", iPri.D.Bytes())
+			fmt.Printf("iPub %x\n", iPub)
+			fmt.Println(p)
 		}
 		t.Run(n, f)
 	}

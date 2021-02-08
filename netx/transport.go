@@ -4,10 +4,17 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"hash"
 	"io"
+
+	"github.com/advancevillage/3rd/ecies"
+	"github.com/advancevillage/3rd/utils"
 )
 
 var (
@@ -44,7 +51,6 @@ type ITcpMac interface {
 // MK  aes.cipher 加密算法key 数据签名
 // Egress  加密算法
 // Ingress 加密算法
-// PubKey
 type Secrets struct {
 	AK      []byte
 	MK      []byte
@@ -101,7 +107,7 @@ func NewTcpMac(secret Secrets) (ITcpMac, error) {
 //  [0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ]
 //				帧签名16
 //标识位:
-//  1st bytes:  高4位 低4位 成对出现  ping=0x01  pong=0x10
+//  1st bytes:  高4位 低4位 成对出现  ping=0x01  pong=0x10 (高4位 服务端 低4位 客户端)
 //  2nd:  预留
 //  3rd:  预留
 //  4th:  预留
@@ -228,4 +234,159 @@ func (m *tcpMac) hashMac(mac hash.Hash, block cipher.Block, seed []byte) []byte 
 	}
 	mac.Write(aesBuf)
 	return mac.Sum(nil)[:16]
+}
+
+//@overview: 握手协议, 建立TCP连接后发送的第一个报文
+//@author: richard.sun
+//@param:
+//1. ecies        密钥交换握手加密
+//2. self enode   服务节点通讯信息
+//3. remote enode 客户端节点 临时存储发送端公钥
+type ecdhe struct {
+	ecies     ecies.IECIES
+	self      ecies.IENode
+	remote    ecies.IENode
+	ephemeral Secrets
+}
+
+func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
+	//1. 构造参数
+	var (
+		n      int
+		sk     []byte
+		token  []byte
+		err    error
+		randPP *ecdsa.PrivateKey
+		nonce  = make([]byte, 0x20)
+		pri    = ecies.NewECDSAPri(hs.self.GetPriKey())
+	)
+	//2. 生成随机数
+	n, err = rand.Read(nonce)
+	if err != nil || n < 0x20 {
+		return nil, nil, fmt.Errorf("ecdhe write nonce fail. %v", err)
+	}
+	//3. 生成随机密钥
+	randPP, err = ecdsa.GenerateKey(hs.self.GetPubKey().Curve, rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ecdhe write random ecc private key fail. %s", err.Error())
+	}
+	//4. 生成共享临时密钥
+	sk, err = pri.SharedKey(ecies.NewECDSAPub(hs.remote.GetPubKey()), 0x20, 0x20)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ecdhe write random share key fail. %s", err.Error())
+	}
+	token = utils.Xor(sk, nonce)
+	//5. 签名
+	var h = hmac.New(pri.Pub.Params.Hash, make([]byte, pri.Pub.Params.BlockSize))
+	h.Write(token)
+	h.Write(elliptic.Marshal(randPP.PublicKey.Curve, randPP.PublicKey.X, randPP.PublicKey.Y))
+	var signature = h.Sum(nil)
+	//6. 构造数据
+	var data = make([]byte, 0xc2)
+	copy(data[:0x41], elliptic.Marshal(hs.self.GetPubKey().Curve, hs.self.GetPubKey().X, hs.self.GetPubKey().Y))
+	copy(data[0x41:0x61], nonce)
+	copy(data[0x61:0x81], signature)
+	copy(data[0x81:0xc2], elliptic.Marshal(randPP.PublicKey.Curve, randPP.PublicKey.X, randPP.PublicKey.Y))
+	//7. 加密数据
+	em, err := hs.ecies.Encrypt(rand.Reader, ecies.NewECDSAPub(hs.remote.GetPubKey()), data, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ecdhe encrypt data fail. %s", err.Error())
+	}
+	n, err = w.Write(em)
+	if err != nil || n < len(em) {
+		return nil, nil, fmt.Errorf("ecdhe send encrypt data fail. %v", err)
+	}
+	return randPP, nonce, nil
+}
+
+//@overview: 握手协议报文 格式. 基于secp256r1 加密方式
+//
+// iRandPub | iv | chiper data | signature
+// signature = sha256(iv | chiper data)
+//
+// len(iRandPub) = 65  secp256r1
+// len(iv)		 = 16
+// len(signature)= 32  SHA256
+//
+// chiper data :  iPub | nonce | signature | ePub
+//				   65      32       32        65
+// token  = ecc(iPub, rPri)
+// signed = token ^ nonce
+// signature = sha256(signed, ePub)
+//
+func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
+	//1. 构造本地私钥用于解密
+	var (
+		pri = ecies.NewECDSAPri(hs.self.GetPriKey())
+		err error
+		em  = make([]byte, 0x133)
+		m   []byte
+		n   int
+	)
+	//2. 读取数据
+	n, err = io.ReadFull(r, em)
+	if err != nil || n < 0x133 {
+		return nil, nil, fmt.Errorf("ecdhe handshake fail due to having enough data. %v", err)
+	}
+	//3. 解密数据
+	m, err = hs.ecies.Decrypt(rand.Reader, pri, em, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ecdhe handshake fail due to decrypt em data. %s", err.Error())
+	}
+	//4. 解析数据
+	var (
+		iPubBytes = m[:0x41]
+		nonce     = m[0x41:0x61]
+		signature = m[0x61:0x81]
+		ePubBytes = m[0x81:0xe6]
+		x, y      = elliptic.Unmarshal(hs.self.GetPubKey().Curve, iPubBytes)
+		xx, yy    = elliptic.Unmarshal(hs.self.GetPubKey().Curve, ePubBytes)
+		iPub      = &ecdsa.PublicKey{hs.self.GetPubKey().Curve, x, y}
+		ePub      = &ecdsa.PublicKey{hs.self.GetPubKey().Curve, xx, yy}
+		token     []byte
+	)
+	//5. token
+	sk, err := pri.SharedKey(ecies.NewECDSAPub(iPub), 0x20, 0x20)
+	if err != nil {
+		return nil, nil, fmt.Errorf("ecdhe handshake parse data fail. %s", err.Error())
+	}
+	token = utils.Xor(sk, nonce)
+	//6. 校验签名
+	var h = hmac.New(pri.Pub.Params.Hash, make([]byte, pri.Pub.Params.KeyLen))
+	h.Write(token)
+	h.Write(ePubBytes)
+	var should = h.Sum(nil)
+	if !hmac.Equal(should, signature) {
+		return nil, nil, fmt.Errorf("ecdhe handshake auth signature fail.")
+	}
+	//7. 获取临时会话通讯ePub
+	return ePub, nonce, nil
+}
+
+//@overview: 握手协议交换密钥
+//@author: richard.sun
+func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) error {
+	//1. 参数校验
+	if iRandPri == nil || rRandPub == nil || len(inonce) <= 0 || len(rnonce) <= 0 || len(inonce) != len(rnonce) {
+		return fmt.Errorf("ecdhe init secret fail due to invalid param")
+	}
+	//2. 初始化临时密钥对
+	var (
+		err error
+		sk  []byte
+		h   = sha256.New()
+	)
+	sk, err = ecies.NewECDSAPri(iRandPri).SharedKey(ecies.NewECDSAPub(rRandPub), 0x20, 0x20)
+	if err != nil {
+		return fmt.Errorf("ecdhe init secret fail due to share key %s", err.Error())
+	}
+	h.Write(sk)
+	h.Write(rnonce)
+	h.Write(inonce)
+	hs.ephemeral.AK = h.Sum(nil)
+	h.Write(hs.ephemeral.AK)
+	hs.ephemeral.MK = h.Sum(nil)
+	hs.ephemeral.Egress = sha256.New()
+	hs.ephemeral.Ingress = sha256.New()
+	return nil
 }

@@ -53,3 +53,19 @@ func Min(x, y int) int {
 		return y
 	}
 }
+
+func Max(x, y int) int {
+	if x > y {
+		return x
+	} else {
+		return y
+	}
+}
+
+func Xor(x, y []byte) []byte {
+	var xor = make([]byte, len(x))
+	for i := 0; i < len(x); i++ {
+		xor[i] = x[i] ^ y[i]
+	}
+	return xor
+}

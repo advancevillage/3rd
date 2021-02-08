@@ -274,3 +274,5 @@ func (c *jwtESClient) ParseToken(token string) (bool, error) {
 		return false, errors.New("invalid token string")
 	}
 }
+
+//ecc secp256r1
