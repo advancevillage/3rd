@@ -2,6 +2,9 @@ package netx
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
@@ -172,4 +175,134 @@ func Test_mac(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
+}
+
+//@overview: 单元测试 ecdhe 握手协议密钥交换
+
+var ecdheTestData = map[string]struct {
+	host    string
+	tcpPort int
+	udpPort int
+	flags   []byte //加密帧  头信息
+	fId     []byte
+	dLen    int //数据长度
+	expect  []byte
+}{
+	"case1": {
+		host:    "127.0.0.1",
+		tcpPort: 11011,
+		udpPort: 11011,
+		flags:   []byte{0x01, 0x01, 0x0, 0x0},
+		fId:     utils.UUID8Byte(),
+		dLen:    32,
+	},
+	"case2": {
+		host:    "127.0.0.1",
+		tcpPort: 11011,
+		udpPort: 11011,
+		flags:   []byte{0x01, 0x01, 0x0, 0x0},
+		fId:     utils.UUID8Byte(),
+		dLen:    1024,
+	},
+}
+
+func Test_ecdhe(t *testing.T) {
+	for n, p := range ecdheTestData {
+		f := func(t *testing.T) {
+			//0. 读写IO
+			var rb = make([]byte, 0, 1024)
+			var wb = make([]byte, 0, 1024)
+			var r = bytes.NewBuffer(rb)
+			var w = bytes.NewBuffer(wb)
+			rPri, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			if err != nil {
+				t.Fatalf("generage receiver private key %s\n", err.Error())
+				return
+			}
+			iPri, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			if err != nil {
+				t.Fatalf("generage initator private key %s\n", err.Error())
+				return
+			}
+			//1. 构造接收端
+			var receiver IECDHE
+			receiver, err = NewECDHE256(rPri, &iPri.PublicKey, p.host, p.tcpPort, p.udpPort)
+			if err != nil {
+				t.Fatalf("new receiver %s\n", err.Error())
+				return
+			}
+			//2. 构造发送端
+			var initator IECDHE
+			initator, err = NewECDHE256(iPri, &rPri.PublicKey, p.host, p.tcpPort, p.udpPort)
+			if err != nil {
+				t.Fatalf("new initator %s\n", err.Error())
+				return
+			}
+			//3. 握手协议
+			iRandPri, inonce, err := initator.Write(w) //发送方发送握手协议报文
+			if err != nil {
+				t.Fatalf("initator send handshake package %s\n", err.Error())
+				return
+			}
+			iRandPub, rInonce, err := receiver.Read(w) //接收方接收发送方 传输过来的 临时公钥和随机数
+			if err != nil {
+				t.Fatalf("receiver receive handshake package %s\n", err.Error())
+				return
+			}
+			rRandPri, rnonce, err := receiver.Write(r) //接收方响应发送方
+			if err != nil {
+				t.Fatalf("receiver receive handshake package %s\n", err.Error())
+				return
+			}
+			rRandPub, iRnonce, err := initator.Read(r) //发送方接收接收方的响应
+			if err != nil {
+				t.Fatalf("initator receive handshake package %s\n", err.Error())
+				return
+			}
+			//5. 握手验证
+			assert.Equal(t, inonce, rInonce)
+			assert.Equal(t, rnonce, iRnonce)
+			//6. 发送加解密消息
+			err = initator.InitSecret(iRandPri, inonce, rRandPub, iRnonce)
+			if err != nil {
+				t.Fatalf("initator init secret %s\n", err.Error())
+				return
+			}
+			err = receiver.InitSecret(rRandPri, rnonce, iRandPub, rInonce)
+			if err != nil {
+				t.Fatalf("receiver init secret %s\n", err.Error())
+				return
+			}
+			//7. 验证
+			imac, err := NewTcpMac(*initator.Secrets())
+			if err != nil {
+				t.Fatalf("initator new tcp mac %s\n", err.Error())
+				return
+			}
+			rmac, err := NewTcpMac(*receiver.Secrets())
+			if err != nil {
+				t.Fatalf("initator new tcp mac %s\n", err.Error())
+				return
+			}
+			//8. 加密通讯
+			p.expect = []byte(utils.RandsString(p.dLen))
+			err = imac.WriteFrame(w, 0x20, 0x10, p.flags, p.fId, p.expect) //发送端发送消息
+			if err != nil {
+				assert.Equal(t, nil, err)
+				return
+			}
+			err = imac.WriteFrame(w, 0x20, 0x10, p.flags, p.fId, p.expect) //发送端发送消息
+			var flags, fId, data []byte
+			flags, fId, data, err = rmac.ReadFrame(w, 0x20, 0x10) //接收端接收消息
+			if err != nil {
+				assert.Equal(t, nil, err)
+				return
+			}
+			assert.Equal(t, flags, p.flags)
+			assert.Equal(t, fId, p.fId)
+			assert.Equal(t, data, p.expect)
+		}
+		t.Run(n, f)
+	}
+
 }

@@ -298,7 +298,7 @@ func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
 		return nil, nil, fmt.Errorf("ecdhe write random ecc private key fail. %s", err.Error())
 	}
 	//4. 生成共享临时密钥
-	sk, err = pri.SharedKey(ecies.NewECDSAPub(hs.remote.GetPubKey()), 0x20, 0x20)
+	sk, err = pri.SharedKey(ecies.NewECDSAPub(hs.remote.GetPubKey()), 0x10, 0x10)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ecdhe write random share key fail. %s", err.Error())
 	}
@@ -365,7 +365,7 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 		iPubBytes = m[:0x41]
 		nonce     = m[0x41:0x61]
 		signature = m[0x61:0x81]
-		ePubBytes = m[0x81:0xe6]
+		ePubBytes = m[0x81:0xc2]
 		x, y      = elliptic.Unmarshal(hs.self.GetPubKey().Curve, iPubBytes)
 		xx, yy    = elliptic.Unmarshal(hs.self.GetPubKey().Curve, ePubBytes)
 		iPub      = &ecdsa.PublicKey{hs.self.GetPubKey().Curve, x, y}
@@ -373,7 +373,7 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 		token     []byte
 	)
 	//5. token
-	sk, err := pri.SharedKey(ecies.NewECDSAPub(iPub), 0x20, 0x20)
+	sk, err := pri.SharedKey(ecies.NewECDSAPub(iPub), 0x10, 0x10)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ecdhe handshake parse data fail. %s", err.Error())
 	}
@@ -403,13 +403,12 @@ func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub 
 		sk  []byte
 		h   = sha256.New()
 	)
-	sk, err = ecies.NewECDSAPri(iRandPri).SharedKey(ecies.NewECDSAPub(rRandPub), 0x20, 0x20)
+	sk, err = ecies.NewECDSAPri(iRandPri).SharedKey(ecies.NewECDSAPub(rRandPub), 0x10, 0x10)
 	if err != nil {
 		return fmt.Errorf("ecdhe init secret fail due to share key %s", err.Error())
 	}
 	h.Write(sk)
-	h.Write(rnonce)
-	h.Write(inonce)
+	h.Write(utils.Xor(inonce, rnonce))
 	hs.ephemeral.AK = h.Sum(nil)
 	h.Write(hs.ephemeral.AK)
 	hs.ephemeral.MK = h.Sum(nil)
