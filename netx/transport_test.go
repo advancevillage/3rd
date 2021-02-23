@@ -204,6 +204,14 @@ var ecdheTestData = map[string]struct {
 		fId:     utils.UUID8Byte(),
 		dLen:    1024,
 	},
+	"case3": {
+		host:    "127.0.0.1",
+		tcpPort: 11011,
+		udpPort: 11011,
+		flags:   []byte{0x01, 0x01, 0x0, 0x0},
+		fId:     utils.UUID8Byte(),
+		dLen:    4096,
+	},
 }
 
 func Test_ecdhe(t *testing.T) {
@@ -263,23 +271,23 @@ func Test_ecdhe(t *testing.T) {
 			assert.Equal(t, inonce, rInonce)
 			assert.Equal(t, rnonce, iRnonce)
 			//6. 发送加解密消息
-			err = initator.InitSecret(iRandPri, inonce, rRandPub, iRnonce)
+			imacSrt, err := initator.Ephemeral(iRandPri, inonce, rRandPub, iRnonce)
 			if err != nil {
 				t.Fatalf("initator init secret %s\n", err.Error())
 				return
 			}
-			err = receiver.InitSecret(rRandPri, rnonce, iRandPub, rInonce)
+			rmacSrt, err := receiver.Ephemeral(rRandPri, rnonce, iRandPub, rInonce)
 			if err != nil {
 				t.Fatalf("receiver init secret %s\n", err.Error())
 				return
 			}
 			//7. 验证
-			imac, err := NewTcpMac(*initator.Secrets())
+			imac, err := NewTcpMac(*imacSrt)
 			if err != nil {
 				t.Fatalf("initator new tcp mac %s\n", err.Error())
 				return
 			}
-			rmac, err := NewTcpMac(*receiver.Secrets())
+			rmac, err := NewTcpMac(*rmacSrt)
 			if err != nil {
 				t.Fatalf("initator new tcp mac %s\n", err.Error())
 				return

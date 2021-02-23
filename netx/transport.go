@@ -1,7 +1,6 @@
 package netx
 
 import (
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
@@ -19,25 +18,9 @@ import (
 
 var (
 	zero16 = make([]byte, 16)
+	ping   = byte(0x01)
+	pong   = byte(0x10)
 )
-
-//@overview: 传输层接口协议. 特点是安全,灵活,高效
-//@author: richard.sun
-//@note:
-//1. write frame
-//2. read frame
-type ITransport interface {
-	Read(context.Context) ([]byte, error)
-	Write(context.Context, []byte) error
-}
-
-type TransportOption struct {
-	MaxSize uint32
-}
-
-type tcpConn struct {
-	mac ITcpMac
-}
 
 type ITcpMac interface {
 	ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error)
@@ -252,8 +235,7 @@ type ecdhe struct {
 type IECDHE interface {
 	Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error)
 	Read(r io.Reader) (*ecdsa.PublicKey, []byte, error)
-	InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) error
-	Secrets() *Secrets
+	Ephemeral(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) (*Secrets, error)
 }
 
 func NewECDHE256(pri *ecdsa.PrivateKey, rpub *ecdsa.PublicKey, host string, tcpPort int, udpPort int) (IECDHE, error) {
@@ -390,12 +372,12 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 	return ePub, nonce, nil
 }
 
-//@overview: 握手协议交换密钥
+//@overview: 握手协议交换密钥生成临时密钥
 //@author: richard.sun
-func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) error {
+func (hs *ecdhe) Ephemeral(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) (*Secrets, error) {
 	//1. 参数校验
 	if iRandPri == nil || rRandPub == nil || len(inonce) <= 0 || len(rnonce) <= 0 || len(inonce) != len(rnonce) {
-		return fmt.Errorf("ecdhe init secret fail due to invalid param")
+		return nil, fmt.Errorf("ecdhe init secret fail due to invalid param")
 	}
 	//2. 初始化临时密钥对
 	var (
@@ -405,7 +387,7 @@ func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub 
 	)
 	sk, err = ecies.NewECDSAPri(iRandPri).SharedKey(ecies.NewECDSAPub(rRandPub), 0x10, 0x10)
 	if err != nil {
-		return fmt.Errorf("ecdhe init secret fail due to share key %s", err.Error())
+		return nil, fmt.Errorf("ecdhe init secret fail due to share key %s", err.Error())
 	}
 	h.Write(sk)
 	h.Write(utils.Xor(inonce, rnonce))
@@ -414,9 +396,5 @@ func (hs *ecdhe) InitSecret(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub 
 	hs.ephemeral.MK = h.Sum(nil)
 	hs.ephemeral.Egress = sha256.New()
 	hs.ephemeral.Ingress = sha256.New()
-	return nil
-}
-
-func (hs *ecdhe) Secrets() *Secrets {
-	return &hs.ephemeral
+	return &hs.ephemeral, nil
 }
