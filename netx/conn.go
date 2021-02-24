@@ -146,6 +146,12 @@ func (c *tcpConn) set(fId []byte) chan *msg {
 	return ch
 }
 
+func (c *tcpConn) del(fId []byte) {
+	c.rwm.Lock()
+	delete(c.sip, string(fId))
+	c.rwm.Unlock()
+}
+
 func (c *tcpConn) get(fId []byte) (chan *msg, bool) {
 	c.rwm.RLock()
 	ch, ok := c.sip[string(fId)]
@@ -193,8 +199,11 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 		flags: zero4,
 	}
 	//1. write data
-	var t = time.NewTicker(time.Second * c.cfg.Timeout)
-	var ch chan *msg
+	var (
+		t  = time.NewTicker(time.Second * c.cfg.Timeout)
+		ch chan *msg
+	)
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -208,12 +217,16 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 	//2. read data
 	select {
 	case <-ctx.Done():
+		c.del(m.fId)
 		return nil, ctx.Err()
 	case <-c.ctx.Done():
+		c.del(m.fId)
 		return nil, c.ctx.Err()
 	case <-t.C:
+		c.del(m.fId)
 		return nil, fmt.Errorf("read data timeout. consume more than %d", c.cfg.Timeout)
 	case v := <-ch:
+		c.del(m.fId)
 		return v.data, nil
 	}
 }
