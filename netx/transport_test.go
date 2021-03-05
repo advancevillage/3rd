@@ -234,37 +234,45 @@ func Test_ecdhe(t *testing.T) {
 			}
 			//1. 构造接收端
 			var receiver IECDHE
-			receiver, err = NewECDHE256(rPri, &iPri.PublicKey, p.host, p.tcpPort, p.udpPort)
+			receiver, err = NewECDHE256(rPri, p.host, p.tcpPort, p.udpPort)
 			if err != nil {
 				t.Fatalf("new receiver %s\n", err.Error())
 				return
 			}
 			//2. 构造发送端
 			var initator IECDHE
-			initator, err = NewECDHE256(iPri, &rPri.PublicKey, p.host, p.tcpPort, p.udpPort)
+			initator, err = NewECDHE256(iPri, p.host, p.tcpPort, p.udpPort)
 			if err != nil {
 				t.Fatalf("new initator %s\n", err.Error())
 				return
 			}
 			//3. 握手协议
-			iRandPri, inonce, err := initator.Write(w) //发送方发送握手协议报文
+			iRandPri, inonce, err := initator.Write(w, &rPri.PublicKey) //发送方发送握手协议报文
 			if err != nil {
 				t.Fatalf("initator send handshake package %s\n", err.Error())
 				return
 			}
-			iRandPub, rInonce, err := receiver.Read(w) //接收方接收发送方 传输过来的 临时公钥和随机数
+			iPub, iRandPub, rInonce, err := receiver.Read(w) //接收方接收发送方 传输过来的 临时公钥和随机数
 			if err != nil {
 				t.Fatalf("receiver receive handshake package %s\n", err.Error())
 				return
 			}
-			rRandPri, rnonce, err := receiver.Write(r) //接收方响应发送方
+			rRandPri, rnonce, err := receiver.Write(r, iPub) //接收方响应发送方
 			if err != nil {
 				t.Fatalf("receiver receive handshake package %s\n", err.Error())
 				return
 			}
-			rRandPub, iRnonce, err := initator.Read(r) //发送方接收接收方的响应
+			rPub, rRandPub, iRnonce, err := initator.Read(r) //发送方接收接收方的响应
 			if err != nil {
 				t.Fatalf("initator receive handshake package %s\n", err.Error())
+				return
+			}
+			if !iPri.PublicKey.Equal(iPub) {
+				t.Fatalf("iPri.PublicKey is not equal iPub")
+				return
+			}
+			if !rPri.PublicKey.Equal(rPub) {
+				t.Fatalf("rPri.PublicKey is not equal rPub")
 				return
 			}
 			//5. 握手验证
@@ -312,5 +320,4 @@ func Test_ecdhe(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
-
 }

@@ -97,3 +97,61 @@ func Test_rle(t *testing.T) {
 		t.Run(n, f)
 	}
 }
+
+var rleRandTestData = map[string]struct {
+	length int
+}{
+	"case1": {
+		length: 512,
+	},
+	"case2": {
+		length: 1024,
+	},
+	"case3": {
+		length: 2048,
+	},
+	"case4": {
+		length: 4096,
+	},
+	"case5": {
+		length: 8192,
+	},
+	"case6": {
+		length: 16384,
+	},
+	"case7": {
+		length: 65536,
+	},
+	"case8": {
+		length: 10240,
+	},
+	"case9": {
+		length: 20480,
+	},
+}
+
+func Test_rle_random(t *testing.T) {
+	var rle, err = NewRLE()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	for n, p := range rleRandTestData {
+		f := func(t *testing.T) {
+			var data = RandsString(p.length)
+			var cc []byte
+			cc, err = rle.Compress([]byte(data))
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			cc, err = rle.Uncompress(cc)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			assert.Equal(t, []byte(data), cc)
+		}
+		t.Run(n, f)
+	}
+}

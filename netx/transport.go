@@ -228,22 +228,17 @@ func (m *tcpMac) hashMac(mac hash.Hash, block cipher.Block, seed []byte) []byte 
 type ecdhe struct {
 	ecies     ecies.IECIES
 	self      ecies.IENode
-	remote    ecies.IENode
 	ephemeral Secrets
 }
 
 type IECDHE interface {
-	Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error)
-	Read(r io.Reader) (*ecdsa.PublicKey, []byte, error)
+	Write(w io.Writer, pub *ecdsa.PublicKey) (*ecdsa.PrivateKey, []byte, error)
+	Read(r io.Reader) (*ecdsa.PublicKey, *ecdsa.PublicKey, []byte, error)
 	Ephemeral(iRandPri *ecdsa.PrivateKey, inonce []byte, rRandPub *ecdsa.PublicKey, rnonce []byte) (*Secrets, error)
 }
 
-func NewECDHE256(pri *ecdsa.PrivateKey, rpub *ecdsa.PublicKey, host string, tcpPort int, udpPort int) (IECDHE, error) {
+func NewECDHE256(pri *ecdsa.PrivateKey, host string, tcpPort int, udpPort int) (IECDHE, error) {
 	self, err := ecies.NewENodeByPP(pri, host, tcpPort, udpPort)
-	if err != nil {
-		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
-	}
-	remote, err := ecies.NewENodeByPub(rpub)
 	if err != nil {
 		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
 	}
@@ -252,13 +247,15 @@ func NewECDHE256(pri *ecdsa.PrivateKey, rpub *ecdsa.PublicKey, host string, tcpP
 		return nil, fmt.Errorf("new ecdhe 256 fail because of %s", err.Error())
 	}
 	return &ecdhe{
-		ecies:  ecies,
-		self:   self,
-		remote: remote,
+		ecies: ecies,
+		self:  self,
 	}, nil
 }
 
-func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
+//@author: richard.sun
+//@param:
+//1. pub  接收方公钥
+func (hs *ecdhe) Write(w io.Writer, pub *ecdsa.PublicKey) (*ecdsa.PrivateKey, []byte, error) {
 	//1. 构造参数
 	var (
 		n      int
@@ -280,7 +277,7 @@ func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
 		return nil, nil, fmt.Errorf("ecdhe write random ecc private key fail. %s", err.Error())
 	}
 	//4. 生成共享临时密钥
-	sk, err = pri.SharedKey(ecies.NewECDSAPub(hs.remote.GetPubKey()), 0x10, 0x10)
+	sk, err = pri.SharedKey(ecies.NewECDSAPub(pub), 0x10, 0x10)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ecdhe write random share key fail. %s", err.Error())
 	}
@@ -297,7 +294,7 @@ func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
 	copy(data[0x61:0x81], signature)
 	copy(data[0x81:0xc2], elliptic.Marshal(randPP.PublicKey.Curve, randPP.PublicKey.X, randPP.PublicKey.Y))
 	//7. 加密数据
-	em, err := hs.ecies.Encrypt(rand.Reader, ecies.NewECDSAPub(hs.remote.GetPubKey()), data, nil)
+	em, err := hs.ecies.Encrypt(rand.Reader, ecies.NewECDSAPub(pub), data, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("ecdhe encrypt data fail. %s", err.Error())
 	}
@@ -323,7 +320,7 @@ func (hs *ecdhe) Write(w io.Writer) (*ecdsa.PrivateKey, []byte, error) {
 // signed = token ^ nonce
 // signature = sha256(signed, ePub)
 //
-func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
+func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, *ecdsa.PublicKey, []byte, error) {
 	//1. 构造本地私钥用于解密
 	var (
 		pri = ecies.NewECDSAPri(hs.self.GetPriKey())
@@ -335,12 +332,12 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 	//2. 读取数据
 	n, err = io.ReadFull(r, em)
 	if err != nil || n < 0x133 {
-		return nil, nil, fmt.Errorf("ecdhe handshake fail due to having enough data. %v", err)
+		return nil, nil, nil, fmt.Errorf("ecdhe handshake fail due to having not enough data. %v", err)
 	}
 	//3. 解密数据
 	m, err = hs.ecies.Decrypt(rand.Reader, pri, em, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("ecdhe handshake fail due to decrypt em data. %s", err.Error())
+		return nil, nil, nil, fmt.Errorf("ecdhe handshake fail due to decrypt em data. %s", err.Error())
 	}
 	//4. 解析数据
 	var (
@@ -357,7 +354,7 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 	//5. token
 	sk, err := pri.SharedKey(ecies.NewECDSAPub(iPub), 0x10, 0x10)
 	if err != nil {
-		return nil, nil, fmt.Errorf("ecdhe handshake parse data fail. %s", err.Error())
+		return nil, nil, nil, fmt.Errorf("ecdhe handshake parse data fail. %s", err.Error())
 	}
 	token = utils.Xor(sk, nonce)
 	//6. 校验签名
@@ -366,10 +363,10 @@ func (hs *ecdhe) Read(r io.Reader) (*ecdsa.PublicKey, []byte, error) {
 	h.Write(ePubBytes)
 	var should = h.Sum(nil)
 	if !hmac.Equal(should, signature) {
-		return nil, nil, fmt.Errorf("ecdhe handshake auth signature fail.")
+		return nil, nil, nil, fmt.Errorf("ecdhe handshake auth signature fail.")
 	}
 	//7. 获取临时会话通讯ePub
-	return ePub, nonce, nil
+	return iPub, ePub, nonce, nil
 }
 
 //@overview: 握手协议交换密钥生成临时密钥

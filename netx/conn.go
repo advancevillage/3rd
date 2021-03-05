@@ -27,10 +27,12 @@ type ITransport interface {
 }
 
 type TransportOption struct {
+	Host    string
+	Port    int
+	UdpPort int
 	MaxSize uint32
-	Timeout time.Duration //读写超时
-
-	PriKey *ecdsa.PrivateKey //本地服务私钥
+	Timeout time.Duration     //读写超时
+	PriKey  *ecdsa.PrivateKey //本地服务私钥
 }
 
 //@overview: 并发安全
@@ -52,8 +54,8 @@ type tcpConn struct {
 type msg struct {
 	fId   []byte
 	flags []byte
-	err   error
 	data  []byte
+	err   error
 }
 
 func NewConn(conn net.Conn, cfg *TransportOption, esrt *Secrets) (ITransport, error) {
@@ -174,6 +176,11 @@ func (c *tcpConn) Read(ctx context.Context) ([]byte, error) {
 }
 
 func (c *tcpConn) Write(ctx context.Context, data []byte) error {
+	//1. 校验
+	if len(data) > int(c.cfg.MaxSize) {
+		return fmt.Errorf("package size more than %d", c.cfg.MaxSize)
+	}
+	//2.
 	var m = &msg{
 		data:  data,
 		fId:   utils.UUID8Byte(),
@@ -193,12 +200,17 @@ func (c *tcpConn) Write(ctx context.Context, data []byte) error {
 }
 
 func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
+	//1. 校验
+	if len(data) > int(c.cfg.MaxSize) {
+		return nil, fmt.Errorf("package size more than %d", c.cfg.MaxSize)
+	}
+	//2.
 	var m = &msg{
 		data:  data,
 		fId:   utils.UUID8Byte(),
 		flags: zero4,
 	}
-	//1. write data
+	//3. write data
 	var (
 		t  = time.NewTicker(time.Second * c.cfg.Timeout)
 		ch chan *msg
@@ -214,19 +226,16 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 	case c.wc <- m:
 		ch = c.set(m.fId)
 	}
-	//2. read data
+	defer c.del(m.fId)
+	//4. read data
 	select {
 	case <-ctx.Done():
-		c.del(m.fId)
 		return nil, ctx.Err()
 	case <-c.ctx.Done():
-		c.del(m.fId)
 		return nil, c.ctx.Err()
 	case <-t.C:
-		c.del(m.fId)
 		return nil, fmt.Errorf("read data timeout. consume more than %d", c.cfg.Timeout)
 	case v := <-ch:
-		c.del(m.fId)
 		return v.data, nil
 	}
 }
