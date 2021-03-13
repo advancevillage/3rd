@@ -134,9 +134,58 @@ var macTestData = map[string]struct {
 		fId:   utils.UUID8Byte(),
 		err:   nil,
 	},
+	"case15": {
+		hSize: 32,
+		pad:   16,
+		dLen:  23434,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
+
+	"case16": {
+		hSize: 32,
+		pad:   16,
+		dLen:  113,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
+	"case17": {
+		hSize: 32,
+		pad:   16,
+		dLen:  3,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
+	"case18": {
+		hSize: 32,
+		pad:   16,
+		dLen:  281,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
+	"case19": {
+		hSize: 32,
+		pad:   16,
+		dLen:  1229,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
+	"case20": {
+		hSize: 32,
+		pad:   16,
+		dLen:  1723,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
 }
 
-func Test_mac(t *testing.T) {
+func Test_frame(t *testing.T) {
 	for n, p := range macTestData {
 		key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
 		var sct = Secrets{

@@ -104,19 +104,32 @@ func Test_tcp_conn(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			var im = utils.RandsString(int(p.maxSize))
-			var rm []byte
-			err = client.Write(context.TODO(), []byte(im))
-			if err != nil {
-				t.Fatal(err)
-				return
+			for i := 0; i < 100; i++ {
+				var im = utils.RandsString(int(p.maxSize))
+				var rm []byte
+				err = client.Write(context.TODO(), []byte(im))
+				if err != nil {
+					t.Fatal(err)
+					return
+				}
+				rm, err = server.Read(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+					return
+				}
+				assert.Equal(t, im, string(rm))
+				err = server.Write(context.TODO(), rm)
+				if err != nil {
+					t.Fatal(err)
+					return
+				}
+				irm, err := client.Read(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+					return
+				}
+				assert.Equal(t, rm, irm)
 			}
-			rm, err = server.Read(context.TODO())
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
-			assert.Equal(t, im, string(rm))
 		}
 		t.Run(n, f)
 	}

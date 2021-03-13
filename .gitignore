@@ -12,3 +12,4 @@ aws/*
 *.key
 *.pub
 *.pem
+*.cap

@@ -148,7 +148,7 @@ func (m *tcpMac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []b
 		return nil, nil, nil, fmt.Errorf("read frame bad body sign")
 	}
 	//5. 解密数据体
-	m.des.XORKeyStream(frameBuf[:frameSize], frameBuf[:frameSize])
+	m.des.XORKeyStream(frameBuf, frameBuf)
 	return flags, fId, frameBuf[:frameSize], nil
 }
 
@@ -190,7 +190,8 @@ func (m *tcpMac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId [
 	}
 	//9. 数据签名
 	var frameSeed = m.egress.Sum(nil)
-	_, err = w.Write(m.hashMac(m.egress, m.macCipher, frameSeed))
+	var endSign = m.hashMac(m.egress, m.macCipher, frameSeed)
+	_, err = w.Write(endSign)
 	if err != nil {
 		return fmt.Errorf("write frame fId(%x) body sign %s", fId, err.Error())
 	}

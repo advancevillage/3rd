@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -39,7 +40,7 @@ func NewTCPServer(cfg *ServerOption, f Handler) (ITCPServer, error) {
 		cfg.MaxSize = 1 << 16
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = time.Second * 10
+		cfg.Timeout = time.Hour
 	}
 	var ctx, cancel = context.WithCancel(context.TODO())
 	var err error
@@ -152,7 +153,7 @@ func (s *server) dealwith(conn net.Conn) {
 			//4. 读取数据流
 			buf, err := cc.Read(s.app)
 			if err != nil {
-				s.kelly(conn, err)
+				s.kelly(cc, err)
 				return
 			}
 			go s.h(cc, buf)
@@ -167,9 +168,10 @@ func (s *server) h(tsp ITransport, data []byte) {
 	tsp.Write(s.app, buf)
 }
 
-func (s *server) kelly(conn net.Conn, err error) {
+func (s *server) kelly(tsp ITransport, err error) {
 	buf, _ := s.cmpCli.Compress([]byte(err.Error()))
-	conn.Write(buf)
+	log.Printf("kelly handle err %s %x\n", err.Error(), buf)
+	tsp.Write(s.app, buf)
 	time.Sleep(time.Second)
 }
 
@@ -204,14 +206,14 @@ type client struct {
 
 func NewTCPClient(cfg *ClientOption) (ITCPClient, error) {
 	//1. 参数检查
-	if cfg == nil || len(cfg.Host) <= 0 || cfg.Port > 65535 || cfg.Port <= 0 || cfg.UdpPort > 65535 || cfg.UdpPort <= 0 || len(cfg.EnodeUrl) <= 0 {
+	if cfg == nil || cfg.PriKey == nil || len(cfg.EnodeUrl) <= 0 {
 		return nil, fmt.Errorf("tcp invalid config param")
 	}
 	if cfg.MaxSize <= 0 {
 		cfg.MaxSize = 1 << 16
 	}
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = time.Second * 10
+		cfg.Timeout = time.Second * 30
 	}
 	//2. 构造客户端
 	var ctx, cancel = context.WithCancel(context.TODO())
@@ -225,7 +227,7 @@ func NewTCPClient(cfg *ClientOption) (ITCPClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create compress client fail. %s", err.Error())
 	}
-	c.heCli, err = NewECDHE256(cfg.PriKey, cfg.Host, cfg.Port, cfg.UdpPort)
+	c.heCli, err = NewECDHE256(cfg.PriKey, "127.0.0.1", 1101, 1101)
 	if err != nil {
 		return nil, fmt.Errorf("create ecdhe client fail. %s", err.Error())
 	}
