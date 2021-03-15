@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	zero16 = make([]byte, 16)
-	ping   = byte(0x01)
-	pong   = byte(0x10)
+	zero16    = make([]byte, 16)
+	pingFlags = []byte{0x01, 0x0, 0x0, 0x0}
+	pongFlags = []byte{0x10, 0x0, 0x0, 0x0}
 )
 
 type ITcpMac interface {

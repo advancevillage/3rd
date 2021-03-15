@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -15,16 +16,15 @@ import (
 )
 
 type ITCPServer interface {
-	StartServer()
+	StartServer() error
 }
 
-type Handler func(context.Context, []byte) []byte
-
-type server struct {
-	cmpCli utils.ICompress
-	heCli  IECDHE
-	app    context.Context
-	cancel context.CancelFunc
+type tcps struct {
+	cmpCli  utils.ICompress
+	heCli   IECDHE
+	app     context.Context
+	cancel  context.CancelFunc
+	errChan chan error
 
 	//cfg
 	cfg     *ServerOption
@@ -44,11 +44,12 @@ func NewTCPServer(cfg *ServerOption, f Handler) (ITCPServer, error) {
 	}
 	var ctx, cancel = context.WithCancel(context.TODO())
 	var err error
-	var s = &server{
+	var s = &tcps{
 		app:     ctx,
 		cancel:  cancel,
 		cfg:     cfg,
 		handler: f,
+		errChan: make(chan error),
 	}
 	s.cmpCli, err = utils.NewRLE()
 	if err != nil {
@@ -61,7 +62,7 @@ func NewTCPServer(cfg *ServerOption, f Handler) (ITCPServer, error) {
 	return s, nil
 }
 
-func (s *server) start() {
+func (s *tcps) start() {
 	var (
 		err      error
 		delay    time.Duration
@@ -73,8 +74,7 @@ func (s *server) start() {
 	//1. 监听端口
 	l, err = net.Listen(protocol, addr)
 	if err != nil {
-		fmt.Printf("listen %s fail. %s\n", addr, err.Error())
-		s.cancel()
+		s.errChan <- fmt.Errorf("listen %s fail. %s\n", addr, err.Error())
 		return
 	}
 	defer l.Close()
@@ -113,7 +113,7 @@ func (s *server) start() {
 	}
 }
 
-func (s *server) dealwith(conn net.Conn) {
+func (s *tcps) dealwith(conn net.Conn) {
 	defer conn.Close()
 	//1. 握手协商密钥 第一个包
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -161,26 +161,29 @@ func (s *server) dealwith(conn net.Conn) {
 	}
 }
 
-func (s *server) h(tsp ITransport, data []byte) {
+func (s *tcps) h(tsp ITransport, data []byte) {
 	var buf, _ = s.cmpCli.Uncompress(data)
 	buf = s.handler(s.app, buf)
 	buf, _ = s.cmpCli.Compress(buf)
 	tsp.Write(s.app, buf)
 }
 
-func (s *server) kelly(tsp ITransport, err error) {
+func (s *tcps) kelly(tsp ITransport, err error) {
 	buf, _ := s.cmpCli.Compress([]byte(err.Error()))
 	log.Printf("kelly handle err %s %x\n", err.Error(), buf)
 	tsp.Write(s.app, buf)
 	time.Sleep(time.Second)
 }
 
-func (s *server) StartServer() {
+func (s *tcps) StartServer() error {
 	go s.start()
 	go waitQuitSignal(s.cancel)
 	select {
 	case <-s.app.Done():
 		time.Sleep(time.Second)
+		return nil
+	case e := <-s.errChan:
+		return e
 	}
 }
 
@@ -191,13 +194,14 @@ type ITCPClient interface {
 	Receive(context.Context) ([]byte, error)
 }
 
-type client struct {
+type tcpc struct {
 	cmpCli utils.ICompress
 	heCli  IECDHE
 	app    context.Context
 	cancel context.CancelFunc
 	conn   ITransport
 	notify chan struct{}
+	err    error
 
 	//cfg
 	cfg *ClientOption
@@ -218,7 +222,7 @@ func NewTCPClient(cfg *ClientOption) (ITCPClient, error) {
 	//2. 构造客户端
 	var ctx, cancel = context.WithCancel(context.TODO())
 	var err error
-	var c = &client{
+	var c = &tcpc{
 		app:    ctx,
 		cancel: cancel,
 		cfg:    cfg,
@@ -243,7 +247,7 @@ func NewTCPClient(cfg *ClientOption) (ITCPClient, error) {
 	return c, nil
 }
 
-func (c *client) connect() error {
+func (c *tcpc) connect() {
 	for {
 		//0. 初始化
 		c.conn = nil
@@ -257,34 +261,36 @@ func (c *client) connect() error {
 		//2. 连接成功, 协商密钥
 		iRandPri, inonce, err := c.heCli.Write(conn, c.svr.GetPubKey())
 		if err != nil {
-			time.Sleep(time.Minute)
-			continue
+			c.err = err
+			return
 		}
 		svrPub, rRandPub, rnonce, err := c.heCli.Read(conn)
 		if err != nil {
-			time.Sleep(time.Minute)
-			continue
+			c.err = err
+			return
 		}
 		if !svrPub.Equal(c.svr.GetPubKey()) {
-			time.Sleep(time.Minute)
-			continue
+			c.err = fmt.Errorf("invalid node publick key")
+			return
 		}
 		srt, err := c.heCli.Ephemeral(iRandPri, inonce, rRandPub, rnonce)
 		if err != nil {
-			time.Sleep(time.Minute)
-			continue
+			c.err = err
+			return
 		}
 		sconn, err := NewConn(conn, &c.cfg.TransportOption, srt)
 		if err != nil {
-			time.Sleep(time.Minute)
+			time.Sleep(time.Second)
 			continue
 		}
 		c.conn = sconn
+		c.err = nil
+		go c.heartbeat()
 		select {
 		case <-c.app.Done():
 			conn.Close()
 			c.conn = nil
-			return nil
+			return
 		case <-c.notify:
 			conn.Close()
 		}
@@ -292,7 +298,24 @@ func (c *client) connect() error {
 	}
 }
 
-func (c *client) halfOpen() {
+func (c *tcpc) heartbeat() {
+	for {
+		//1. 参数校验
+		var sc = c.conn
+		if sc == nil || c.err != nil {
+			return
+		}
+		//2. 发Ping
+		var _, err = sc.WriteRead(c.app, nil)
+		if err == io.EOF {
+			c.notify <- struct{}{}
+			return
+		}
+		time.Sleep(time.Second / 5)
+	}
+}
+
+func (c *tcpc) halfOpen() {
 	var pp = make(chan os.Signal)
 	signal.Notify(pp, syscall.SIGPIPE)
 	select {
@@ -302,11 +325,11 @@ func (c *client) halfOpen() {
 	}
 }
 
-func (c *client) send(ctx context.Context, body []byte) error {
+func (c *tcpc) send(ctx context.Context, body []byte) error {
 	//1. 获取加密通道
 	var cc = c.conn
-	if cc == nil {
-		return errConnecting
+	if cc == nil || c.err != nil {
+		return fmt.Errorf("conn fail. %v %v", cc, c.err)
 	}
 	//2. 压缩数据
 	body, _ = c.cmpCli.Compress(body)
@@ -314,11 +337,11 @@ func (c *client) send(ctx context.Context, body []byte) error {
 	return cc.Write(ctx, body)
 }
 
-func (c *client) receive(ctx context.Context) ([]byte, error) {
+func (c *tcpc) receive(ctx context.Context) ([]byte, error) {
 	//1. 获取加密通道
 	var cc = c.conn
-	if cc == nil {
-		return nil, errConnecting
+	if cc == nil || c.err != nil {
+		return nil, fmt.Errorf("conn fail. %v %v", cc, c.err)
 	}
 	//2. 获取加密数据
 	var buf, err = cc.Read(ctx)
@@ -330,7 +353,7 @@ func (c *client) receive(ctx context.Context) ([]byte, error) {
 	return buf, nil
 }
 
-func (c *client) Send(ctx context.Context, body []byte) error {
+func (c *tcpc) Send(ctx context.Context, body []byte) error {
 	select {
 	case <-c.app.Done():
 		return c.app.Err()
@@ -339,7 +362,7 @@ func (c *client) Send(ctx context.Context, body []byte) error {
 	}
 }
 
-func (c *client) Receive(ctx context.Context) ([]byte, error) {
+func (c *tcpc) Receive(ctx context.Context) ([]byte, error) {
 	select {
 	case <-c.app.Done():
 		return nil, c.app.Err()

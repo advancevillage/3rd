@@ -106,6 +106,7 @@ func (c *tcpConn) readLoop() {
 		case <-c.ctx.Done():
 			return
 		default:
+			//1.读取数据
 			var flags, fId, data, err = c.imac.ReadFrame(c.conn, c.hSize, c.pad)
 			var m = &msg{
 				flags: flags,
@@ -113,21 +114,17 @@ func (c *tcpConn) readLoop() {
 				err:   err,
 				data:  data,
 			}
-			var t = time.NewTicker(time.Second * 3)
+			var t = time.NewTicker(time.Second)
 			if ch, ok := c.get(m.fId); ok {
 				select {
-				case <-t.C:
 				case ch <- m:
+				case <-t.C:
 				}
 			} else {
 				select {
-				case <-t.C:
 				case c.rc <- m:
+				case <-t.C:
 				}
-			}
-			switch {
-			case err != nil:
-				time.Sleep(200 * time.Millisecond)
 			}
 		}
 	}
@@ -226,7 +223,7 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 	case <-c.ctx.Done():
 		return nil, c.ctx.Err()
 	case <-t.C:
-		return nil, fmt.Errorf("write data timeout. consume more than %d", c.cfg.Timeout)
+		return nil, fmt.Errorf("write data timeout. more than %d's", c.cfg.Timeout/time.Second)
 	case c.wc <- m:
 		ch = c.set(m.fId)
 	}
@@ -238,7 +235,7 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 	case <-c.ctx.Done():
 		return nil, c.ctx.Err()
 	case <-t.C:
-		return nil, fmt.Errorf("read data timeout. consume more than %d", c.cfg.Timeout)
+		return nil, fmt.Errorf("read data timeout. more than %d's", c.cfg.Timeout/time.Second)
 	case v := <-ch:
 		return v.data, nil
 	}
