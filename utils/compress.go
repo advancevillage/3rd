@@ -65,11 +65,14 @@ func (r *rle) Uncompress(s []byte) ([]byte, error) {
 	)
 	for length > 0 {
 		switch {
+		case s[0] == 0x80:
+			s = s[1:]
+			length = len(s)
 		case s[0] > 0x80:
 			ss = append(ss, bytes.Repeat([]byte{s[1]}, int(s[0]&0x7f))...)
 			length -= 0x2
 			s = s[0x2:]
-		case s[0] > 0x0:
+		case s[0] < 0x80:
 			ss = append(ss, s[0x1:0x1+s[0]&0x7f]...)
 			length -= 0x01 + int(s[0]&0x7f)
 			s = s[0x1+s[0]&0x7f:]

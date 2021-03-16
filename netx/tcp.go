@@ -244,6 +244,7 @@ func NewTCPClient(cfg *ClientOption) (ITCPClient, error) {
 	go c.connect()
 	go c.halfOpen()
 
+	time.Sleep(time.Second)
 	return c, nil
 }
 
@@ -285,7 +286,7 @@ func (c *tcpc) connect() {
 		}
 		c.conn = sconn
 		c.err = nil
-		go c.heartbeat()
+		//go c.heartbeat()
 		select {
 		case <-c.app.Done():
 			conn.Close()

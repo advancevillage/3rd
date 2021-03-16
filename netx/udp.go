@@ -40,6 +40,8 @@ func NewUDPServer(cfg *ServerOption, f Handler) (IUDPServer, error) {
 	s.app, s.cancel = context.WithCancel(context.TODO())
 	s.cfg = cfg
 	s.errChan = make(chan error)
+	s.handler = f
+
 	s.cmpCli, err = utils.NewRLE()
 	if err != nil {
 		return nil, fmt.Errorf("create compress client fail. %s", err.Error())
@@ -64,21 +66,17 @@ func (s *udps) start() {
 		return
 	}
 	defer s.conn.Close()
-	var (
-		n   int
-		buf = make([]byte, s.cfg.MaxSize)
-	)
 	for {
 		select {
 		case <-s.app.Done():
 			return
 		default:
-			//2. 接收报文
+			var n int
+			var buf = make([]byte, s.cfg.MaxSize)
 			n, addr, err = s.conn.ReadFromUDP(buf)
 			if err != nil {
 				s.kelly(addr, err)
 			} else {
-				//3. 处理报文
 				go s.h(addr, buf[:n])
 			}
 		}
@@ -122,6 +120,7 @@ type udpc struct {
 	app    context.Context
 	cancel context.CancelFunc
 	addr   *net.UDPAddr
+	cmpCli utils.ICompress
 	notify chan struct{}
 }
 
@@ -146,6 +145,10 @@ func NewUdpClient(cfg *ClientOption) (IUDPClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.cmpCli, err = utils.NewRLE()
+	if err != nil {
+		return nil, fmt.Errorf("create compress client fail. %s", err.Error())
+	}
 	c.conn, err = net.DialUDP("udp", nil, c.addr)
 	if err != nil {
 		return nil, err
@@ -158,6 +161,7 @@ func (c *udpc) send(ctx context.Context, body []byte) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
+		body, _ = c.cmpCli.Compress(body)
 		n, err := c.conn.Write(body)
 		if err != nil || n < len(body) {
 			return fmt.Errorf("udp client write package %d. should be %d. %v", n, len(body), err)
@@ -176,7 +180,8 @@ func (c *udpc) receive(ctx context.Context) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		return body[:n], nil
+		body, _ = c.cmpCli.Uncompress(body[:n])
+		return body, nil
 	}
 }
 
