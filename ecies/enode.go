@@ -142,6 +142,9 @@ func NewENodeByPP(pp *ecdsa.PrivateKey, host string, tcpPort int, udpPort int) (
 	if ip == nil {
 		return nil, fmt.Errorf("param %s host is invalid", host)
 	}
+	if nil == pp {
+		return nil, fmt.Errorf("ecdhe private key is invalid")
+	}
 	//2. 检查端口
 	if tcpPort < 0 || tcpPort > 65535 || udpPort < 0 || udpPort > 65535 {
 		return nil, fmt.Errorf("param %d or %d port is invalid", tcpPort, udpPort)

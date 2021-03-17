@@ -94,41 +94,40 @@ func Test_tcp_conn(t *testing.T) {
 			}
 			var server ITransport
 			var client ITransport
-			server, err = NewConn(s, &TransportOption{MaxSize: p.maxSize, Timeout: p.timeout, PriKey: p.pk}, p.srt)
+			server, err = NewConn(s, &TransportOption{MaxSize: p.maxSize, Timeout: p.timeout}, p.srt)
 			if err != nil {
 				t.Fatal(err)
 				return
 			}
-			client, err = NewConn(c, &TransportOption{MaxSize: p.maxSize, Timeout: p.timeout, PriKey: p.pk}, p.srt)
+			client, err = NewConn(c, &TransportOption{MaxSize: p.maxSize, Timeout: p.timeout}, p.srt)
 			if err != nil {
 				t.Fatal(err)
 				return
 			}
 			for i := 0; i < 100; i++ {
 				var im = utils.RandsString(int(p.maxSize))
-				var rm []byte
-				err = client.Write(context.TODO(), []byte(im))
+				err = client.Write(context.TODO(), newmsg([]byte(im)))
 				if err != nil {
 					t.Fatal(err)
 					return
 				}
-				rm, err = server.Read(context.TODO())
+				rmsg, err := server.Read(context.TODO())
 				if err != nil {
 					t.Fatal(err)
 					return
 				}
-				assert.Equal(t, im, string(rm))
-				err = server.Write(context.TODO(), rm)
+				assert.Equal(t, im, string(rmsg.data))
+				err = server.Write(context.TODO(), rmsg)
 				if err != nil {
 					t.Fatal(err)
 					return
 				}
-				irm, err := client.Read(context.TODO())
+				imsg, err := client.Read(context.TODO())
 				if err != nil {
 					t.Fatal(err)
 					return
 				}
-				assert.Equal(t, rm, irm)
+				assert.Equal(t, rmsg.data, imsg.data)
 			}
 		}
 		t.Run(n, f)

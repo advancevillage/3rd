@@ -3,9 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+	"log"
 	"testing"
 	"time"
 
@@ -22,6 +20,11 @@ var udpTestData = map[string]struct {
 
 //go test -v -count=1 -timeout 20m -test.run Test_udp_server ./netx/
 func Test_udp_server(t *testing.T) {
+	var host = "127.0.0.1"
+	var port = 1994
+	var hf = func(ctx context.Context, in []byte) []byte {
+		return in
+	}
 	var primes = []int{
 		2, 3, 5, 7, 11, 13, 17, 19, 23, 29,
 		31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -54,14 +57,6 @@ func Test_udp_server(t *testing.T) {
 		4943, 4951, 4957, 4967, 4969, 4973, 4987, 4993, 4999, 5003,
 		5009, 5011, 5021, 5023, 5039, 5051, 5059, 5077, 5081, 5087,
 		5099, 5101, 5107, 5113, 5119, 5147, 5153, 5167, 5171, 5179,
-		11159, 11161, 11171, 11173, 11177, 11197, 11213, 11239, 11243, 11251,
-		11257, 11261, 11273, 11279, 11287, 11299, 11311, 11317, 11321, 11329,
-		11351, 11353, 11369, 11383, 11393, 11399, 11411, 11423, 11437, 11443,
-		11447, 11467, 11471, 11483, 11489, 11491, 11497, 11503, 11519, 11527,
-		11549, 11551, 11579, 11587, 11593, 11597, 11617, 11621, 11633, 11657,
-		11677, 11681, 11689, 11699, 11701, 11717, 11719, 11731, 11743, 11777,
-		11779, 11783, 11789, 11801, 11807, 11813, 11821, 11827, 11831, 11833,
-		11839, 11863, 11867, 11887, 11897, 11903, 11909, 11923, 11927, 11933,
 	}
 	//初始化数据
 	for k, v := range primes {
@@ -71,26 +66,28 @@ func Test_udp_server(t *testing.T) {
 			pkgLen  int
 			f       Handler
 		}{
-			host:    "127.0.0.1",
-			udpPort: 1994,
+			host:    host,
+			udpPort: port,
 			pkgLen:  v,
-			f: func(ctx context.Context, in []byte) []byte {
-				return in
-			},
+			f:       hf,
 		}
 	}
 
+	var scfg = &ServerOption{}
+	scfg.Host = host
+	scfg.UdpPort = port
+	scfg.MaxSize = 1 << 16
+	var udps, err = NewUDPServer(scfg, hf)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	//2. 启动服务
+	go udps.StartServer()
+	time.Sleep(5 * time.Second)
+
 	for n, p := range udpTestData {
 		f := func(t *testing.T) {
-			var scfg = &ServerOption{}
-			scfg.Host = p.host
-			scfg.UdpPort = p.udpPort
-			scfg.MaxSize = uint32(p.pkgLen * 2)
-			var udps, err = NewUDPServer(scfg, p.f)
-			if err != nil {
-				t.Fatal(err)
-				return
-			}
 			var ccfg = &ClientOption{}
 			ccfg.Host = p.host
 			ccfg.UdpPort = p.udpPort
@@ -101,37 +98,39 @@ func Test_udp_server(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			//2. 启动服务
-			go udps.StartServer()
-			time.Sleep(5 * time.Second)
 			var im = make(map[string]struct{})
 			var rm = make(map[string]struct{})
+			var iChan = make(chan struct{})
+			var rChan = make(chan struct{})
 			go func() {
 				for len(im) < p.pkgLen {
 					var msg = utils.RandsString(p.pkgLen)
 					err := udpc.Send(context.TODO(), []byte(msg))
 					if err != nil {
-						return
+						log.Println("send err", err.Error())
+						continue
 					}
 					im[msg] = struct{}{}
 				}
+				iChan <- struct{}{}
 			}()
 			go func() {
 				for len(rm) < p.pkgLen {
 					buf, err := udpc.Receive(context.TODO())
 					if err != nil {
-						return
+						log.Println("receive err", err.Error())
+						continue
 					}
 					rm[string(buf)] = struct{}{}
 				}
+				rChan <- struct{}{}
 			}()
 			//控制部分
-			var timeout = time.NewTicker(time.Second * 5)
-			var sig = make(chan os.Signal)
-			signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 			select {
-			case <-timeout.C:
-			case <-sig:
+			case <-iChan:
+				<-rChan
+			case <-rChan:
+				<-iChan
 			}
 			for k := range im {
 				delete(im, k)

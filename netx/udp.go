@@ -2,6 +2,7 @@ package netx
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +14,21 @@ import (
 type IUDPServer interface {
 	StartServer() error
 }
+
+var (
+	udpPlainSrt = &Secrets{
+		AK: []byte{
+			0x52, 0x69, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x53, 0x75, 0x6e, 0x20, 0x6c, 0x6f, 0x76, 0x65,
+			0x20, 0x4b, 0x65, 0x6c, 0x6c, 0x79, 0x2e, 0x43, 0x68, 0x65, 0x6e, 0x19, 0x95, 0x11, 0x01, 0xff,
+		},
+		MK: []byte{
+			0x52, 0x69, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x53, 0x75, 0x6e, 0x20, 0x6c, 0x6f, 0x76, 0x65,
+			0x20, 0x4b, 0x65, 0x6c, 0x6c, 0x79, 0x2e, 0x43, 0x68, 0x65, 0x6e, 0x19, 0x95, 0x11, 0x01, 0xff,
+		},
+		Egress:  sha256.New(),
+		Ingress: sha256.New(),
+	}
+)
 
 type udps struct {
 	cfg     *ServerOption
@@ -41,7 +57,6 @@ func NewUDPServer(cfg *ServerOption, f Handler) (IUDPServer, error) {
 	s.cfg = cfg
 	s.errChan = make(chan error)
 	s.handler = f
-
 	s.cmpCli, err = utils.NewRLE()
 	if err != nil {
 		return nil, fmt.Errorf("create compress client fail. %s", err.Error())
@@ -66,14 +81,14 @@ func (s *udps) start() {
 		return
 	}
 	defer s.conn.Close()
+
 	for {
 		select {
 		case <-s.app.Done():
 			return
 		default:
-			var n int
 			var buf = make([]byte, s.cfg.MaxSize)
-			n, addr, err = s.conn.ReadFromUDP(buf)
+			n, addr, err := s.conn.ReadFromUDP(buf)
 			if err != nil {
 				s.kelly(addr, err)
 			} else {
@@ -84,13 +99,14 @@ func (s *udps) start() {
 }
 
 func (s *udps) h(addr *net.UDPAddr, body []byte) {
-	var buf, _ = s.cmpCli.Uncompress(body)
-	buf = s.handler(s.app, buf)
-	buf, _ = s.cmpCli.Compress(buf)
-	s.conn.WriteToUDP(buf, addr)
+	body, _ = s.cmpCli.Uncompress(body)
+	body = s.handler(s.app, body)
+	body, _ = s.cmpCli.Compress(body)
+	s.conn.WriteToUDP(body, addr)
 }
 
 func (s *udps) kelly(addr *net.UDPAddr, err error) {
+	//1. 压缩数据
 	buf, _ := s.cmpCli.Compress([]byte(err.Error()))
 	s.conn.WriteToUDP(buf, addr)
 }
@@ -164,7 +180,7 @@ func (c *udpc) send(ctx context.Context, body []byte) error {
 		body, _ = c.cmpCli.Compress(body)
 		n, err := c.conn.Write(body)
 		if err != nil || n < len(body) {
-			return fmt.Errorf("udp client write package %d. should be %d. %v", n, len(body), err)
+			return fmt.Errorf("udp client write package fail. should be %d. err %v", len(body), err)
 		}
 		return nil
 	}
@@ -176,7 +192,7 @@ func (c *udpc) receive(ctx context.Context) ([]byte, error) {
 		return nil, ctx.Err()
 	default:
 		var body = make([]byte, c.cfg.MaxSize)
-		var n, err = c.conn.Read(body)
+		n, err := c.conn.Read(body)
 		if err != nil {
 			return nil, err
 		}

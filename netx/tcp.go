@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -151,27 +150,27 @@ func (s *tcps) dealwith(conn net.Conn) {
 			return
 		default:
 			//4. 读取数据流
-			buf, err := cc.Read(s.app)
+			m, err := cc.Read(s.app)
 			if err != nil {
 				s.kelly(cc, err)
 				return
 			}
-			go s.h(cc, buf)
+			go s.h(cc, m)
 		}
 	}
 }
 
-func (s *tcps) h(tsp ITransport, data []byte) {
-	var buf, _ = s.cmpCli.Uncompress(data)
+func (s *tcps) h(tsp ITransport, m *msg) {
+	var buf, _ = s.cmpCli.Uncompress(m.data)
 	buf = s.handler(s.app, buf)
 	buf, _ = s.cmpCli.Compress(buf)
-	tsp.Write(s.app, buf)
+	m.data = buf
+	tsp.Write(s.app, m)
 }
 
 func (s *tcps) kelly(tsp ITransport, err error) {
 	buf, _ := s.cmpCli.Compress([]byte(err.Error()))
-	log.Printf("kelly handle err %s %x\n", err.Error(), buf)
-	tsp.Write(s.app, buf)
+	tsp.Write(s.app, newmsg(buf))
 	time.Sleep(time.Second)
 }
 
@@ -286,7 +285,7 @@ func (c *tcpc) connect() {
 		}
 		c.conn = sconn
 		c.err = nil
-		//go c.heartbeat()
+		go c.heartbeat()
 		select {
 		case <-c.app.Done():
 			conn.Close()
@@ -335,7 +334,7 @@ func (c *tcpc) send(ctx context.Context, body []byte) error {
 	//2. 压缩数据
 	body, _ = c.cmpCli.Compress(body)
 	//3. 传输数据
-	return cc.Write(ctx, body)
+	return cc.Write(ctx, newmsg(body))
 }
 
 func (c *tcpc) receive(ctx context.Context) ([]byte, error) {
@@ -345,13 +344,13 @@ func (c *tcpc) receive(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("conn fail. %v %v", cc, c.err)
 	}
 	//2. 获取加密数据
-	var buf, err = cc.Read(ctx)
+	var m, err = cc.Read(ctx)
 	if err != nil {
 		return nil, err
 	}
 	//3. 解密数据
-	buf, _ = c.cmpCli.Uncompress(buf)
-	return buf, nil
+	m.data, _ = c.cmpCli.Uncompress(m.data)
+	return m.data, nil
 }
 
 func (c *tcpc) Send(ctx context.Context, body []byte) error {

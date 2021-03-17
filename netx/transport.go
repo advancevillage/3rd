@@ -2,7 +2,6 @@ package netx
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"net"
 	"sync"
@@ -21,9 +20,9 @@ var (
 //1. write frame
 //2. read frame
 type ITransport interface {
-	Read(context.Context) ([]byte, error)
-	Write(context.Context, []byte) error
-	WriteRead(context.Context, []byte) ([]byte, error)
+	Read(context.Context) (*msg, error)
+	Write(context.Context, *msg) error
+	WriteRead(context.Context, []byte) (*msg, error)
 }
 
 type TransportOption struct {
@@ -31,12 +30,11 @@ type TransportOption struct {
 	Port    int
 	UdpPort int
 	MaxSize uint32
-	Timeout time.Duration     //读写超时
-	PriKey  *ecdsa.PrivateKey //本地服务私钥
+	Timeout time.Duration //读写超时
 }
 
 //@overview: 并发安全
-type tcpConn struct {
+type transport struct {
 	imac ITcpMac          //加密通讯通道
 	conn net.Conn         //TCP连接
 	cfg  *TransportOption //配置文件
@@ -58,22 +56,28 @@ type msg struct {
 	err   error
 }
 
+func newmsg(data []byte) *msg {
+	return &msg{
+		fId:   utils.UUID8Byte(),
+		flags: zero4,
+		data:  data,
+		err:   nil,
+	}
+}
+
 func NewConn(conn net.Conn, cfg *TransportOption, esrt *Secrets) (ITransport, error) {
 	//1. 参数校验
 	if nil == conn {
-		return nil, fmt.Errorf("tcp conn is invalid")
+		return nil, fmt.Errorf("transport conn is invalid")
 	}
 	if nil == esrt {
-		return nil, fmt.Errorf("tcp ephemeral secret is invalid")
+		return nil, fmt.Errorf("transport ephemeral secret is invalid")
 	}
 	if nil == cfg {
-		return nil, fmt.Errorf("tcp cfg is invalid")
+		return nil, fmt.Errorf("transport cfg is invalid")
 	}
 	if cfg.MaxSize <= 0 {
-		return nil, fmt.Errorf("tcp cfg maxSize is invalid")
-	}
-	if nil == cfg.PriKey {
-		return nil, fmt.Errorf("tcp cfg private key is invalid")
+		return nil, fmt.Errorf("transport cfg maxSize is invalid")
 	}
 	//2. 构建加密通道
 	var mac, err = NewTcpMac(*esrt)
@@ -81,7 +85,7 @@ func NewConn(conn net.Conn, cfg *TransportOption, esrt *Secrets) (ITransport, er
 		return nil, fmt.Errorf("tcp ephemeral secret mac fail. %s", err.Error())
 	}
 	var ctx, cancel = context.WithCancel(context.TODO())
-	var cc = &tcpConn{
+	var cc = &transport{
 		imac:   mac,
 		conn:   conn,
 		cfg:    cfg,
@@ -100,7 +104,7 @@ func NewConn(conn net.Conn, cfg *TransportOption, esrt *Secrets) (ITransport, er
 	return cc, nil
 }
 
-func (c *tcpConn) readLoop() {
+func (c *transport) readLoop() {
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -130,7 +134,7 @@ func (c *tcpConn) readLoop() {
 	}
 }
 
-func (c *tcpConn) writeLoop() {
+func (c *transport) writeLoop() {
 	for m := range c.wc {
 		select {
 		case <-c.ctx.Done():
@@ -141,7 +145,7 @@ func (c *tcpConn) writeLoop() {
 	}
 }
 
-func (c *tcpConn) set(fId []byte) chan *msg {
+func (c *transport) set(fId []byte) chan *msg {
 	var ch = make(chan *msg)
 	c.rwm.Lock()
 	c.sip[string(fId)] = ch
@@ -149,20 +153,20 @@ func (c *tcpConn) set(fId []byte) chan *msg {
 	return ch
 }
 
-func (c *tcpConn) del(fId []byte) {
+func (c *transport) del(fId []byte) {
 	c.rwm.Lock()
 	delete(c.sip, string(fId))
 	c.rwm.Unlock()
 }
 
-func (c *tcpConn) get(fId []byte) (chan *msg, bool) {
+func (c *transport) get(fId []byte) (chan *msg, bool) {
 	c.rwm.RLock()
 	ch, ok := c.sip[string(fId)]
 	c.rwm.RUnlock()
 	return ch, ok
 }
 
-func (c *tcpConn) Read(ctx context.Context) ([]byte, error) {
+func (c *transport) Read(ctx context.Context) (*msg, error) {
 	var t = time.NewTicker(c.cfg.Timeout)
 	select {
 	case <-ctx.Done():
@@ -172,21 +176,16 @@ func (c *tcpConn) Read(ctx context.Context) ([]byte, error) {
 	case <-t.C:
 		return nil, fmt.Errorf("read data timeout. consume more than %d's", c.cfg.Timeout/time.Second)
 	case m := <-c.rc: //1. 读取数据
-		return m.data, m.err
+		return m, m.err
 	}
 }
 
-func (c *tcpConn) Write(ctx context.Context, data []byte) error {
+func (c *transport) Write(ctx context.Context, m *msg) error {
 	//1. 校验
-	if len(data) > int(c.cfg.MaxSize) {
+	if m == nil || len(m.data) > int(c.cfg.MaxSize) {
 		return fmt.Errorf("package size more than %d", c.cfg.MaxSize)
 	}
 	//2.
-	var m = &msg{
-		data:  data,
-		fId:   utils.UUID8Byte(),
-		flags: zero4,
-	}
 	var t = time.NewTicker(c.cfg.Timeout)
 	select {
 	case <-ctx.Done():
@@ -200,7 +199,7 @@ func (c *tcpConn) Write(ctx context.Context, data []byte) error {
 	}
 }
 
-func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
+func (c *transport) WriteRead(ctx context.Context, data []byte) (*msg, error) {
 	//1. 校验
 	if len(data) > int(c.cfg.MaxSize) {
 		return nil, fmt.Errorf("package size more than %d", c.cfg.MaxSize)
@@ -237,6 +236,6 @@ func (c *tcpConn) WriteRead(ctx context.Context, data []byte) ([]byte, error) {
 	case <-t.C:
 		return nil, fmt.Errorf("read data timeout. more than %d's", c.cfg.Timeout/time.Second)
 	case v := <-ch:
-		return v.data, nil
+		return v, v.err
 	}
 }

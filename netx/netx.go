@@ -2,6 +2,7 @@ package netx
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"os"
 	"os/signal"
@@ -27,9 +28,11 @@ type Handler func(context.Context, []byte) []byte
 
 type ServerOption struct {
 	TransportOption
+	PriKey *ecdsa.PrivateKey //本地服务私钥
 }
 
 type ClientOption struct {
 	TransportOption
 	EnodeUrl string
+	PriKey   *ecdsa.PrivateKey //本地服务私钥
 }
