@@ -5,6 +5,7 @@ pkg
 test/error.log
 *.log
 *.out
+database/temp
 test/111
 test/database
 test/*.log

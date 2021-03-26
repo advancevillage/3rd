@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.1.4
 	github.com/romanyx/polluter v1.2.2
 	github.com/stretchr/testify v1.6.1
+	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/net v0.0.0-20201021035429-f5854403a974 // indirect

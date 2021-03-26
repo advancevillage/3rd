@@ -3,6 +3,7 @@ package ecies
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
@@ -13,6 +14,7 @@ import (
 )
 
 type IENode interface {
+	GetId() []byte
 	GetTcpPort() int
 	GetUdpPort() int
 	GetTcpHost() string
@@ -86,6 +88,17 @@ func (e *enode) raw() string {
 	} else {
 		return fmt.Sprintf("enode://%x@%s:%d?discport=%d", b, e.tcpHost.String(), e.tcpPort, e.udpPort)
 	}
+}
+
+func (e *enode) id() []byte {
+	var rawUrl = e.raw()
+	var hash = sha256.New()
+	hash.Write([]byte(rawUrl))
+	return hash.Sum(nil)
+}
+
+func (e *enode) GetId() []byte {
+	return e.id()
 }
 
 func (e *enode) GetTcpHost() string {
