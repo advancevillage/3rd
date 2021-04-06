@@ -35,7 +35,7 @@ type TransportOption struct {
 
 //@overview: 并发安全
 type transport struct {
-	imac ITcpMac          //加密通讯通道
+	imac IMac             //加密通讯通道
 	conn net.Conn         //TCP连接
 	cfg  *TransportOption //配置文件
 
@@ -80,7 +80,7 @@ func NewConn(conn net.Conn, cfg *TransportOption, esrt *Secrets) (ITransport, er
 		return nil, fmt.Errorf("transport cfg maxSize is invalid")
 	}
 	//2. 构建加密通道
-	var mac, err = NewTcpMac(*esrt)
+	var mac, err = NewMac(*esrt)
 	if err != nil {
 		return nil, fmt.Errorf("tcp ephemeral secret mac fail. %s", err.Error())
 	}

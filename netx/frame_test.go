@@ -183,22 +183,30 @@ var macTestData = map[string]struct {
 		fId:   utils.UUID8Byte(),
 		err:   nil,
 	},
+	"case21": {
+		hSize: 32,
+		pad:   16,
+		dLen:  0,
+		flags: []byte{0x01, 0x01, 0x0, 0x0},
+		fId:   utils.UUID8Byte(),
+		err:   nil,
+	},
 }
 
-func Test_frame(t *testing.T) {
+func Test_io_frame(t *testing.T) {
+	key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	var sct = Secrets{
+		MK:      key,
+		AK:      key,
+		Egress:  sha256.New(),
+		Ingress: sha256.New(),
+	}
+	var m, err = NewMac(sct)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	for n, p := range macTestData {
-		key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
-		var sct = Secrets{
-			MK:      key,
-			AK:      key,
-			Egress:  sha256.New(),
-			Ingress: sha256.New(),
-		}
-		var m, err = NewTcpMac(sct)
-		if err != nil {
-			t.Fatal(err)
-			return
-		}
 		f := func(t *testing.T) {
 			//1. 设置期待值
 			p.expect = []byte(utils.RandsString(p.dLen))
@@ -213,6 +221,45 @@ func Test_frame(t *testing.T) {
 			//3. 解密过程
 			var flags, fId, data []byte
 			flags, fId, data, err = m.ReadFrame(w, p.hSize, p.pad)
+			if err != nil {
+				assert.Equal(t, p.err, err)
+				return
+			}
+			//4. 验证过程
+			assert.Equal(t, p.flags, flags)
+			assert.Equal(t, p.fId, fId)
+			assert.Equal(t, p.expect, data)
+		}
+		t.Run(n, f)
+	}
+}
+
+func Test_bytes_frame(t *testing.T) {
+	key, _ := hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
+	var sct = Secrets{
+		MK:      key,
+		AK:      key,
+		Egress:  sha256.New(),
+		Ingress: sha256.New(),
+	}
+	var m, err = NewMac(sct)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	for n, p := range macTestData {
+		f := func(t *testing.T) {
+			//1. 设置期待值
+			p.expect = []byte(utils.RandsString(p.dLen))
+			//2. 加密过程
+			var cipher, err = m.WriteBytes(p.expect, p.hSize, p.pad, p.flags, p.fId)
+			if err != nil {
+				assert.Equal(t, p.err, err)
+				return
+			}
+			//3. 解密过程
+			var flags, fId, data []byte
+			flags, fId, data, err = m.ReadBytes(cipher, p.hSize, p.pad)
 			if err != nil {
 				assert.Equal(t, p.err, err)
 				return
@@ -339,12 +386,12 @@ func Test_ecdhe(t *testing.T) {
 				return
 			}
 			//7. 验证
-			imac, err := NewTcpMac(*imacSrt)
+			imac, err := NewMac(*imacSrt)
 			if err != nil {
 				t.Fatalf("initator new tcp mac %s\n", err.Error())
 				return
 			}
-			rmac, err := NewTcpMac(*rmacSrt)
+			rmac, err := NewMac(*rmacSrt)
 			if err != nil {
 				t.Fatalf("initator new tcp mac %s\n", err.Error())
 				return

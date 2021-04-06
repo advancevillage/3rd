@@ -1,6 +1,7 @@
 package netx
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
@@ -22,9 +23,13 @@ var (
 	pongFlags = []byte{0x10, 0x0, 0x0, 0x0}
 )
 
-type ITcpMac interface {
+type IMac interface {
+	//IO
 	ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error)
 	WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error
+	//BytesBlock
+	ReadBytes(cipher []byte, hSize int, pad int) ([]byte, []byte, []byte, error)
+	WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []byte) ([]byte, error)
 }
 
 //@overview: 密钥信息
@@ -48,7 +53,7 @@ type Secrets struct {
 //1. plain text  0 1 0 1 1 1 1 1 1 0 0 0 ..... 1 1 0 1 ...
 //2. key stream  1 0 1 1 0 0 1 0 0 0 0 0 ..... 0 1 0 1 ...
 //3. xor		 1 1 1 0 1 1 0 1 1 0 0 0 ..... 1 0 0 0 ...
-type tcpMac struct {
+type mac struct {
 	//数据流加密
 	ens cipher.Stream
 	des cipher.Stream
@@ -58,7 +63,7 @@ type tcpMac struct {
 	ingress   hash.Hash
 }
 
-func NewTcpMac(secret Secrets) (ITcpMac, error) {
+func NewMac(secret Secrets) (IMac, error) {
 	var (
 		macc cipher.Block
 		encc cipher.Block
@@ -73,7 +78,7 @@ func NewTcpMac(secret Secrets) (ITcpMac, error) {
 		return nil, err
 	}
 	var iv = make([]byte, encc.BlockSize())
-	var m = &tcpMac{
+	var m = &mac{
 		ens:       cipher.NewCTR(encc, iv),
 		des:       cipher.NewCTR(encc, iv),
 		macCipher: macc,
@@ -103,7 +108,7 @@ func NewTcpMac(secret Secrets) (ITcpMac, error) {
 //1.  flags		[]byte  4
 //2.  frame id	[]byte  4
 //3.  data		[]byte
-func (m *tcpMac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error) {
+func (m *mac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte, error) {
 	var (
 		header = make([]byte, hSize)
 		err    error
@@ -152,7 +157,52 @@ func (m *tcpMac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []b
 	return flags, fId, frameBuf[:frameSize], nil
 }
 
-func (m *tcpMac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
+func (m *mac) ReadBytes(cipher []byte, hSize int, pad int) ([]byte, []byte, []byte, error) {
+	var header []byte
+	//1. 读取头信息
+	fmt.Printf("read bytes %x\n", cipher)
+	if len(cipher) < hSize {
+		return nil, nil, nil, fmt.Errorf("read bytes header error")
+	}
+	header = cipher[:hSize]
+	//2. 验证头签名
+	var expectHMac = m.hashMac(m.ingress, m.macCipher, header[:0x10])
+	fmt.Printf("header header %x  %x hmac=%x\n", header[:0x10], header[0x10:], expectHMac)
+	if !hmac.Equal(expectHMac, header[0x10:]) {
+		return nil, nil, nil, fmt.Errorf("read bytes bad header sign")
+	}
+	//3. 解密头信息
+	m.des.XORKeyStream(header[:0x10], header[:0x10])
+	var (
+		frameSize = m.readInt32(header[:0x4])
+		flags     = header[0x4:0x8]
+		fId       = header[0x8:0x10]
+		realSize  = int(frameSize)
+		padding   = int(frameSize) % pad
+	)
+	if padding > 0 {
+		realSize += 16 - padding
+	}
+	if len(cipher) < hSize+realSize {
+		return nil, nil, nil, fmt.Errorf("read bytes fId(%x) body error", fId)
+	}
+	fmt.Printf("hSize = %d pad =%d frameSize = %d realSize = %d fId=%x flags=%x\n", hSize, pad, frameSize, realSize, fId, flags)
+	var frameBuf = cipher[hSize : hSize+realSize]
+	//4. 内容待解密
+	m.ingress.Write(frameBuf)
+	var frameSeed = m.ingress.Sum(nil)
+	expectHMac = m.hashMac(m.ingress, m.macCipher, frameSeed)
+	//5. 验证内容签名
+	copy(header[16:], cipher[hSize+realSize:hSize+realSize+0x10])
+	if !hmac.Equal(expectHMac, header[16:]) {
+		return nil, nil, nil, fmt.Errorf("read bytes bad body sign")
+	}
+	//5. 解密数据体
+	m.des.XORKeyStream(frameBuf, frameBuf)
+	return flags, fId, frameBuf[:frameSize], nil
+}
+
+func (m *mac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
 	//1. 创建头信息大小
 	var (
 		err       error
@@ -198,24 +248,76 @@ func (m *tcpMac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId [
 	return nil
 }
 
+func (m *mac) WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []byte) ([]byte, error) {
+	//1. 创建头信息大小
+	var (
+		err       error
+		header    = make([]byte, hSize)
+		frameSize = len(plain)
+		b         = bytes.NewBuffer([]byte{})
+		n         int
+	)
+	//2. 设置头信息中帧大小
+	m.writeInt32(uint32(frameSize), header[:4])
+	//3. 设置头信息中标识位
+	copy(header[4:8], flags[:4])
+	//4. 设置头信息中帧标识
+	copy(header[8:16], fId[:8])
+	//5. 加密头信息数据
+	m.ens.XORKeyStream(header[:16], header[:16])
+	//6. 头信息签名
+	copy(header[16:], m.hashMac(m.egress, m.macCipher, header[:16]))
+	fmt.Printf("write bytes cipher aaa %x %x\n", header[:0x10], header[0x10:])
+	n, err = b.Write(header)
+	if err != nil || n < hSize {
+		return nil, fmt.Errorf("write bytes fId(%x) header %v", fId, err)
+	}
+	//7. 加密写入数据
+	var mw = cipher.StreamWriter{S: m.ens, W: io.MultiWriter(b, m.egress)}
+	n, err = mw.Write(plain)
+	if err != nil || n < len(plain) {
+		return nil, fmt.Errorf("write bytes fId(%x) err %v", fId, err)
+	}
+	//8. 补齐数据完整
+	var padding = frameSize % pad
+	switch {
+	case padding > 0:
+		_, err = mw.Write(zero16[:16-padding])
+		if err != nil {
+			return nil, fmt.Errorf("write bytes fId(%x) padding %s", fId, err.Error())
+		}
+	}
+	//9. 数据签名
+	var frameSeed = m.egress.Sum(nil)
+	var endSign = m.hashMac(m.egress, m.macCipher, frameSeed)
+	_, err = b.Write(endSign)
+	if err != nil {
+		return nil, fmt.Errorf("write bytes fId(%x) body sign %s", fId, err.Error())
+	}
+	return b.Bytes(), nil
+}
+
 //@overview: 网络流大小端转换
-func (m *tcpMac) readInt32(b []byte) uint32 {
+func (m *mac) readInt32(b []byte) uint32 {
 	return uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24
 }
 
-func (m *tcpMac) writeInt32(v uint32, b []byte) {
+func (m *mac) writeInt32(v uint32, b []byte) {
 	b[0] = byte(v >> 24)
 	b[1] = byte(v >> 16)
 	b[2] = byte(v >> 8)
 	b[3] = byte(v)
 }
 
-func (m *tcpMac) hashMac(mac hash.Hash, block cipher.Block, seed []byte) []byte {
+func (m *mac) hashMac(mac hash.Hash, block cipher.Block, seed []byte) []byte {
+	fmt.Printf("hmac %x start\n", seed)
 	var aesBuf = make([]byte, aes.BlockSize)
 	block.Encrypt(aesBuf, mac.Sum(nil))
+	fmt.Printf("hmac %x start aesBuf %x\n", seed, aesBuf)
 	for i := range aesBuf {
 		aesBuf[i] ^= seed[i]
 	}
+	fmt.Printf("hmac %x end\n", aesBuf)
 	mac.Write(aesBuf)
 	return mac.Sum(nil)[:16]
 }
