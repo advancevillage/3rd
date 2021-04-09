@@ -18,12 +18,12 @@ type IUDPServer interface {
 var (
 	udpPlainSrt = &Secrets{
 		AK: []byte{
-			0x52, 0x69, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x53, 0x75, 0x6e, 0x20, 0x6c, 0x6f, 0x76, 0x65,
-			0x20, 0x4b, 0x65, 0x6c, 0x6c, 0x79, 0x2e, 0x43, 0x68, 0x65, 0x6e, 0x19, 0x95, 0x11, 0x01, 0xff,
+			0xde, 0xe6, 0x5b, 0x97, 0x05, 0xc7, 0x1a, 0x0d, 0xee, 0x4e, 0xa4, 0x8c, 0xa1, 0x97, 0x9d, 0x35,
+			0x25, 0xcc, 0x22, 0xdb, 0x75, 0x37, 0x46, 0x7e, 0xfd, 0x9b, 0xb9, 0x40, 0x0a, 0x6c, 0x4d, 0x2f,
 		},
 		MK: []byte{
-			0x52, 0x69, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x53, 0x75, 0x6e, 0x20, 0x6c, 0x6f, 0x76, 0x65,
-			0x20, 0x4b, 0x65, 0x6c, 0x6c, 0x79, 0x2e, 0x43, 0x68, 0x65, 0x6e, 0x19, 0x95, 0x11, 0x01, 0xff,
+			0x56, 0x87, 0x7a, 0xc2, 0x50, 0xdc, 0x0b, 0xa7, 0x33, 0xc5, 0xe2, 0xff, 0xf4, 0x5b, 0xdc, 0x46,
+			0xa4, 0xe1, 0x4d, 0x5c, 0x52, 0x4f, 0x26, 0x80, 0xa8, 0xf9, 0x7c, 0xd8, 0xe7, 0x6d, 0xd9, 0x8a,
 		},
 		Egress:  sha256.New(),
 		Ingress: sha256.New(),
@@ -53,6 +53,8 @@ func newUDPUnit(body []byte, addr *net.UDPAddr) *udpUnit {
 	var u = &udpUnit{}
 	u.data = body
 	u.addr = addr
+	u.flags = zero4
+	u.fId = utils.UUID8Byte()
 	return u
 }
 
@@ -72,8 +74,8 @@ func NewUDPServer(cfg *ServerOption, f Handler) (IUDPServer, error) {
 	s.app, s.cancel = context.WithCancel(context.TODO())
 	s.cfg = cfg
 	s.errChan = make(chan error)
-	s.rc = make(chan *udpUnit, 1024)
-	s.wc = make(chan *udpUnit, 1024)
+	s.rc = make(chan *udpUnit, 2048)
+	s.wc = make(chan *udpUnit, 2048)
 	s.handler = f
 	s.cmpCli, err = utils.NewRLE()
 	if err != nil {
@@ -117,7 +119,7 @@ func (s *udps) start() {
 			if err != nil {
 				s.kelly(addr, err)
 			} else {
-				var t = time.NewTicker(time.Second)
+				var t = time.NewTicker(time.Second * 3)
 				select {
 				case s.rc <- newUDPUnit(buf[:n], addr):
 				case <-t.C:
@@ -128,14 +130,13 @@ func (s *udps) start() {
 }
 
 func (s *udps) readLoop() {
-	var err error
 	for m := range s.rc {
 		if m == nil || m.addr == nil {
 			continue
 		}
 		//1. 解密数据包
-		m.flags, m.fId, m.data, err = s.macCli.ReadBytes(m.data, 0x20, 0x10)
-		if err != nil {
+		m.flags, m.fId, m.data, m.err = s.macCli.ReadBytes(m.data, 0x20, 0x10)
+		if m.err != nil {
 			continue
 		}
 		go s.h(m)
@@ -143,35 +144,34 @@ func (s *udps) readLoop() {
 }
 
 func (s *udps) writeLoop() {
-	var err error
 	for m := range s.wc {
 		if m == nil || m.addr == nil || m.flags == nil || m.fId == nil {
 			continue
 		}
 		//5. 加密
-		m.data, err = s.macCli.WriteBytes(m.data, 0x20, 0x10, m.flags, m.fId)
-		if err != nil {
+		m.data, m.err = s.macCli.WriteBytes(m.data, 0x20, 0x10, m.flags, m.fId)
+		if m.err != nil {
 			continue
 		}
+		time.Sleep(time.Millisecond)
 		s.conn.WriteToUDP(m.data, m.addr)
 	}
 }
 
 func (s *udps) h(m *udpUnit) {
-	var err error
 	//2. 解压
-	m.data, err = s.cmpCli.Uncompress(m.data)
-	if err != nil {
+	m.data, m.err = s.cmpCli.Uncompress(m.data)
+	if m.err != nil {
 		return
 	}
 	//3. 处理
 	m.data = s.handler(s.app, m.data)
 	//4. 压缩
-	m.data, err = s.cmpCli.Compress(m.data)
-	if err != nil {
+	m.data, m.err = s.cmpCli.Compress(m.data)
+	if m.err != nil {
 		return
 	}
-	var t = time.NewTicker(time.Second)
+	var t = time.NewTicker(time.Second * 3)
 	select {
 	case s.wc <- m:
 	case <-t.C:
@@ -239,8 +239,8 @@ func NewUDPClient(cfg *ClientOption) (IUDPClient, error) {
 	c.cfg = cfg
 	c.app, c.cancel = context.WithCancel(context.Background())
 	c.notify = make(chan struct{})
-	c.rc = make(chan *udpUnit, 1024)
-	c.wc = make(chan *udpUnit, 1024)
+	c.rc = make(chan *udpUnit, 2048)
+	c.wc = make(chan *udpUnit, 2048)
 	c.addr, err = net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", cfg.Host, cfg.UdpPort))
 	if err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ func (c *udpc) readLoop() {
 		default:
 			//1. 从网络IO读取数据
 			var body = make([]byte, c.cfg.MaxSize)
-			var t = time.NewTicker(time.Second)
+			var t = time.NewTicker(time.Second * 3)
 			var u = &udpUnit{}
 			n, err := c.conn.Read(body)
 			if err != nil {
@@ -283,6 +283,7 @@ func (c *udpc) readLoop() {
 			select {
 			case c.rc <- u:
 			case <-t.C:
+				fmt.Println("udpc readLoop timeout")
 			}
 		}
 
@@ -290,20 +291,21 @@ func (c *udpc) readLoop() {
 }
 
 func (c *udpc) writeLoop() {
-	var err error
 	for u := range c.wc {
 		//1. 压缩数据
-		u.data, err = c.cmpCli.Compress(u.data)
-		if err != nil {
+		u.data, u.err = c.cmpCli.Compress(u.data)
+		if u.err != nil {
+			fmt.Println("udpc writeLoop compress", u.err.Error())
 			continue
 		}
-		u.flags = zero4
-		u.fId = utils.UUID8Byte()
 		//2. 加密数据
-		u.data, err = c.macCli.WriteBytes(u.data, 0x20, 0x10, u.flags, u.fId)
-		if err != nil {
+		u.data, u.err = c.macCli.WriteBytes(u.data, 0x20, 0x10, u.flags, u.fId)
+		if u.err != nil {
+			fmt.Println("udpc writeLoop writeBytes", u.err.Error())
 			continue
 		}
+		//udp 发包太快会造成丢包
+		time.Sleep(time.Millisecond)
 		c.conn.Write(u.data)
 	}
 }

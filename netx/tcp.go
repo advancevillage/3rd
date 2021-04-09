@@ -278,6 +278,7 @@ func (c *tcpc) connect() {
 			c.err = err
 			return
 		}
+		fmt.Printf("ak %x mk %x\n", srt.AK, srt.MK)
 		sconn, err := NewConn(conn, &c.cfg.TransportOption, srt)
 		if err != nil {
 			time.Sleep(time.Second)

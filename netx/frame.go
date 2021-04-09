@@ -112,67 +112,112 @@ func (m *mac) ReadFrame(r io.Reader, hSize int, pad int) ([]byte, []byte, []byte
 	var (
 		header = make([]byte, hSize)
 		err    error
+		n      int
 	)
 	//1. 读取头信息
-	_, err = io.ReadFull(r, header)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read frame header %s", err.Error())
+	n, err = io.ReadFull(r, header)
+	if err != nil || n < hSize {
+		return nil, nil, nil, fmt.Errorf("read frame header fail. %d < %d", n, hSize)
 	}
 	//2. 验证头签名
-	var expectHMac = m.hashMac(m.ingress, m.macCipher, header[:16])
-	if !hmac.Equal(expectHMac, header[16:]) {
-		return nil, nil, nil, fmt.Errorf("read frame bad header sign")
+	var expectHMac = m.hashMac(m.ingress, m.macCipher, header[:0x10])
+	if !hmac.Equal(expectHMac, header[0x10:]) {
+		return nil, nil, nil, fmt.Errorf("read frame bad header sign %x != %x", expectHMac, header[0x10:])
 	}
 	//3. 解密头信息
-	m.des.XORKeyStream(header[:16], header[:16])
+	m.des.XORKeyStream(header[:0x10], header[:0x10])
 	var (
-		frameSize = m.readInt32(header[:4])
-		flags     = header[4:8]
-		fId       = header[8:16]
+		frameSize = m.readInt32(header[:0x04])
+		flags     = header[0x04:0x08]
+		fId       = header[0x08:0x10]
 		realSize  = int(frameSize)
 		padding   = int(frameSize) % pad
 	)
 	if padding > 0 {
-		realSize += 16 - padding
+		realSize += 0x10 - padding
 	}
 	var frameBuf = make([]byte, realSize)
-	_, err = io.ReadFull(r, frameBuf)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read frame fId(%x) body  %s", fId, err.Error())
+	n, err = io.ReadFull(r, frameBuf)
+	if err != nil || n < realSize {
+		return nil, nil, nil, fmt.Errorf("read frame fId(%x) body fail. %d < %d. %v", fId, n, realSize, err)
 	}
 	//4. 数据签名验证
 	m.ingress.Write(frameBuf)
 	var frameSeed = m.ingress.Sum(nil)
 	expectHMac = m.hashMac(m.ingress, m.macCipher, frameSeed)
 
-	_, err = io.ReadFull(r, header[16:32])
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("read frame fId(%x) body sign %s", fId, err.Error())
+	n, err = io.ReadFull(r, header[0x10:0x20])
+	if err != nil || n < 0x10 {
+		return nil, nil, nil, fmt.Errorf("read frame fId(%x) body sign. %d < %d. %v", fId, n, 0x10, err)
 	}
-	if !hmac.Equal(expectHMac, header[16:]) {
-		return nil, nil, nil, fmt.Errorf("read frame bad body sign")
+	if !hmac.Equal(expectHMac, header[0x10:]) {
+		return nil, nil, nil, fmt.Errorf("read frame bad body sign. %x != %x", expectHMac, header[0x10:0x20])
 	}
 	//5. 解密数据体
 	m.des.XORKeyStream(frameBuf, frameBuf)
 	return flags, fId, frameBuf[:frameSize], nil
 }
 
+func (m *mac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
+	//1. 创建头信息大小
+	var (
+		n         int
+		err       error
+		header    = make([]byte, hSize)
+		frameSize = len(data)
+	)
+	//2. 设置头信息中帧大小
+	m.writeInt32(uint32(frameSize), header[:0x04])
+	//3. 设置头信息中标识位
+	copy(header[0x04:0x08], flags[:0x04])
+	//4. 设置头信息中帧标识
+	copy(header[0x08:0x10], fId[:0x08])
+	//5. 加密头信息数据
+	m.ens.XORKeyStream(header[:0x10], header[:0x10])
+	//6. 头信息签名
+	copy(header[0x10:], m.hashMac(m.egress, m.macCipher, header[:0x10]))
+	n, err = w.Write(header)
+	if err != nil || n < hSize {
+		return fmt.Errorf("write frame fId(%x) header fail. %d < %d. %v", fId, n, hSize, err)
+	}
+	//7. 加密写入数据
+	var mw = cipher.StreamWriter{S: m.ens, W: io.MultiWriter(w, m.egress)}
+	n, err = mw.Write(data)
+	if err != nil || n < len(data) {
+		return fmt.Errorf("write frame fId(%x) body fail. %d < %d. %v", fId, n, len(data), err)
+	}
+	//8. 补齐数据完整
+	var padding = frameSize % pad
+	switch {
+	case padding > 0:
+		n, err = mw.Write(zero16[:0x10-padding])
+		if err != nil || n < 0x10-padding {
+			return fmt.Errorf("write frame fId(%x) padding fail. %d < %d. %v", fId, n, 0x10-padding, err)
+		}
+	}
+	//9. 数据签名
+	var frameSeed = m.egress.Sum(nil)
+	var endSign = m.hashMac(m.egress, m.macCipher, frameSeed)
+	n, err = w.Write(endSign)
+	if err != nil || n < len(endSign) {
+		return fmt.Errorf("write frame fId(%x) body sign fail. %d < %d. %v", fId, n, len(endSign), err)
+	}
+	return nil
+}
+
 func (m *mac) ReadBytes(cipher []byte, hSize int, pad int) ([]byte, []byte, []byte, error) {
-	var header []byte
+	var ingress = sha256.New()
 	//1. 读取头信息
-	fmt.Printf("read bytes %x\n", cipher)
 	if len(cipher) < hSize {
-		return nil, nil, nil, fmt.Errorf("read bytes header error")
+		return nil, nil, nil, fmt.Errorf("read bytes header error %d < %d", len(cipher), hSize)
 	}
-	header = cipher[:hSize]
+	var header = cipher[:hSize]
 	//2. 验证头签名
-	var expectHMac = m.hashMac(m.ingress, m.macCipher, header[:0x10])
-	fmt.Printf("header header %x  %x hmac=%x\n", header[:0x10], header[0x10:], expectHMac)
+	var expectHMac = m.hashMac(ingress, m.macCipher, header[:0x10])
 	if !hmac.Equal(expectHMac, header[0x10:]) {
-		return nil, nil, nil, fmt.Errorf("read bytes bad header sign")
+		return nil, nil, nil, fmt.Errorf("read bytes bad header sign %x != %x", expectHMac, header[0x10:])
 	}
-	//3. 解密头信息
-	m.des.XORKeyStream(header[:0x10], header[:0x10])
+	//3. 解析头信息
 	var (
 		frameSize = m.readInt32(header[:0x4])
 		flags     = header[0x4:0x8]
@@ -183,69 +228,25 @@ func (m *mac) ReadBytes(cipher []byte, hSize int, pad int) ([]byte, []byte, []by
 	if padding > 0 {
 		realSize += 16 - padding
 	}
-	if len(cipher) < hSize+realSize {
-		return nil, nil, nil, fmt.Errorf("read bytes fId(%x) body error", fId)
+	//3.1 截取加密体
+	cipher = cipher[hSize:]
+	if len(cipher) < realSize {
+		return nil, nil, nil, fmt.Errorf("read bytes fId(%x) body error. %d < %d", fId, len(cipher), realSize)
 	}
-	fmt.Printf("hSize = %d pad =%d frameSize = %d realSize = %d fId=%x flags=%x\n", hSize, pad, frameSize, realSize, fId, flags)
-	var frameBuf = cipher[hSize : hSize+realSize]
+	var frameBuf = cipher[:realSize]
 	//4. 内容待解密
-	m.ingress.Write(frameBuf)
-	var frameSeed = m.ingress.Sum(nil)
-	expectHMac = m.hashMac(m.ingress, m.macCipher, frameSeed)
+	ingress.Write(frameBuf)
+	var frameSeed = ingress.Sum(nil)
+	expectHMac = m.hashMac(ingress, m.macCipher, frameSeed)
 	//5. 验证内容签名
-	copy(header[16:], cipher[hSize+realSize:hSize+realSize+0x10])
-	if !hmac.Equal(expectHMac, header[16:]) {
-		return nil, nil, nil, fmt.Errorf("read bytes bad body sign")
+	cipher = cipher[realSize:]
+	if len(cipher) < 0x10 {
+		return nil, nil, nil, fmt.Errorf("read bytes end sign fail. %d < %d", len(cipher), 0x10)
 	}
-	//5. 解密数据体
-	m.des.XORKeyStream(frameBuf, frameBuf)
+	if !hmac.Equal(expectHMac, cipher[:0x10]) {
+		return nil, nil, nil, fmt.Errorf("read bytes bad body sign %x != %x", expectHMac, cipher[:0x10])
+	}
 	return flags, fId, frameBuf[:frameSize], nil
-}
-
-func (m *mac) WriteFrame(w io.Writer, hSize int, pad int, flags []byte, fId []byte, data []byte) error {
-	//1. 创建头信息大小
-	var (
-		err       error
-		header    = make([]byte, hSize)
-		frameSize = len(data)
-	)
-	//2. 设置头信息中帧大小
-	m.writeInt32(uint32(frameSize), header[:4])
-	//3. 设置头信息中标识位
-	copy(header[4:8], flags[:4])
-	//4. 设置头信息中帧标识
-	copy(header[8:16], fId[:8])
-	//5. 加密头信息数据
-	m.ens.XORKeyStream(header[:16], header[:16])
-	//6. 头信息签名
-	copy(header[16:], m.hashMac(m.egress, m.macCipher, header[:16]))
-	_, err = w.Write(header)
-	if err != nil {
-		return fmt.Errorf("write frame fId(%x) header %s", fId, err.Error())
-	}
-	//7. 加密写入数据
-	var mw = cipher.StreamWriter{S: m.ens, W: io.MultiWriter(w, m.egress)}
-	_, err = mw.Write(data)
-	if err != nil {
-		return fmt.Errorf("write frame fId(%x) body %s", fId, err.Error())
-	}
-	//8. 补齐数据完整
-	var padding = frameSize % pad
-	switch {
-	case padding > 0:
-		_, err = mw.Write(zero16[:16-padding])
-		if err != nil {
-			return fmt.Errorf("write frame fId(%x) padding %s", fId, err.Error())
-		}
-	}
-	//9. 数据签名
-	var frameSeed = m.egress.Sum(nil)
-	var endSign = m.hashMac(m.egress, m.macCipher, frameSeed)
-	_, err = w.Write(endSign)
-	if err != nil {
-		return fmt.Errorf("write frame fId(%x) body sign %s", fId, err.Error())
-	}
-	return nil
 }
 
 func (m *mac) WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []byte) ([]byte, error) {
@@ -256,6 +257,7 @@ func (m *mac) WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []b
 		frameSize = len(plain)
 		b         = bytes.NewBuffer([]byte{})
 		n         int
+		egress    = sha256.New()
 	)
 	//2. 设置头信息中帧大小
 	m.writeInt32(uint32(frameSize), header[:4])
@@ -263,17 +265,14 @@ func (m *mac) WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []b
 	copy(header[4:8], flags[:4])
 	//4. 设置头信息中帧标识
 	copy(header[8:16], fId[:8])
-	//5. 加密头信息数据
-	m.ens.XORKeyStream(header[:16], header[:16])
-	//6. 头信息签名
-	copy(header[16:], m.hashMac(m.egress, m.macCipher, header[:16]))
-	fmt.Printf("write bytes cipher aaa %x %x\n", header[:0x10], header[0x10:])
+	//5. 头信息签名
+	copy(header[16:], m.hashMac(egress, m.macCipher, header[:16]))
 	n, err = b.Write(header)
 	if err != nil || n < hSize {
 		return nil, fmt.Errorf("write bytes fId(%x) header %v", fId, err)
 	}
-	//7. 加密写入数据
-	var mw = cipher.StreamWriter{S: m.ens, W: io.MultiWriter(b, m.egress)}
+	//7. 写入数据
+	var mw = io.MultiWriter(b, egress)
 	n, err = mw.Write(plain)
 	if err != nil || n < len(plain) {
 		return nil, fmt.Errorf("write bytes fId(%x) err %v", fId, err)
@@ -288,11 +287,11 @@ func (m *mac) WriteBytes(plain []byte, hSize int, pad int, flags []byte, fId []b
 		}
 	}
 	//9. 数据签名
-	var frameSeed = m.egress.Sum(nil)
-	var endSign = m.hashMac(m.egress, m.macCipher, frameSeed)
-	_, err = b.Write(endSign)
-	if err != nil {
-		return nil, fmt.Errorf("write bytes fId(%x) body sign %s", fId, err.Error())
+	var frameSeed = egress.Sum(nil)
+	var endSign = m.hashMac(egress, m.macCipher, frameSeed)
+	n, err = b.Write(endSign)
+	if err != nil || n < len(endSign) {
+		return nil, fmt.Errorf("write bytes fId(%x) body sign fail. %d < %d. %v", fId, n, len(endSign), err)
 	}
 	return b.Bytes(), nil
 }
@@ -310,14 +309,11 @@ func (m *mac) writeInt32(v uint32, b []byte) {
 }
 
 func (m *mac) hashMac(mac hash.Hash, block cipher.Block, seed []byte) []byte {
-	fmt.Printf("hmac %x start\n", seed)
 	var aesBuf = make([]byte, aes.BlockSize)
 	block.Encrypt(aesBuf, mac.Sum(nil))
-	fmt.Printf("hmac %x start aesBuf %x\n", seed, aesBuf)
 	for i := range aesBuf {
 		aesBuf[i] ^= seed[i]
 	}
-	fmt.Printf("hmac %x end\n", aesBuf)
 	mac.Write(aesBuf)
 	return mac.Sum(nil)[:16]
 }
