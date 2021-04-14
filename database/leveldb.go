@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,7 +39,7 @@ type ldb struct {
 //1. dir 文件绝对路径
 func NewPersistentStore(dir string) (ILevelDB, error) {
 	//1. 参数校验
-	if len(dir) <= 0 || !filepath.IsAbs(dir) {
+	if len(dir) <= 0 {
 		return nil, fmt.Errorf("dirpath(%s) is invalid", dir)
 	}
 	var db, err = leveldb.OpenFile(dir, &opt.Options{

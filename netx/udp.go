@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/advancevillage/3rd/utils"
@@ -206,6 +207,7 @@ func (s *udps) StartServer() error {
 type IUDPClient interface {
 	Send(context.Context, []byte) error
 	Receive(context.Context) ([]byte, error)
+	SendReceive(context.Context, []byte) ([]byte, error)
 }
 
 type udpc struct {
@@ -220,6 +222,9 @@ type udpc struct {
 
 	rc chan *udpUnit
 	wc chan *udpUnit
+
+	sip map[string]chan *udpUnit
+	rwm sync.RWMutex
 }
 
 func NewUDPClient(cfg *ClientOption) (IUDPClient, error) {
@@ -241,6 +246,7 @@ func NewUDPClient(cfg *ClientOption) (IUDPClient, error) {
 	c.notify = make(chan struct{})
 	c.rc = make(chan *udpUnit, 2048)
 	c.wc = make(chan *udpUnit, 2048)
+	c.sip = make(map[string]chan *udpUnit)
 	c.addr, err = net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", cfg.Host, cfg.UdpPort))
 	if err != nil {
 		return nil, err
@@ -280,10 +286,16 @@ func (c *udpc) readLoop() {
 				u.flags, u.fId, u.data, u.err = c.macCli.ReadBytes(body[:n], 0x20, 0x10)
 				u.data, _ = c.cmpCli.Uncompress(u.data)
 			}
-			select {
-			case c.rc <- u:
-			case <-t.C:
-				fmt.Println("udpc readLoop timeout")
+			if ch, ok := c.get(u.fId); ok {
+				select {
+				case ch <- u:
+				case <-t.C:
+				}
+			} else {
+				select {
+				case c.rc <- u:
+				case <-t.C:
+				}
 			}
 		}
 
@@ -347,4 +359,61 @@ func (c *udpc) Receive(ctx context.Context) ([]byte, error) {
 	default:
 		return c.receive(ctx)
 	}
+}
+
+func (c *udpc) SendReceive(ctx context.Context, body []byte) ([]byte, error) {
+	//1. 校验
+	if uint32(len(body)) > c.cfg.MaxSize {
+		return nil, fmt.Errorf("package size more than %d", c.cfg.MaxSize)
+	}
+	//2.
+	var u = &udpUnit{}
+	u.data = body
+	u.fId = utils.UUID8Byte()
+	u.flags = zero4
+	//3. write data
+	var (
+		t  = time.NewTicker(c.cfg.Timeout)
+		ch chan *udpUnit
+	)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-t.C:
+		return nil, fmt.Errorf("write data timeout. more than %d's", c.cfg.Timeout/time.Second)
+	case c.wc <- u:
+		ch = c.set(u.fId)
+	}
+	defer c.del(u.fId)
+	//4. read data
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-t.C:
+		return nil, fmt.Errorf("read data timeout. more than %d's", c.cfg.Timeout/time.Second)
+	case v := <-ch:
+		return v.data, v.err
+	}
+}
+
+func (c *udpc) set(fId []byte) chan *udpUnit {
+	var ch = make(chan *udpUnit)
+	c.rwm.Lock()
+	c.sip[string(fId)] = ch
+	c.rwm.Unlock()
+	return ch
+}
+
+func (c *udpc) del(fId []byte) {
+	c.rwm.Lock()
+	delete(c.sip, string(fId))
+	c.rwm.Unlock()
+}
+
+func (c *udpc) get(fId []byte) (chan *udpUnit, bool) {
+	c.rwm.RLock()
+	ch, ok := c.sip[string(fId)]
+	c.rwm.RUnlock()
+	return ch, ok
 }
