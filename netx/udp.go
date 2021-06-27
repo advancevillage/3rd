@@ -9,10 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/advancevillage/3rd/monitor"
 	"github.com/advancevillage/3rd/utils"
 )
 
 type IUDPServer interface {
+	monitor.IMonitor
 	StartServer() error
 }
 
@@ -87,6 +89,12 @@ func NewUDPServer(cfg *ServerOption, f Handler) (IUDPServer, error) {
 		return nil, fmt.Errorf("create mac client fail. %s", err.Error())
 	}
 	return s, nil
+}
+
+func (s *udps) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["cfg"] = s.cfg
+	return m
 }
 
 func (s *udps) start() {

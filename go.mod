@@ -10,6 +10,7 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.4
+	github.com/jackpal/bencode-go v1.0.0
 	github.com/romanyx/polluter v1.2.2
 	github.com/stretchr/testify v1.6.1
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca

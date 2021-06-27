@@ -3,6 +3,8 @@ github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78/go.mod h1:LmzpDX
 github.com/DATA-DOG/go-txdb v0.1.0/go.mod h1:aDC9AAfOY+kLbhVTKKXOwkqr2844my+djxj+Ou4wNb4=
 github.com/DATA-DOG/go-txdb v0.1.3 h1:R4v6OuOcy2O147e2zHxU0B4NDtF+INb5R9q/CV7AEMg=
 github.com/DATA-DOG/go-txdb v0.1.3/go.mod h1:DhAhxMXZpUJVGnT+p9IbzJoRKvlArO2pkHjnGX7o0n0=
+github.com/IncSW/go-bencode v0.1.2 h1:CmCTumBhig/zqx32hssd3uf5yx5RcYxD52p6Zf+dbTg=
+github.com/IncSW/go-bencode v0.1.2/go.mod h1:yeLCR04u6wAt2qqppFOi4vZf5K2QOaOMXzNicE011yc=
 github.com/Microsoft/go-winio v0.4.11 h1:zoIOcVf0xPN1tnMVbTtEdI+P8OofVk3NObnwOQ6nK2Q=
 github.com/Microsoft/go-winio v0.4.11/go.mod h1:VhR8bwka0BXejwEJY73c50VrPtXAaKcyvVC4A4RozmA=
 github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 h1:TngWCqHvy9oXAN6lEVMRuU21PR1EtLVZJmdB18Gu3Rw=
@@ -74,6 +76,8 @@ github.com/gotestyourself/gotestyourself v2.2.0+incompatible h1:AQwinXlbQR2HvPjQ
 github.com/gotestyourself/gotestyourself v2.2.0+incompatible/go.mod h1:zZKM6oeNM8k+FRljX1mnzVYeS8wiGgQyvST1/GafPbY=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+github.com/jackpal/bencode-go v1.0.0 h1:lzbSPPqqSfWQnqVNe/BBY1NXdDpncArxShL10+fmFus=
+github.com/jackpal/bencode-go v1.0.0/go.mod h1:5FSBQ74yhCl5oQ+QxRPYzWMONFnxbL68/23eezsBI5c=
 github.com/json-iterator/go v1.1.9 h1:9yzud/Ht36ygwatGx56VwCZtlI/2AD15T1X2sjSuGns=
 github.com/json-iterator/go v1.1.9/go.mod h1:KdQUCv79m/52Kvf8AW2vK1V8akMuk1QjK/uOdHXbAo4=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1 h1:mweAR1A6xJ3oS2pRaGiHgQ4OO8tzTaLawm8vnODuwDk=

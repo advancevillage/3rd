@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/advancevillage/3rd/ecies"
+	"github.com/advancevillage/3rd/monitor"
 	"github.com/advancevillage/3rd/netx"
 )
 
@@ -17,6 +18,7 @@ const (
 )
 
 type IKad interface {
+	monitor.IMonitor
 	Start()
 }
 
@@ -164,4 +166,13 @@ func (ks *kad) loop() {
 func (ks *kad) Start() {
 	go ks.loop()
 	ks.udp.StartServer()
+}
+
+func (ks *kad) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["udps"] = ks.udp.Monitor()
+	m["timeout"] = ks.timeout
+	m["udpq"] = ks.udpq.Monitor()
+	m["dhtq"] = ks.dhtq.Monitor()
+	return m
 }

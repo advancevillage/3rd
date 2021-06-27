@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/advancevillage/3rd/ecies"
+	"github.com/advancevillage/3rd/monitor"
 )
 
 type IP2PQueue interface {
+	monitor.IMonitor
 	Push(*msg)
 	Pull() <-chan *msg
 }
@@ -34,6 +36,14 @@ func newmsg(tYpe byte, in []byte, enode ecies.IENode) *msg {
 	}
 }
 
+func (q *queue) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["timeout"] = q.timeout
+	m["chLen"] = len(q.ch)
+	m["chCap"] = cap(q.ch)
+	return m
+}
+
 func newQueue() IP2PQueue {
 	return &queue{
 		ch:      make(chan *msg, 1024),
@@ -54,6 +64,7 @@ func (q *queue) Pull() <-chan *msg {
 }
 
 type IP2P interface {
+	monitor.IMonitor
 	Start()
 }
 
@@ -84,4 +95,11 @@ func NewP2P(local ecies.IENode, boot []ecies.IENode) (IP2P, error) {
 func (p *p2P) Start() {
 	p.dht.Start()
 	p.disc.Start()
+}
+
+func (p *p2P) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["disc"] = p.disc.Monitor()
+	m["dht"] = p.dht.Monitor()
+	return m
 }

@@ -11,9 +11,12 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+
+	"github.com/advancevillage/3rd/monitor"
 )
 
 type IENode interface {
+	monitor.IMonitor
 	GetId() []byte
 	GetTcpPort() int
 	GetUdpPort() int
@@ -95,6 +98,13 @@ func (e *enode) id() []byte {
 	var hash = sha256.New()
 	hash.Write([]byte(rawUrl))
 	return hash.Sum(nil)
+}
+
+func (e *enode) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["raw"] = e.raw()
+	m["id"] = fmt.Sprintf("%x", e.id())
+	return m
 }
 
 func (e *enode) GetId() []byte {

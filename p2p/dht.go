@@ -10,9 +10,11 @@ import (
 
 	"github.com/advancevillage/3rd/database"
 	"github.com/advancevillage/3rd/ecies"
+	"github.com/advancevillage/3rd/monitor"
 )
 
 type IDHT interface {
+	monitor.IMonitor
 	Start()
 }
 
@@ -36,6 +38,18 @@ const (
 //1. 核心是确定xor索引方式
 type bucket struct {
 	nodes []*node
+}
+
+func (b *bucket) monitor() interface{} {
+	var m = make(map[string]interface{})
+	for k, v := range b.nodes {
+		var mv = map[string]interface{}{
+			"enode": v.enode.Monitor(),
+			"ts":    v.ts,
+		}
+		m[fmt.Sprintf("enode.%d", k)] = mv
+	}
+	return m
 }
 
 func (b *bucket) set(enode ecies.IENode) {
@@ -75,6 +89,19 @@ type dht struct {
 	udpq IP2PQueue
 	dhtq IP2PQueue
 	ctx  context.Context
+}
+
+func (d *dht) Monitor() interface{} {
+	var m = make(map[string]interface{})
+	m["udpq"] = d.udpq.Monitor()
+	m["dhtq"] = d.dhtq.Monitor()
+	for k, v := range d.boot {
+		m[fmt.Sprintf("boot.%d", k)] = v.Monitor()
+	}
+	for k, v := range d.table {
+		m[fmt.Sprintf("table.%d", k)] = v.monitor()
+	}
+	return m
 }
 
 func NewDHT(ctx context.Context, boot []ecies.IENode, local ecies.IENode, udpq IP2PQueue, dhtq IP2PQueue) (IDHT, error) {
