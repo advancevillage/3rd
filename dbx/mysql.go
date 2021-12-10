@@ -1,5 +1,5 @@
 //author: richard
-package database
+package dbx
 
 import (
 	"context"
@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/advancevillage/3rd/proto/dbproxy"
-
+	dbproxy "github.com/advancevillage/3rd/proto"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/xwb1989/sqlparser"
 )

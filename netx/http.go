@@ -134,6 +134,7 @@ type routeTable []*router
 func NewRouter() IRouter {
 	return &routeTable{}
 }
+
 func (c *routeTable) Add(method string, path string, f HttpFuncHandler) {
 	*c = append(*c, &router{method: method, path: path, f: f})
 }

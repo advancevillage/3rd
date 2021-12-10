@@ -2,8 +2,7 @@ syntax = "proto3";
 
 package cacheProxy;
 
-option go_package=".;cacheProxy";
-
+option go_package="github.com/advancevillage/3rd/proto";
 
 message CacheOpt {
   string Password = 1;

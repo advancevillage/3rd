@@ -1,5 +1,5 @@
 //author: richard
-package database
+package dbx
 
 import (
 	"context"

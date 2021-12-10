@@ -2,8 +2,7 @@ syntax = "proto3";
 
 package dbproxy;
 
-option go_package=".;dbproxy";
-
+option go_package="github.com/advancevillage/3rd/proto";
 
 //行数据
 message SqlRow {
