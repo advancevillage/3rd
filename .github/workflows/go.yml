@@ -1,9 +1,7 @@
-name: Go
+name: UnitTest
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
     branches: [ master ]
 
 jobs:
@@ -13,13 +11,13 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Set up Go
+    - name: go-version
       uses: actions/setup-go@v2
       with:
         go-version: 1.17
 
-    - name: Build
-      run: go build -v ./...
+    - name: mathx
+      run: go test -v ./mathx/
 
-    - name: Test
-      run: go test -v ./...
+    - name: netx
+      run: go test -v ./netx/
