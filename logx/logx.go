@@ -11,13 +11,15 @@ import (
 )
 
 const (
-	loggerKey      = iota
-	traceId        = "traceId"
+	TraceId        = "traceId"
 	logTmFmtWithMS = "2006-01-02 15:04:05.000"
 )
 
 type ILogger interface {
+	Debugw(ctx context.Context, msg string, keysAndValues ...interface{})
 	Infow(ctx context.Context, msg string, keysAndValues ...interface{})
+	Warnw(ctx context.Context, msg string, keysAndValues ...interface{})
+	Errorw(ctx context.Context, msg string, keysAndValues ...interface{})
 }
 
 type logger struct {
@@ -69,17 +71,24 @@ func (l *logger) Infow(ctx context.Context, msg string, keysAndValues ...interfa
 	l.withTraceId(ctx).Sugar().Infow(msg, keysAndValues...)
 }
 
+func (l *logger) Debugw(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	l.withTraceId(ctx).Sugar().Debugw(msg, keysAndValues...)
+}
+
+func (l *logger) Warnw(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	l.withTraceId(ctx).Sugar().Warnw(msg, keysAndValues...)
+}
+
+func (l *logger) Errorw(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	l.withTraceId(ctx).Sugar().Errorw(msg, keysAndValues...)
+}
+
 func (l *logger) withTraceId(ctx context.Context) *zap.Logger {
 	//1. traceId
-	var trace, ok = ctx.Value(traceId).(string)
+	var trace, ok = ctx.Value(TraceId).(string)
 	if !ok {
 		trace = ""
 	}
-	//2. logger
-	var z *zap.Logger
-	if z, ok = ctx.Value(loggerKey).(*zap.Logger); !ok {
-		z = l.z
-	}
 	//3. fields
-	return z.With(zap.String(traceId, trace))
+	return l.z.With(zap.String(TraceId, trace))
 }

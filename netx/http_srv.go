@@ -3,23 +3,73 @@ package netx
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/advancevillage/3rd/logx"
 	"github.com/gin-gonic/gin"
 )
 
-type IHTTPCtx interface {
+type IHTTPWR interface {
+	Read() ([]byte, error)
+	Write(code int, body interface{})
+
+	ReadParam(q string) string
+	WriteParam(params map[string]string)
+
+	ReadHeader(h string) string
+	WriteHeader(headers map[string]string)
 }
 
 type httpCtx struct {
 	engine *gin.Context
 }
 
-func newHTTPCtx(ctx *gin.Context) IHTTPCtx {
+func newHTTPCtx(ctx *gin.Context) IHTTPWR {
 	return &httpCtx{engine: ctx}
 }
 
-type HTTPFunc func(IHTTPCtx)
+func (c *httpCtx) Write(code int, body interface{}) {
+	c.engine.JSON(code, body)
+}
+
+func (c *httpCtx) Read() ([]byte, error) {
+	return ioutil.ReadAll(c.engine.Request.Body)
+}
+
+func (c *httpCtx) ReadParam(q string) string {
+	var value = c.engine.PostForm(q)
+	if len(value) <= 0 {
+		value = c.engine.Query(q)
+	}
+	if len(value) <= 0 {
+		value = c.engine.Param(q)
+	}
+	if len(value) <= 0 {
+		value = c.engine.GetString(q)
+	}
+	return value
+}
+
+func (c *httpCtx) WriteParam(params map[string]string) {
+	var qry = c.engine.Request.URL.Query()
+	for k, v := range params {
+		qry.Add(k, v)
+	}
+	c.engine.Request.URL.RawQuery = qry.Encode()
+}
+
+func (c *httpCtx) ReadHeader(h string) string {
+	return c.engine.GetHeader(h)
+}
+
+func (c *httpCtx) WriteHeader(headers map[string]string) {
+	for key := range headers {
+		c.engine.Header(key, headers[key])
+	}
+}
+
+type HTTPFunc func(context.Context, IHTTPWR)
 
 type IHTTPRouter interface {
 	Add(method string, path string, call HTTPFunc)
@@ -53,6 +103,7 @@ type IHTTPServer interface {
 
 	addr(h string, p int)
 	rts(IHTTPRouter)
+	logger(l logx.ILogger)
 }
 
 type HTTPSrvOpt func(IHTTPServer)
@@ -60,6 +111,12 @@ type HTTPSrvOpt func(IHTTPServer)
 func WithHTTPSrvAddr(h string, p int) HTTPSrvOpt {
 	return func(s IHTTPServer) {
 		s.addr(h, p)
+	}
+}
+
+func WithHTTPSrvLogger(l logx.ILogger) HTTPSrvOpt {
+	return func(s IHTTPServer) {
+		s.logger(l)
 	}
 }
 
@@ -77,7 +134,7 @@ type httpSrv struct {
 	r      IHTTPRouter        //路由
 	srv    *http.Server       //HTTP服务
 	mux    *gin.Engine        //HTTP服务引擎
-
+	l      logx.ILogger       //日志
 }
 
 func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
@@ -112,7 +169,10 @@ func (s *httpSrv) Start() {
 }
 
 func (s *httpSrv) start() {
-	s.srv.ListenAndServe()
+	var err = s.srv.ListenAndServe()
+	if err != nil {
+		s.l.Errorw(s.ctx, "http server", "start", err)
+	}
 }
 
 func (s *httpSrv) addr(h string, p int) {
@@ -128,10 +188,16 @@ func (s *httpSrv) rts(rts IHTTPRouter) {
 	}
 }
 
+func (s *httpSrv) logger(l logx.ILogger) {
+	s.l = l
+}
+
 func (s *httpSrv) handle(method string, path string, f HTTPFunc) {
 	handler := func(ctx *gin.Context) {
-		var sctx = newHTTPCtx(ctx)
-		f(sctx)
+		var wr = newHTTPCtx(ctx)
+		var traceId = wr.ReadParam(logx.TraceId)
+		var sctx = context.WithValue(ctx.Request.Context(), logx.TraceId, traceId)
+		f(sctx, wr)
 	}
 	s.mux.Handle(method, path, handler)
 }
