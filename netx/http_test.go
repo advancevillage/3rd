@@ -31,7 +31,7 @@ var httpSrvCliTest = map[string]struct {
 	call   func(context.Context, IHTTPWR)
 }{
 	"case-get": {
-		host:   "192.168.1.6",
+		host:   "127.0.0.1",
 		port:   rand.Intn(1000) + 2048,
 		method: http.MethodGet,
 		path:   "/t/get",
@@ -53,7 +53,7 @@ var httpSrvCliTest = map[string]struct {
 		},
 	},
 	"case-post": {
-		host:   "192.168.1.6",
+		host:   "127.0.0.1",
 		port:   rand.Intn(1000) + 2048,
 		method: http.MethodPost,
 		path:   "/t/post",
@@ -68,7 +68,6 @@ var httpSrvCliTest = map[string]struct {
 				errors = append(errors, errorx{ErrorCode: 1001, ErrorMsg: "read body"})
 				return
 			}
-
 			type rq struct {
 				TraceId string `json:"traceId"`
 				Oth     string `json:"oth"`
