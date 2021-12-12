@@ -113,6 +113,7 @@ func Test_srv_cli(t *testing.T) {
 			}
 			//4. srv start
 			go srv.Start()
+			time.Sleep(2 * time.Second)
 			hdr := map[string]string{
 				"Content-Type": "application/json",
 			}
