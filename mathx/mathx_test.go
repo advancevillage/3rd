@@ -22,8 +22,8 @@ var randTest = map[string]struct {
 		n:  100 * 1000,
 		nn: 128,
 	},
-	"case-1000k": {
-		n:  1000 * 1000,
+	"case-500k": {
+		n:  500 * 1000,
 		nn: 64,
 	},
 }
