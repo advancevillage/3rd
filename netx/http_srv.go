@@ -102,9 +102,10 @@ type IHTTPServer interface {
 	Start()
 	Exit() <-chan struct{}
 
-	addr(h string, p int)
 	rts(IHTTPRouter)
+	addr(h string, p int)
 	logger(l logx.ILogger)
+	sctx(ctx context.Context, cancel context.CancelFunc)
 }
 
 type HTTPSrvOpt func(IHTTPServer)
@@ -127,6 +128,12 @@ func WithHTTPSrvRts(rts IHTTPRouter) HTTPSrvOpt {
 	}
 }
 
+func WithHTTPSrvCtx(ctx context.Context, cancel context.CancelFunc) HTTPSrvOpt {
+	return func(s IHTTPServer) {
+		s.sctx(ctx, cancel)
+	}
+}
+
 type httpSrv struct {
 	host   string             //服务主机
 	port   int                //服务端口
@@ -140,7 +147,6 @@ type httpSrv struct {
 
 func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
 	var s = &httpSrv{}
-	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	for _, opt := range opts {
 		opt(s)
@@ -156,6 +162,10 @@ func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
 
 	if s.r != nil {
 		s.r.iterator(s.handle)
+	}
+
+	if s.ctx == nil {
+		s.ctx, s.cancel = context.WithCancel(context.Background())
 	}
 
 	return s, nil
@@ -186,6 +196,15 @@ func (s *httpSrv) rts(rts IHTTPRouter) {
 		s.r = NewHTTPRouter()
 	} else {
 		s.r = rts
+	}
+}
+
+func (s *httpSrv) sctx(ctx context.Context, cancel context.CancelFunc) {
+	if ctx == nil {
+		s.ctx, s.cancel = context.WithCancel(context.Background())
+	} else {
+		s.ctx = ctx
+		s.cancel = cancel
 	}
 }
 
