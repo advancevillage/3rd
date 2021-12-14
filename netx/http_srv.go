@@ -100,6 +100,7 @@ func (c *rts) iterator(f func(method string, path string, call HTTPFunc)) {
 
 type IHTTPServer interface {
 	Start()
+	Exit() <-chan struct{}
 
 	addr(h string, p int)
 	rts(IHTTPRouter)
@@ -200,4 +201,8 @@ func (s *httpSrv) handle(method string, path string, f HTTPFunc) {
 		f(sctx, wr)
 	}
 	s.mux.Handle(method, path, handler)
+}
+
+func (s *httpSrv) Exit() <-chan struct{} {
+	return s.ctx.Done()
 }
