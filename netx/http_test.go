@@ -28,14 +28,14 @@ var httpSrvCliTest = map[string]struct {
 	port   int
 	method string
 	path   string
-	call   func(context.Context, IHTTPWR)
+	call   func(context.Context, IHTTPWriteReader)
 }{
 	"case-get": {
 		host:   "127.0.0.1",
 		port:   rand.Intn(1000) + 2048,
 		method: http.MethodGet,
 		path:   "/t/get",
-		call: func(ctx context.Context, wr IHTTPWR) {
+		call: func(ctx context.Context, wr IHTTPWriteReader) {
 			var traceId = wr.ReadParam(logx.TraceId)
 			var l, err = logx.NewLogger("info")
 			var r = map[string]interface{}{}
@@ -57,7 +57,7 @@ var httpSrvCliTest = map[string]struct {
 		port:   rand.Intn(1000) + 2048,
 		method: http.MethodPost,
 		path:   "/t/post",
-		call: func(ctx context.Context, wr IHTTPWR) {
+		call: func(ctx context.Context, wr IHTTPWriteReader) {
 			var r = map[string]interface{}{}
 			defer wr.Write(http.StatusOK, r)
 

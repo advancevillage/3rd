@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type IHTTPWR interface {
+type IHTTPWriteReader interface {
 	Read() ([]byte, error)
 	Write(code int, body interface{})
 
@@ -25,7 +25,7 @@ type httpCtx struct {
 	engine *gin.Context
 }
 
-func newHTTPCtx(ctx *gin.Context) IHTTPWR {
+func newHTTPCtx(ctx *gin.Context) IHTTPWriteReader {
 	return &httpCtx{engine: ctx}
 }
 
@@ -48,6 +48,9 @@ func (c *httpCtx) ReadParam(q string) string {
 	if len(value) <= 0 {
 		value = c.engine.GetString(q)
 	}
+	if len(value) <= 0 {
+		value, _ = c.engine.Cookie(logx.TraceId)
+	}
 	return value
 }
 
@@ -69,7 +72,7 @@ func (c *httpCtx) WriteHeader(headers map[string]string) {
 	}
 }
 
-type HTTPFunc func(context.Context, IHTTPWR)
+type HTTPFunc func(context.Context, IHTTPWriteReader)
 
 type IHTTPRouter interface {
 	Add(method string, path string, call HTTPFunc)
@@ -152,8 +155,10 @@ func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
 		opt(s)
 	}
 
-	gin.SetMode(gin.DebugMode)
+	gin.SetMode(gin.ReleaseMode)
 	s.mux = gin.New()
+
+	s.mux.Use(s.trace())
 
 	s.srv = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", s.host, s.port),
@@ -199,6 +204,16 @@ func (s *httpSrv) rts(rts IHTTPRouter) {
 	}
 }
 
+func (s *httpSrv) trace() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		var wr = newHTTPCtx(ctx)
+		var traceId = wr.ReadParam(logx.TraceId)
+		var sctx = context.WithValue(ctx.Request.Context(), logx.TraceId, traceId)
+		ctx.Request = ctx.Request.Clone(sctx)
+		ctx.Next()
+	}
+}
+
 func (s *httpSrv) sctx(ctx context.Context, cancel context.CancelFunc) {
 	if ctx == nil {
 		s.ctx, s.cancel = context.WithCancel(context.Background())
@@ -215,9 +230,7 @@ func (s *httpSrv) logger(l logx.ILogger) {
 func (s *httpSrv) handle(method string, path string, f HTTPFunc) {
 	handler := func(ctx *gin.Context) {
 		var wr = newHTTPCtx(ctx)
-		var traceId = wr.ReadParam(logx.TraceId)
-		var sctx = context.WithValue(ctx.Request.Context(), logx.TraceId, traceId)
-		f(sctx, wr)
+		f(ctx.Request.Context(), wr)
 	}
 	s.mux.Handle(method, path, handler)
 }
