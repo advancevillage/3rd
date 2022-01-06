@@ -150,7 +150,39 @@ type radixTree struct {
 	u64Pool *sync.Pool
 }
 
-func newRadixTree(u64 bool) *radixTree {
+type IRadixTree interface {
+	AddU32(key uint32, mask uint32, value uint32) error
+	DelU32(key uint32, mask uint32) error
+	GetU32(key uint32) (uint32, error)
+
+	AddU64(key uint64, mask uint64, value uint64) error
+	DelU64(key uint64, mask uint64) error
+	GetU64(key uint64) (uint64, error)
+}
+
+func NewRadixTree() IRadixTree {
+	return newRadixTree()
+}
+func (t *radixTree) AddU32(key uint32, mask uint32, value uint32) error {
+	return t.addU32(key, mask, value)
+}
+func (t *radixTree) DelU32(key uint32, mask uint32) error {
+	return t.delU32(key, mask)
+}
+func (t *radixTree) GetU32(key uint32) (uint32, error) {
+	return t.getU32(key)
+}
+func (t *radixTree) AddU64(key uint64, mask uint64, value uint64) error {
+	return t.addU64(key, mask, value)
+}
+func (t *radixTree) DelU64(key uint64, mask uint64) error {
+	return t.delU64(key, mask)
+}
+func (t *radixTree) GetU64(key uint64) (uint64, error) {
+	return t.getU64(key)
+}
+
+func newRadixTree() *radixTree {
 	var tree = new(radixTree)
 
 	tree.u32Pool = &sync.Pool{
@@ -221,7 +253,7 @@ func (t *radixTree) delU32(key uint32, mask uint32) error {
 		bit = uint32(0x80000000)
 	)
 	for c != nil && bit&mask > 0 {
-		if bit&mask > 0 {
+		if bit&key > 0 {
 			c = c.getR()
 		} else {
 			c = c.getL()
@@ -319,7 +351,7 @@ func (t *radixTree) delU64(key uint64, mask uint64) error {
 		bit = uint64(0x8000000000000000)
 	)
 	for c != nil && bit&mask > 0 {
-		if bit&mask > 0 {
+		if bit&key > 0 {
 			c = c.getR()
 		} else {
 			c = c.getL()

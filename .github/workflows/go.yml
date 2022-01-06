@@ -17,7 +17,10 @@ jobs:
         go-version: 1.17
 
     - name: mathx
-      run: go test -v ./mathx/
+      run: go test -v -count=1 -cover ./mathx/
 
     - name: netx
-      run: go test -v ./netx/
+      run: go test -v -count=1 -cover ./netx/
+
+    - name: radix
+      run: go test -v -count=1 -cover ./radix/
