@@ -1,14 +1,13 @@
-.PHONY: dbproxy cacheProxy clean all
+.PHONY: dht dbproxy cacheProxy clean all
 
-PROTOC:=protoc
+PROTOC	:=protoc
 
-all: dbproxy cacheProxy
+module 	:= dbproxy cacheProxy dht
 
-dbproxy:
-	${PROTOC} -I dbproxy/ --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative ./dbproxy/*.proto
+all: $(patsubst %,%,$(module))
 
-cacheProxy:
-	${PROTOC} -I cacheProxy/ --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative ./cacheProxy/*.proto
+$(patsubst %,%,$(module)):
+	${PROTOC} -I $@/ --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative ./$@/*.proto
 
 clean:
 	rm -f ./*.pb.go

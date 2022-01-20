@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package dht;
+
+option go_package="github.com/advancevillage/3rd/proto";
+
+message Packet {
+    PacketType  type    = 1; //消息类型
+    string      trace   = 2; //链路跟踪ID
+    string      pkt     = 3; //消息内容
+}
+
+
+enum PacketType  {
+    null        = 0;
+    ping        = 1;
+    store       = 2;
+    findnode    = 3;
+    findvalue   = 4;
+}
+
+enum State {
+    unkonwn     = 0;
+    unfound     = 1; 
+    found       = 2;
+    retry       = 3;
+}
+
+message Ping {
+    uint64 from  = 1;
+    uint64 to    = 2;
+    uint64 st    = 3; //send time
+    uint64 rt    = 4; //receive time
+}
+
+message Store {
+    uint64 from  = 1;
+    uint64 to    = 2;
+    uint64 st    = 3; //send time
+    uint64 rt    = 4; //receive time
+    uint64 k     = 5; //key
+    uint64 v     = 6; //value
+}
+
+message FindNode {
+    uint64 from  = 1;
+    uint64 to    = 2;
+    uint64 st    = 3; //send time
+    uint64 rt    = 4; //receive time
+    uint64 q     = 5; //query node
+    repeated uint64 k   = 6; //k closet
+}
+
+message FindValue {
+    uint64 from  = 1;
+    uint64 to    = 2;
+    uint64 st    = 3; //send time
+    uint64 rt    = 4; //receive time
+    uint64 q     = 5; //key
+    uint64 k     = 6; //value
+    State state  = 7; //result state
+}
