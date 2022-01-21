@@ -24,6 +24,8 @@ enum State {
     unfound     = 1; 
     found       = 2;
     retry       = 3;
+    syn         = 4;
+    ack         = 5;
 }
 
 message Ping {
@@ -31,6 +33,7 @@ message Ping {
     uint64 to    = 2;
     uint64 st    = 3; //send time
     uint64 rt    = 4; //receive time
+    State state  = 5; //result state
 }
 
 message Store {
@@ -38,8 +41,9 @@ message Store {
     uint64 to    = 2;
     uint64 st    = 3; //send time
     uint64 rt    = 4; //receive time
-    uint64 k     = 5; //key
-    uint64 v     = 6; //value
+    State state  = 5; //result state
+    uint64 k     = 6; //key
+    uint64 v     = 7; //value
 }
 
 message FindNode {
@@ -47,8 +51,9 @@ message FindNode {
     uint64 to    = 2;
     uint64 st    = 3; //send time
     uint64 rt    = 4; //receive time
-    uint64 q     = 5; //query node
-    repeated uint64 k   = 6; //k closet
+    State state  = 5; //result state
+    uint64 q     = 6; //query node
+    repeated uint64 k   = 7; //k closet
 }
 
 message FindValue {
@@ -56,7 +61,7 @@ message FindValue {
     uint64 to    = 2;
     uint64 st    = 3; //send time
     uint64 rt    = 4; //receive time
-    uint64 q     = 5; //key
-    uint64 k     = 6; //value
-    State state  = 7; //result state
+    State state  = 5; //result state
+    uint64 q     = 6; //key
+    uint64 k     = 7; //value
 }

@@ -64,7 +64,7 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	d.bucket = make([]uint8, d.bit)
 
 	d.rtm = radix.NewRadixTree()
-	d.nodes = make(map[uint64]*dhtnode)
+	d.nodes = make(map[uint64]*dhtNode)
 
 	d.refresh = 10
 	d.quit = make(chan bool, 1)
@@ -90,7 +90,7 @@ type dht struct {
 
 	//路由表
 	rtm   radix.IRadixTree
-	nodes map[uint64]*dhtnode //存储节点列表
+	nodes map[uint64]*dhtNode //存储节点列表
 	rwm   sync.RWMutex
 
 	//事件指令
@@ -103,10 +103,12 @@ type dht struct {
 	readNextCh chan struct{}
 }
 
-type dhtnode struct {
+type dhtNode struct {
 	node  INode     //节点
 	at    time.Time //节点加入时间
-	score uint64    //节点评分 score = latencyScore + succScore
+	delay uint64    //毫秒
+	succ  uint8     //PING回复次数
+	total uint8     //PING发送次数
 }
 
 func (d *dht) loop() {
@@ -179,7 +181,19 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 	if msg.GetTo() != d.self.Encode() {
 		return
 	}
-	//2. 更新节点新鲜度
+	//2. 检查消息状态
+	switch msg.GetState() {
+	case proto.State_ack:
+
+	case proto.State_syn:
+		msg.State = proto.State_ack
+		msg.Rt = uint64(time.Now().UnixNano())
+		msg.To = msg.From
+		msg.From = d.self.Encode()
+		//TODO: send
+
+	}
+
 }
 
 func (d *dht) doRefresh() {
