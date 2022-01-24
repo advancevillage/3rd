@@ -1,32 +1,46 @@
 package dht
 
-import "net"
+import (
+	"context"
+	"net"
+)
 
 type IDHTPacket interface {
+	Ctx() context.Context
 	Addr() *net.UDPAddr
 	Body() []byte
 }
 
 type packet struct {
-	from *net.UDPAddr
+	ctx  context.Context
+	addr *net.UDPAddr
 	buf  []byte
 }
 
-func NewPacket(from *net.UDPAddr, body []byte) IDHTPacket {
-	return &packet{from: from, buf: body}
+func NewPacket(ctx context.Context, addr *net.UDPAddr, body []byte) IDHTPacket {
+	return &packet{ctx: ctx, addr: addr, buf: body}
 }
 
 func (p *packet) Addr() *net.UDPAddr {
-	return p.from
+	return p.addr
 }
 
 func (p *packet) Body() []byte {
 	return p.buf
 }
 
+func (p *packet) Ctx() context.Context {
+	if nil == p.ctx {
+		return context.TODO()
+	} else {
+		return p.ctx
+	}
+}
+
 type IDHTConn interface {
 	ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error)
 	WriteToUDP(b []byte, addr *net.UDPAddr) (n int, err error)
+	Addr(node INode) *net.UDPAddr
 	Close() error
 }
 
@@ -64,4 +78,16 @@ func (c *udpConn) WriteToUDP(b []byte, addr *net.UDPAddr) (n int, err error) {
 
 func (c *udpConn) Close() error {
 	return c.Close()
+}
+
+func (cc udpConn) Addr(node INode) *net.UDPAddr {
+	var a = byte(node.Ipv4() >> 24)
+	var b = byte(node.Ipv4() >> 16)
+	var c = byte(node.Ipv4() >> 8)
+	var d = byte(node.Ipv4())
+
+	var ip = net.IPv4(a, b, c, d)
+	var port = int(node.Port())
+
+	return &net.UDPAddr{IP: ip, Port: port}
 }

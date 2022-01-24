@@ -40,7 +40,7 @@ func (e *enode) Encode() uint64 {
 	return uint64(e.zone)<<48 | uint64(e.port)<<32 | uint64(e.ipv4)
 }
 
-func (e *enode) Decode(a uint64) INode {
+func (e enode) Decode(a uint64) INode {
 	return &enode{
 		zone: uint16((a & 0xffff000000000000) >> 48),
 		port: uint16((a & 0x0000ffff00000000) >> 32),

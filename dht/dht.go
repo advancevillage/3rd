@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/advancevillage/3rd/logx"
+	"github.com/advancevillage/3rd/mathx"
 	"github.com/advancevillage/3rd/proto"
 	"github.com/advancevillage/3rd/radix"
 	enc "github.com/golang/protobuf/proto"
@@ -71,6 +72,7 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 
 	d.conn = conn
 	d.packetInCh = make(chan IDHTPacket, 1)
+	d.packetOutCh = make(chan IDHTPacket, 50)
 	d.readNextCh = make(chan struct{}, 1)
 
 	return d, nil
@@ -98,9 +100,10 @@ type dht struct {
 	quit    chan bool
 
 	//通讯协议
-	conn       IDHTConn
-	packetInCh chan IDHTPacket
-	readNextCh chan struct{}
+	conn        IDHTConn
+	packetInCh  chan IDHTPacket
+	packetOutCh chan IDHTPacket
+	readNextCh  chan struct{}
 }
 
 type dhtNode struct {
@@ -134,9 +137,11 @@ func (d *dht) loop() {
 			d.doFix()
 
 		case p := <-d.packetInCh:
-			d.doPacket(p)
+			d.doReceive(p)
 			d.readNextCh <- struct{}{}
 
+		case p := <-d.packetOutCh:
+			d.doSend(p)
 		}
 	}
 
@@ -144,7 +149,26 @@ end:
 	d.doGc()
 }
 
-func (d *dht) doPacket(pkt IDHTPacket) {
+func (d *dht) doSend(pkt IDHTPacket) {
+	var n = len(pkt.Body())
+
+	if n > maxPacketSize {
+		d.logger.Warnw(pkt.Ctx(), "dht srv message exceeds the maximum value", "cur", n, "max", maxPacketSize)
+		return
+	}
+
+	nn, err := d.conn.WriteToUDP(pkt.Body(), pkt.Addr())
+	if err != nil {
+		d.logger.Warnw(pkt.Ctx(), "dht srv send message fail", "err", err)
+		return
+	}
+
+	if nn < n {
+		d.logger.Warnw(pkt.Ctx(), "dht srv message sent incomplete", "sent", nn, "should", n)
+	}
+}
+
+func (d *dht) doReceive(pkt IDHTPacket) {
 	var (
 		msg = new(proto.Packet)
 		err = enc.Unmarshal(pkt.Body(), msg)
@@ -155,7 +179,7 @@ func (d *dht) doPacket(pkt IDHTPacket) {
 	}
 
 	var (
-		ctx = context.WithValue(d.ctx, logx.TraceId, msg.GetTrace())
+		ctx = context.WithValue(pkt.Ctx(), logx.TraceId, msg.GetTrace())
 	)
 	switch msg.GetType() {
 	case proto.PacketType_null:
@@ -167,6 +191,7 @@ func (d *dht) doPacket(pkt IDHTPacket) {
 			d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
 		}
 		d.doPing(ctx, ping)
+
 	case proto.PacketType_store:
 
 	case proto.PacketType_findnode:
@@ -190,10 +215,20 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 		msg.Rt = uint64(time.Now().UnixNano())
 		msg.To = msg.From
 		msg.From = d.self.Encode()
-		//TODO: send
 
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal ping message", "err", err)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_ping,
+			Pkt:  string(buf),
+		}
+
+		d.send(ctx, d.conn.Addr(d.self.Decode(msg.To)), pkt)
 	}
-
 }
 
 func (d *dht) doRefresh() {
@@ -235,7 +270,6 @@ func (s *dht) readLoop() {
 		n, from, err := s.conn.ReadFromUDP(buf)
 		if err == io.EOF {
 			s.logger.Errorw(s.ctx, "dht srv read eof")
-			//TODO 推出或者重启
 			return
 		}
 		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
@@ -243,15 +277,26 @@ func (s *dht) readLoop() {
 			time.Sleep(time.Second / 10)
 			continue
 		}
-		s.dispatchReadPacket(from, buf[:n])
+
+		select {
+		case s.packetInCh <- NewPacket(s.ctx, from, buf[:n]):
+		case <-s.ctx.Done():
+			return
+		}
 	}
 }
 
-func (d *dht) dispatchReadPacket(from *net.UDPAddr, body []byte) bool {
+func (s *dht) send(ctx context.Context, to *net.UDPAddr, pkt *proto.Packet) {
+	pkt.Trace = mathx.UUID()
+
+	buf, err := enc.Marshal(pkt)
+	if err != nil {
+		s.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+		return
+	}
+
 	select {
-	case d.packetInCh <- NewPacket(from, body):
-		return true
-	case <-d.ctx.Done():
-		return false
+	case s.packetOutCh <- NewPacket(ctx, to, buf):
+	case <-s.ctx.Done():
 	}
 }
