@@ -3,6 +3,7 @@ package dht
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -25,7 +26,29 @@ var (
 	maxPacketSize = 1024
 )
 
+type kpiL uint8
+
+var (
+	kpiSSS = kpiL(0x01) // <= 5ms & fail <= 2
+	kpiSS  = kpiL(0x02) // <= 10ms & fail <= 2
+	kpiS   = kpiL(0x03) // <=  20ms && fail <= 4
+	kpiA   = kpiL(0x04) // <= 40ms && fail <= 4
+	kpiB   = kpiL(0x05) // <= 80ms && fail <= 4
+	kpiC   = kpiL(0x06) // <= 160ms && fail <= 4
+	kpiD   = kpiL(0x07) // <=320ms && fail <= 4
+	kpiE   = kpiL(0x08) //<=640ms && fail <= 6
+	kpiF   = kpiL(0x09) // <= 1000ms && fail <= 6
+	kpiG   = kpiL(0x0a) // <= 1500ms && fail <= 6
+	kpiH   = kpiL(0x0b) // <= 2000ms && fail <= 6
+	kpiI   = kpiL(0x0c) // <= 2500ms && fail <= 6
+	kpiJ   = kpiL(0x0e) // <= 3000ms && fail <= 6
+	kpiK   = kpiL(0x0f) // <= 3500ms && fail <= 6
+	kpiM   = kpiL(0x10) // <= 4000ms && fail <= 6
+	kpiZ   = kpiL(0xff) // <= 4000ms && fail <= 6
+)
+
 type IDHT interface {
+	Start()
 }
 
 func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network string, addr string) (IDHT, error) {
@@ -41,11 +64,14 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	if err != nil {
 		return nil, errInvalidPort
 	}
+	host = host.To4()
 
 	ipv4 := uint32(host[0]) << 24
 	ipv4 |= uint32(host[1]) << 16
 	ipv4 |= uint32(host[2]) << 8
 	ipv4 |= uint32(host[3])
+
+	fmt.Println(ipv4)
 
 	node := NewNode(network, zone, uint16(port), ipv4)
 
@@ -68,12 +94,14 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	d.nodes = make(map[uint64]*dhtNode)
 
 	d.refresh = 10
-	d.quit = make(chan bool, 1)
 
 	d.conn = conn
-	d.packetInCh = make(chan IDHTPacket, 1)
-	d.packetOutCh = make(chan IDHTPacket, 50)
-	d.readNextCh = make(chan struct{}, 1)
+	d.packetInCh = make(chan IDHTPacket, d.alpha)
+	d.packetOutCh = make(chan IDHTPacket, d.alpha)
+
+	go d.readLoop()
+	go d.loop()
+	go d.store(d.self)
 
 	return d, nil
 }
@@ -97,21 +125,94 @@ type dht struct {
 
 	//事件指令
 	refresh int
-	quit    chan bool
 
 	//通讯协议
 	conn        IDHTConn
 	packetInCh  chan IDHTPacket
 	packetOutCh chan IDHTPacket
-	readNextCh  chan struct{}
 }
 
 type dhtNode struct {
 	node  INode     //节点
 	at    time.Time //节点加入时间
-	delay uint64    //毫秒
-	succ  uint8     //PING回复次数
-	total uint8     //PING发送次数
+	delay int64     //纳秒
+	succ  int64     //接受次数
+	total int64     //发送次数
+	keep  int64     //连续保持状态次数
+	score kpiL
+}
+
+func newDHTNode(node INode, initScore kpiL) *dhtNode {
+	return &dhtNode{
+		node:  node,
+		at:    time.Now(),
+		total: 0,
+		succ:  0,
+		delay: 0,
+		keep:  0,
+		score: initScore,
+	}
+}
+
+func (n *dhtNode) kpi() {
+	var delay = n.delay / 1e6
+	var fail = n.total - n.succ
+	var last = n.score
+
+	switch {
+	case delay <= 5 && fail <= 2:
+		n.score = kpiSSS
+	case delay <= 10 && fail <= 2:
+		n.score = kpiSS
+	case delay <= 20 && fail <= 4:
+		n.score = kpiS
+	case delay <= 40 && fail <= 4:
+		n.score = kpiA
+	case delay <= 80 && fail <= 4:
+		n.score = kpiB
+	case delay <= 160 && fail <= 4:
+		n.score = kpiC
+	case delay <= 320 && fail <= 4:
+		n.score = kpiD
+	case delay <= 640 && fail <= 6:
+		n.score = kpiE
+	case delay <= 1000 && fail <= 6:
+		n.score = kpiF
+	case delay <= 1500 && fail <= 6:
+		n.score = kpiG
+	case delay <= 2000 && fail <= 6:
+		n.score = kpiH
+	case delay <= 2500 && fail <= 6:
+		n.score = kpiI
+	case delay <= 3000 && fail <= 6:
+		n.score = kpiJ
+	case delay <= 3500 && fail <= 6:
+		n.score = kpiK
+	case delay <= 4000 && fail <= 6:
+		n.score = kpiM
+	default:
+		n.score = kpiZ
+	}
+
+	if last == n.score {
+		n.keep++
+	} else {
+		n.keep = 0
+	}
+
+	switch {
+	case n.keep >= 0x20 && fail > 0:
+		n.keep -= 0x20
+		n.succ++
+	}
+}
+
+func (d *dht) Start() {
+	d.logger.Infow(d.ctx, "dht srv start", "node", fmt.Sprintf("%x", d.self.Encode()), "addr", d.conn.Addr(d.self))
+	select {
+	case <-d.ctx.Done():
+		d.logger.Infow(d.ctx, "dht srv exit")
+	}
 }
 
 func (d *dht) loop() {
@@ -125,10 +226,7 @@ func (d *dht) loop() {
 	for {
 		select {
 		case <-d.ctx.Done(): //退出事件
-			goto end
-
-		case <-d.quit:
-			goto end
+			goto loopEnd
 
 		case <-refreshC.C: //刷新事件
 			d.doRefresh()
@@ -138,14 +236,15 @@ func (d *dht) loop() {
 
 		case p := <-d.packetInCh:
 			d.doReceive(p)
-			d.readNextCh <- struct{}{}
 
 		case p := <-d.packetOutCh:
 			d.doSend(p)
 		}
 	}
 
-end:
+loopEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop end")
+
 	d.doGc()
 }
 
@@ -189,6 +288,7 @@ func (d *dht) doReceive(pkt IDHTPacket) {
 		err = enc.Unmarshal([]byte(msg.GetPkt()), ping)
 		if err != nil {
 			d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+			return
 		}
 		d.doPing(ctx, ping)
 
@@ -206,13 +306,21 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 	if msg.GetTo() != d.self.Encode() {
 		return
 	}
+	var now = time.Now().UnixNano()
 	//2. 检查消息状态
 	switch msg.GetState() {
 	case proto.State_ack:
+		value, ok := d.nodes[msg.From]
+		if !ok {
+			return
+		}
+		value.succ++
+		value.delay = now - msg.St
+		value.kpi()
 
 	case proto.State_syn:
 		msg.State = proto.State_ack
-		msg.Rt = uint64(time.Now().UnixNano())
+		msg.Rt = now
 		msg.To = msg.From
 		msg.From = d.self.Encode()
 
@@ -227,12 +335,38 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 			Pkt:  string(buf),
 		}
 
-		d.send(ctx, d.conn.Addr(d.self.Decode(msg.To)), pkt)
+		d.send(ctx, d.self.Decode(msg.To), pkt)
 	}
 }
 
 func (d *dht) doRefresh() {
+	d.rwm.RLock()
+	defer d.rwm.RUnlock()
+	var now = time.Now().UnixNano()
+	var ctx = context.WithValue(d.ctx, logx.TraceId, mathx.UUID())
 
+	for node, value := range d.nodes {
+		var msg = new(proto.Ping)
+
+		msg.From = d.self.Encode()
+		msg.To = node
+		msg.St = now
+		msg.State = proto.State_syn
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal ping message", "err", err, "node", node)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_ping,
+			Pkt:  string(buf),
+		}
+
+		d.send(ctx, d.self.Decode(node), pkt)
+		value.total++
+	}
 }
 
 func (d *dht) doFix() {
@@ -243,6 +377,55 @@ func (d *dht) doGc() {
 	//1. 回收通讯FD
 	if nil != d.conn {
 		d.conn.Close()
+	}
+}
+
+func (d *dht) readLoop() {
+	var buf = make([]byte, maxPacketSize)
+
+	for {
+		n, from, err := d.conn.ReadFromUDP(buf)
+
+		if err == io.EOF {
+			d.logger.Errorw(d.ctx, "dht srv read eof")
+			goto readLoopEnd
+		}
+
+		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+			d.logger.Warnw(d.ctx, "dht srv read temporary")
+			time.Sleep(time.Second / 10)
+			continue
+		}
+
+		select {
+		case d.packetInCh <- NewPacket(d.ctx, from, buf[:n]):
+		case <-d.ctx.Done():
+			goto readLoopEnd
+		}
+
+	}
+
+readLoopEnd:
+	d.logger.Infow(d.ctx, "dnt srv readLoop end")
+}
+
+func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
+
+	if to.Encode() == d.self.Encode() {
+		return
+	}
+
+	pkt.Trace = mathx.UUID()
+	buf, err := enc.Marshal(pkt)
+	if err != nil {
+		d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+		return
+	}
+
+	select {
+	case d.packetOutCh <- NewPacket(ctx, d.conn.Addr(to), buf):
+	case <-d.ctx.Done():
+		return
 	}
 }
 
@@ -264,39 +447,23 @@ func (d *dht) xor(n INode) uint8 {
 	return d.bit - dist
 }
 
-func (s *dht) readLoop() {
-	var buf = make([]byte, maxPacketSize)
-	for range s.readNextCh {
-		n, from, err := s.conn.ReadFromUDP(buf)
-		if err == io.EOF {
-			s.logger.Errorw(s.ctx, "dht srv read eof")
-			return
-		}
-		if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
-			s.logger.Warnw(s.ctx, "dht srv read temporary")
-			time.Sleep(time.Second / 10)
-			continue
-		}
-
-		select {
-		case s.packetInCh <- NewPacket(s.ctx, from, buf[:n]):
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *dht) send(ctx context.Context, to *net.UDPAddr, pkt *proto.Packet) {
-	pkt.Trace = mathx.UUID()
-
-	buf, err := enc.Marshal(pkt)
-	if err != nil {
-		s.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+func (d *dht) store(node INode) {
+	if node == nil {
 		return
 	}
-
-	select {
-	case s.packetOutCh <- NewPacket(ctx, to, buf):
-	case <-s.ctx.Done():
+	var err = d.rtm.AddU64(node.Encode(), 0xffffffffffffffff, node.Encode())
+	if err != nil {
+		d.logger.Warnw(d.ctx, "dht srv store node fail", "err", err, "node", node.Encode())
+		return
 	}
+	var initScore kpiL
+	if node.Encode() == d.self.Encode() {
+		initScore = kpiSSS
+	} else {
+		initScore = kpiZ
+	}
+
+	d.rwm.Lock()
+	d.nodes[node.Encode()] = newDHTNode(node, initScore)
+	d.rwm.Unlock()
 }

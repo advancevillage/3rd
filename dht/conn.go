@@ -45,7 +45,7 @@ type IDHTConn interface {
 }
 
 type udpConn struct {
-	*net.UDPConn
+	cc *net.UDPConn
 }
 
 func NewUDPConn(node INode) (IDHTConn, error) {
@@ -65,19 +65,19 @@ func NewUDPConn(node INode) (IDHTConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &udpConn{cc}, nil
+	return &udpConn{cc: cc}, nil
 }
 
 func (c *udpConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
-	return c.ReadFromUDP(b)
+	return c.cc.ReadFromUDP(b)
 }
 
 func (c *udpConn) WriteToUDP(b []byte, addr *net.UDPAddr) (n int, err error) {
-	return c.WriteToUDP(b, addr)
+	return c.cc.WriteToUDP(b, addr)
 }
 
 func (c *udpConn) Close() error {
-	return c.Close()
+	return c.cc.Close()
 }
 
 func (cc udpConn) Addr(node INode) *net.UDPAddr {
