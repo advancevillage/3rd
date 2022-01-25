@@ -218,7 +218,7 @@ func (d *dht) Start() {
 func (d *dht) loop() {
 	var (
 		refreshC = time.NewTicker(time.Second * time.Duration(d.refresh))
-		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh*60))
+		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh>>1))
 	)
 	defer refreshC.Stop()
 	defer fixC.Stop()
@@ -370,11 +370,37 @@ func (d *dht) doRefresh() {
 }
 
 func (d *dht) doFix() {
+	nodes := d.rtm.ListU64()
 
+	var m = make(map[uint64]bool)
+
+	for _, node := range nodes {
+		m[node] = true
+	}
+
+	for node := range d.nodes {
+		if _, ok := m[node]; ok {
+			continue
+		}
+		err := d.rtm.AddU64(node, 0xffffffffffffffff, node)
+		if err != nil {
+			d.logger.Warnw(d.ctx, "dht srv add rtm fail", "err", err)
+		}
+	}
+
+	for node := range m {
+		if _, ok := d.nodes[node]; ok {
+			continue
+		}
+		err := d.rtm.DelU64(node, 0xffffffffffffffff)
+		if err != nil {
+			d.logger.Warnw(d.ctx, "dht srv del rtm fail", "err", err)
+		}
+	}
 }
 
 func (d *dht) doGc() {
-	//1. 回收通讯FD
+	//1. 回收Conn
 	if nil != d.conn {
 		d.conn.Close()
 	}
@@ -402,7 +428,6 @@ func (d *dht) readLoop() {
 		case <-d.ctx.Done():
 			goto readLoopEnd
 		}
-
 	}
 
 readLoopEnd:
