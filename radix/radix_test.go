@@ -122,11 +122,14 @@ var u64Test = map[string]struct {
 	"case1": {
 		smpl: 10000,
 	},
-	"case2": {
-		smpl: 100000,
-	},
-	"case3": {
-		smpl: 1000000,
+	//"case2": {
+	//	smpl: 100000,
+	//},
+	//"case3": {
+	//	smpl: 1000000,
+	//},
+	"case4": {
+		smpl: 10,
 	},
 }
 
@@ -143,6 +146,20 @@ func Test_u64_radix(t *testing.T) {
 					return
 				}
 			}
+
+			data2 := r.ListU64()
+
+			var m1 = make(map[uint64]bool)
+			var m2 = make(map[uint64]bool)
+
+			for _, v := range data {
+				m1[v.value] = true
+			}
+			for _, v := range data2 {
+				m2[v] = true
+			}
+			assert.Equal(t, m1, m2)
+
 			data = append(data, &u64T{
 				key:   0x01ffffffffffff00,
 				value: 0x01,
@@ -196,10 +213,9 @@ func genU64T(n int) []*u64T {
 		if _, ok := m[k]; ok {
 			continue
 		} else {
-			v := uint64(rand.Int63())
 			m[k] = &u64T{
 				key:   k | uint64(g)<<8 | uint64(h),
-				value: v,
+				value: k | uint64(g)<<8 | uint64(h),
 				mask:  0xffffffffffff0000,
 				err:   nil,
 			}

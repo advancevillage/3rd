@@ -158,28 +158,39 @@ type IRadixTree interface {
 	AddU64(key uint64, mask uint64, value uint64) error
 	DelU64(key uint64, mask uint64) error
 	GetU64(key uint64) (uint64, error)
+	ListU64() []uint64
 }
 
 func NewRadixTree() IRadixTree {
 	return newRadixTree()
 }
+
 func (t *radixTree) AddU32(key uint32, mask uint32, value uint32) error {
 	return t.addU32(key, mask, value)
 }
+
 func (t *radixTree) DelU32(key uint32, mask uint32) error {
 	return t.delU32(key, mask)
 }
+
 func (t *radixTree) GetU32(key uint32) (uint32, error) {
 	return t.getU32(key)
 }
+
 func (t *radixTree) AddU64(key uint64, mask uint64, value uint64) error {
 	return t.addU64(key, mask, value)
 }
+
 func (t *radixTree) DelU64(key uint64, mask uint64) error {
 	return t.delU64(key, mask)
 }
+
 func (t *radixTree) GetU64(key uint64) (uint64, error) {
 	return t.getU64(key)
+}
+
+func (t *radixTree) ListU64() []uint64 {
+	return t.listU64()
 }
 
 func newRadixTree() *radixTree {
@@ -398,4 +409,35 @@ func (t *radixTree) getU64(key uint64) (uint64, error) {
 		bit >>= 1
 	}
 	return v, err
+}
+
+func (t *radixTree) listU64() []uint64 {
+	//中序遍历
+	var (
+		values []uint64
+		p      = t.u64r //父节点
+		stack  = make([]*radixU64Node, 64)
+		pc     = 0
+	)
+
+	for pc > 0 || p != nil {
+
+		for p != nil {
+			stack[pc] = p
+			pc++
+			p = p.getL()
+		}
+
+		p = stack[pc-1]
+		pc--
+
+		if !p.isEmpty() {
+			values = append(values, p.getV())
+		}
+
+		p = p.getR()
+
+	}
+
+	return values
 }
