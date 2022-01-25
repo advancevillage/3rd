@@ -19,6 +19,9 @@ var u32Test = map[string]struct {
 	"case3": {
 		smpl: 1000000,
 	},
+	"case4": {
+		smpl: 200,
+	},
 }
 
 type u32T struct {
@@ -36,9 +39,10 @@ type u64T struct {
 }
 
 func Test_u32_radix(t *testing.T) {
-	var r = NewRadixTree()
 	for n, p := range u32Test {
 		f := func(t *testing.T) {
+			var r = NewRadixTree()
+
 			data := genU32T(p.smpl)
 
 			for _, v := range data {
@@ -48,6 +52,20 @@ func Test_u32_radix(t *testing.T) {
 					return
 				}
 			}
+
+			data2 := r.ListU32()
+
+			var m1 = make(map[uint32]bool)
+			var m2 = make(map[uint32]bool)
+
+			for _, v := range data {
+				m1[v.value] = true
+			}
+			for _, v := range data2 {
+				m2[v] = true
+			}
+			assert.Equal(t, m1, m2)
+
 			data = append(data, &u32T{
 				key:   0x01ffffff,
 				value: 0x01,
@@ -122,23 +140,23 @@ var u64Test = map[string]struct {
 	"case1": {
 		smpl: 10000,
 	},
-	//"case2": {
-	//	smpl: 100000,
-	//},
-	//"case3": {
-	//	smpl: 1000000,
-	//},
+	"case2": {
+		smpl: 100000,
+	},
+	"case3": {
+		smpl: 1000000,
+	},
 	"case4": {
-		smpl: 10,
+		smpl: 200,
 	},
 }
 
 func Test_u64_radix(t *testing.T) {
-	var r = NewRadixTree()
 	for n, p := range u64Test {
 		f := func(t *testing.T) {
-			data := genU64T(p.smpl)
+			var r = NewRadixTree()
 
+			data := genU64T(p.smpl)
 			for _, v := range data {
 				err := r.AddU64(v.key, v.mask, v.value)
 				if err != nil {
