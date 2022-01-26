@@ -48,7 +48,20 @@ var (
 )
 
 type IDHT interface {
+	Monitor() interface{}
 	Start()
+}
+
+func (d *dht) Start() {
+	d.logger.Infow(d.ctx, "dht srv start", "node", fmt.Sprintf("%x", d.self.Encode()), "addr", d.conn.Addr(d.self))
+	select {
+	case <-d.ctx.Done():
+		d.logger.Infow(d.ctx, "dht srv exit")
+	}
+}
+
+func (d *dht) Monitor() interface{} {
+	return d.dump(d.ctx)
 }
 
 func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network string, addr string) (IDHT, error) {
@@ -70,8 +83,6 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	ipv4 |= uint32(host[1]) << 16
 	ipv4 |= uint32(host[2]) << 8
 	ipv4 |= uint32(host[3])
-
-	fmt.Println(ipv4)
 
 	node := NewNode(network, zone, uint16(port), ipv4)
 
@@ -101,7 +112,7 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 
 	go d.readLoop()
 	go d.loop()
-	go d.store(d.self)
+	go d.store(d.ctx, d.self)
 
 	return d, nil
 }
@@ -207,78 +218,82 @@ func (n *dhtNode) kpi() {
 	}
 }
 
-func (d *dht) Start() {
-	d.logger.Infow(d.ctx, "dht srv start", "node", fmt.Sprintf("%x", d.self.Encode()), "addr", d.conn.Addr(d.self))
-	select {
-	case <-d.ctx.Done():
-		d.logger.Infow(d.ctx, "dht srv exit")
-	}
-}
-
 func (d *dht) loop() {
 	var (
 		refreshC = time.NewTicker(time.Second * time.Duration(d.refresh))
 		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh>>1))
+		evolutC  = time.NewTimer(time.Second * time.Duration(d.refresh<<2))
 	)
 	defer refreshC.Stop()
 	defer fixC.Stop()
+	defer evolutC.Stop()
 
 	for {
 		select {
-		case <-d.ctx.Done(): //退出事件
+		//退出事件
+		case <-d.ctx.Done():
 			goto loopEnd
 
-		case <-refreshC.C: //刷新事件
-			d.doRefresh()
+		//刷新事件
+		case <-refreshC.C:
+			d.doRefresh(d.ctx)
 
-		case <-fixC.C: //修复事件
-			d.doFix()
+		//修复事件
+		case <-fixC.C:
+			d.doFix(d.ctx)
 
+		//进化事件
+		case <-evolutC.C:
+			d.doEvolut(d.ctx)
+
+		//收报事件
 		case p := <-d.packetInCh:
-			d.doReceive(p)
+			d.doReceive(p.Ctx(), p)
 
+		//发报事件
 		case p := <-d.packetOutCh:
-			d.doSend(p)
+			d.doSend(p.Ctx(), p)
 		}
 	}
 
 loopEnd:
 	d.logger.Infow(d.ctx, "dht srv main loop end")
 
-	d.doGc()
+	//回收事件
+	d.doGc(d.ctx)
 }
 
-func (d *dht) doSend(pkt IDHTPacket) {
+func (d *dht) doSend(ctx context.Context, pkt IDHTPacket) {
 	var n = len(pkt.Body())
 
 	if n > maxPacketSize {
-		d.logger.Warnw(pkt.Ctx(), "dht srv message exceeds the maximum value", "cur", n, "max", maxPacketSize)
+		d.logger.Warnw(ctx, "dht srv message exceeds the maximum value", "cur", n, "max", maxPacketSize)
 		return
 	}
 
 	nn, err := d.conn.WriteToUDP(pkt.Body(), pkt.Addr())
 	if err != nil {
-		d.logger.Warnw(pkt.Ctx(), "dht srv send message fail", "err", err)
+		d.logger.Warnw(ctx, "dht srv send message fail", "err", err)
 		return
 	}
 
 	if nn < n {
-		d.logger.Warnw(pkt.Ctx(), "dht srv message sent incomplete", "sent", nn, "should", n)
+		d.logger.Warnw(ctx, "dht srv message sent incomplete", "sent", nn, "should", n)
 	}
 }
 
-func (d *dht) doReceive(pkt IDHTPacket) {
+func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 	var (
 		msg = new(proto.Packet)
 		err = enc.Unmarshal(pkt.Body(), msg)
 	)
 	if err != nil {
-		d.logger.Warnw(d.ctx, errInvalidMessage.Error(), "err", err)
+		d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
 		return
 	}
 
 	var (
-		ctx = context.WithValue(pkt.Ctx(), logx.TraceId, msg.GetTrace())
+		sctx = context.WithValue(ctx, logx.TraceId, msg.GetTrace())
 	)
 	switch msg.GetType() {
 	case proto.PacketType_null:
@@ -287,10 +302,10 @@ func (d *dht) doReceive(pkt IDHTPacket) {
 		var ping = new(proto.Ping)
 		err = enc.Unmarshal([]byte(msg.GetPkt()), ping)
 		if err != nil {
-			d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+			d.logger.Warnw(sctx, errInvalidMessage.Error(), "err", err)
 			return
 		}
-		d.doPing(ctx, ping)
+		d.doPing(sctx, ping)
 
 	case proto.PacketType_store:
 
@@ -339,11 +354,12 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 	}
 }
 
-func (d *dht) doRefresh() {
+func (d *dht) doRefresh(ctx context.Context) {
 	d.rwm.RLock()
 	defer d.rwm.RUnlock()
+
 	var now = time.Now().UnixNano()
-	var ctx = context.WithValue(d.ctx, logx.TraceId, mathx.UUID())
+	var sctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 
 	for node, value := range d.nodes {
 		var msg = new(proto.Ping)
@@ -355,7 +371,7 @@ func (d *dht) doRefresh() {
 
 		buf, err := enc.Marshal(msg)
 		if err != nil {
-			d.logger.Warnw(ctx, "dht srv marshal ping message", "err", err, "node", node)
+			d.logger.Warnw(sctx, "dht srv marshal ping message", "err", err, "node", node)
 			return
 		}
 
@@ -369,7 +385,8 @@ func (d *dht) doRefresh() {
 	}
 }
 
-func (d *dht) doFix() {
+func (d *dht) doFix(ctx context.Context) {
+	var sctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 	nodes := d.rtm.ListU64()
 
 	var m = make(map[uint64]bool)
@@ -384,7 +401,7 @@ func (d *dht) doFix() {
 		}
 		err := d.rtm.AddU64(node, 0xffffffffffffffff, node)
 		if err != nil {
-			d.logger.Warnw(d.ctx, "dht srv add rtm fail", "err", err)
+			d.logger.Warnw(sctx, "dht srv add rtm fail", "err", err)
 		}
 	}
 
@@ -394,16 +411,30 @@ func (d *dht) doFix() {
 		}
 		err := d.rtm.DelU64(node, 0xffffffffffffffff)
 		if err != nil {
-			d.logger.Warnw(d.ctx, "dht srv del rtm fail", "err", err)
+			d.logger.Warnw(sctx, "dht srv del rtm fail", "err", err)
 		}
 	}
 }
 
-func (d *dht) doGc() {
-	//1. 回收Conn
-	if nil != d.conn {
-		d.conn.Close()
+func (d *dht) doEvolut(ctx context.Context) {
+	var sctx = context.WithValue(ctx, logx.TraceId, mathx.UUID()) //优胜劣汰，适者生存
+	var bad []uint64
+
+	for node, value := range d.nodes {
+		switch {
+		case value.score > kpiJ:
+			bad = append(bad, node)
+		}
 	}
+
+	for i := range bad {
+		node := d.self.Decode(bad[i])
+		d.remove(sctx, node)
+	}
+}
+
+func (d *dht) doGc(ctx context.Context) {
+	//1. 回收Conn
 }
 
 func (d *dht) readLoop() {
@@ -472,13 +503,13 @@ func (d *dht) xor(n INode) uint8 {
 	return d.bit - dist
 }
 
-func (d *dht) store(node INode) {
+func (d *dht) store(ctx context.Context, node INode) {
 	if node == nil {
 		return
 	}
 	var err = d.rtm.AddU64(node.Encode(), 0xffffffffffffffff, node.Encode())
 	if err != nil {
-		d.logger.Warnw(d.ctx, "dht srv store node fail", "err", err, "node", node.Encode())
+		d.logger.Warnw(ctx, "dht srv store node fail", "err", err, "node", node.Encode())
 		return
 	}
 	var initScore kpiL
@@ -491,4 +522,34 @@ func (d *dht) store(node INode) {
 	d.rwm.Lock()
 	d.nodes[node.Encode()] = newDHTNode(node, initScore)
 	d.rwm.Unlock()
+}
+
+func (d *dht) remove(ctx context.Context, node INode) {
+	if node == nil || node.Encode() == d.self.Encode() {
+		return
+	}
+
+	var err = d.rtm.DelU64(node.Encode(), 0xffffffffffffffff)
+	if err != nil {
+		d.logger.Warnw(ctx, "dht srv remove node fail", "err", err, "node", node.Encode())
+		return
+	}
+
+	d.rwm.Lock()
+	delete(d.nodes, node.Encode())
+	d.rwm.Unlock()
+}
+
+func (d *dht) dump(ctx context.Context) interface{} {
+	d.rwm.RLock()
+	defer d.rwm.RUnlock()
+
+	var r = make([]map[string]interface{}, 0, len(d.nodes))
+	for node, value := range d.nodes {
+		r = append(r, map[string]interface{}{
+			"nodeId": fmt.Sprintf("%x", node),
+			"score":  fmt.Sprintf("%x", value.score),
+		})
+	}
+	return r
 }

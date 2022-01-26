@@ -2,7 +2,11 @@ package dht
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/advancevillage/3rd/logx"
 )
@@ -22,7 +26,20 @@ var dhtTest = map[string]struct {
 }
 
 func Test_dht(t *testing.T) {
-	var ctx = context.TODO()
+	var ctx, cancel = context.WithCancel(context.TODO())
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-c:
+			cancel()
+		}
+		signal.Stop(c)
+		close(c)
+	}()
+
 	for n, p := range dhtTest {
 		f := func(t *testing.T) {
 			var logger, err = logx.NewLogger(p.level)
@@ -35,7 +52,20 @@ func Test_dht(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			s.Start()
+
+			go s.Start()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-c:
+					return
+				default:
+					time.Sleep(time.Second)
+					logger.Infow(context.TODO(), "dump dht", "dump", s.Monitor())
+				}
+			}
 		}
 		t.Run(n, f)
 	}
