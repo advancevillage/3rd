@@ -513,15 +513,9 @@ func (d *dht) store(ctx context.Context, node INode) {
 		d.logger.Warnw(ctx, "dht srv store node fail", "err", err, "node", node.Encode())
 		return
 	}
-	var initScore kpiL
-	if node.Encode() == d.self.Encode() {
-		initScore = kpiSSS
-	} else {
-		initScore = kpiZ
-	}
 
 	d.rwm.Lock()
-	d.nodes[node.Encode()] = newDHTNode(node, initScore)
+	d.nodes[node.Encode()] = newDHTNode(node, kpiSSS)
 	d.rwm.Unlock()
 }
 

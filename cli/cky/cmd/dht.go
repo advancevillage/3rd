@@ -87,6 +87,8 @@ func dhtSrv(node uint64) {
 
 	addr := fmt.Sprintf("%d.%d.%d.%d:%d", byte(ipv4>>24), byte(ipv4>>16), byte(ipv4>>8), byte(ipv4), port)
 
+	logger.Infow(ctx, "dht seed list", "seeds", seed)
+
 	srv, err := dht.NewDHT(ctx, logger, enc.Zone(), enc.Protocol(), addr, seed)
 	if err != nil {
 		return
@@ -97,7 +99,7 @@ func dhtSrv(node uint64) {
 		select {
 		case <-ctx.Done():
 		default:
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 3)
 			logger.Infow(ctx, "dht srv dump", "inner", srv.Monitor())
 		}
 	}
