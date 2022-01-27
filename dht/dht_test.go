@@ -16,12 +16,14 @@ var dhtTest = map[string]struct {
 	addr    string
 	level   string
 	zone    uint16
+	seed    []uint64
 }{
 	"case1": {
 		network: "udp",
 		addr:    "192.168.187.176:5555",
 		level:   "info",
 		zone:    0x1010,
+		seed:    []uint64{},
 	},
 }
 
@@ -47,7 +49,7 @@ func Test_dht(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			s, err := NewDHT(ctx, logger, p.zone, p.network, p.addr)
+			s, err := NewDHT(ctx, logger, p.zone, p.network, p.addr, p.seed)
 			if err != nil {
 				t.Fatal(err)
 				return

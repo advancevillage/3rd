@@ -54,6 +54,12 @@ type IDHT interface {
 
 func (d *dht) Start() {
 	d.logger.Infow(d.ctx, "dht srv start", "node", fmt.Sprintf("%x", d.self.Encode()), "addr", d.conn.Addr(d.self))
+
+	go d.readLoop()
+	go d.loop()
+	go d.store(d.ctx, d.self)
+	go d.seeds(d.ctx, d.seed)
+
 	select {
 	case <-d.ctx.Done():
 		d.logger.Infow(d.ctx, "dht srv exit")
@@ -64,7 +70,7 @@ func (d *dht) Monitor() interface{} {
 	return d.dump(d.ctx)
 }
 
-func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network string, addr string) (IDHT, error) {
+func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network string, addr string, seed []uint64) (IDHT, error) {
 	var hostStr, portStr, err = net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -99,20 +105,16 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	d.k = 4
 	d.bit = 0x40
 	d.alpha = 3
+	d.refresh = 10
 	d.bucket = make([]uint8, d.bit)
+	d.seed = seed
 
 	d.rtm = radix.NewRadixTree()
 	d.nodes = make(map[uint64]*dhtNode)
 
-	d.refresh = 10
-
 	d.conn = conn
 	d.packetInCh = make(chan IDHTPacket, d.alpha)
 	d.packetOutCh = make(chan IDHTPacket, d.alpha)
-
-	go d.readLoop()
-	go d.loop()
-	go d.store(d.ctx, d.self)
 
 	return d, nil
 }
@@ -124,18 +126,17 @@ type dht struct {
 	logger logx.ILogger
 
 	//常数设置
-	k      uint8
-	alpha  uint8
-	bit    uint8
-	bucket []uint8
+	k       uint8
+	alpha   uint8
+	bit     uint8
+	bucket  []uint8
+	refresh int
 
 	//路由表
 	rtm   radix.IRadixTree
 	nodes map[uint64]*dhtNode //存储节点列表
 	rwm   sync.RWMutex
-
-	//事件指令
-	refresh int
+	seed  []uint64 //初始节点
 
 	//通讯协议
 	conn        IDHTConn
@@ -538,6 +539,12 @@ func (d *dht) remove(ctx context.Context, node INode) {
 	d.rwm.Lock()
 	delete(d.nodes, node.Encode())
 	d.rwm.Unlock()
+}
+
+func (d *dht) seeds(ctx context.Context, nodes []uint64) {
+	for i := range nodes {
+		d.store(ctx, d.self.Decode(nodes[i]))
+	}
 }
 
 func (d *dht) dump(ctx context.Context) interface{} {
