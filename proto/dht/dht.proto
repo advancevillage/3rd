@@ -7,7 +7,7 @@ option go_package="github.com/advancevillage/3rd/proto";
 message Packet {
     PacketType  type    = 1; //消息类型
     string      trace   = 2; //链路跟踪ID
-    string      pkt     = 3; //消息内容
+    bytes       pkt     = 3; //消息内容
 }
 
 

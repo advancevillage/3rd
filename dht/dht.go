@@ -348,7 +348,7 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 
 		pkt := &proto.Packet{
 			Type: proto.PacketType_ping,
-			Pkt:  string(buf),
+			Pkt:  buf,
 		}
 
 		d.send(ctx, d.self.Decode(msg.To), pkt)
@@ -378,7 +378,7 @@ func (d *dht) doRefresh(ctx context.Context) {
 
 		pkt := &proto.Packet{
 			Type: proto.PacketType_ping,
-			Pkt:  string(buf),
+			Pkt:  buf,
 		}
 
 		d.send(ctx, d.self.Decode(node), pkt)
