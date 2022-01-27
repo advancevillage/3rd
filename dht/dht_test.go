@@ -22,7 +22,7 @@ var dhtTest = map[string]struct {
 		network: "udp",
 		addr:    "192.168.187.176:5555",
 		level:   "info",
-		zone:    0x1010,
+		zone:    0x0000,
 		seed:    []uint64{},
 	},
 }
