@@ -53,10 +53,11 @@ func dhtSrv(node uint64) {
 	a := dht.NewNode("udp", 0x0000, 5555, 0x7f000001)
 	enc := a.Decode(node)
 
+	seeds := strings.Split(seedStr, ",")
 	seed := []uint64{}
-	for _, v := range strings.Split(seedStr, ",") {
+	for _, v := range seeds {
 		v = strings.Replace(v, "0x", "", -1)
-		vv, err := strconv.ParseUint("", 16, 64)
+		vv, err := strconv.ParseUint(v, 16, 64)
 		if err != nil {
 			continue
 		}
