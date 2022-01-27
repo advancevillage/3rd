@@ -289,7 +289,7 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 		err = enc.Unmarshal(pkt.Body(), msg)
 	)
 	if err != nil {
-		d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+		d.logger.Warnw(ctx, "receive package", "type", errInvalidMessage, "err", err)
 		return
 	}
 
@@ -301,9 +301,9 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 
 	case proto.PacketType_ping:
 		var ping = new(proto.Ping)
-		err = enc.Unmarshal([]byte(msg.GetPkt()), ping)
+		err = enc.Unmarshal(msg.GetPkt(), ping)
 		if err != nil {
-			d.logger.Warnw(sctx, errInvalidMessage.Error(), "err", err)
+			d.logger.Warnw(ctx, "receive ping message", "type", errInvalidMessage, "err", err)
 			return
 		}
 		d.doPing(sctx, ping)
@@ -372,7 +372,7 @@ func (d *dht) doRefresh(ctx context.Context) {
 
 		buf, err := enc.Marshal(msg)
 		if err != nil {
-			d.logger.Warnw(sctx, "dht srv marshal ping message", "err", err, "node", node)
+			d.logger.Warnw(sctx, "send ping message", "type", errInvalidMessage, "err", err, "msg", msg)
 			return
 		}
 
@@ -475,7 +475,7 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 	pkt.Trace = []byte(mathx.UUID())
 	buf, err := enc.Marshal(pkt)
 	if err != nil {
-		d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
+		d.logger.Warnw(ctx, "send package", "type", errInvalidMessage, "err", err, "msg", pkt)
 		return
 	}
 
