@@ -294,7 +294,7 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 	}
 
 	var (
-		sctx = context.WithValue(ctx, logx.TraceId, msg.GetTrace())
+		sctx = context.WithValue(ctx, logx.TraceId, string(msg.GetTrace()))
 	)
 	switch msg.GetType() {
 	case proto.PacketType_null:
@@ -472,7 +472,7 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 		return
 	}
 
-	pkt.Trace = mathx.UUID()
+	pkt.Trace = []byte(mathx.UUID())
 	buf, err := enc.Marshal(pkt)
 	if err != nil {
 		d.logger.Warnw(ctx, errInvalidMessage.Error(), "err", err)
