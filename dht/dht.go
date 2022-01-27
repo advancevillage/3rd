@@ -472,7 +472,12 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 		return
 	}
 
-	pkt.Trace = []byte(mathx.UUID())
+	if trace, ok := ctx.Value(logx.TraceId).(string); ok {
+		pkt.Trace = []byte(trace)
+	} else {
+		pkt.Trace = []byte(mathx.UUID())
+	}
+
 	buf, err := enc.Marshal(pkt)
 	if err != nil {
 		d.logger.Warnw(ctx, "send package", "type", errInvalidMessage, "err", err, "msg", pkt)

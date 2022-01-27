@@ -16,3 +16,4 @@ p2p/dht
 *.pem
 *.cap
 cli/cky/cky
+*.pcap
