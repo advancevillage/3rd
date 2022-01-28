@@ -105,7 +105,7 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	d.k = 4
 	d.bit = 0x40
 	d.alpha = 3
-	d.refresh = 10
+	d.refresh = 5
 	d.bucket = make([]uint8, d.bit)
 	d.seed = seed
 
@@ -518,9 +518,15 @@ func (d *dht) store(ctx context.Context, node INode) {
 		d.logger.Warnw(ctx, "dht srv store node fail", "err", err, "node", node.Encode())
 		return
 	}
+	var kpi kpiL
+	if node.Encode() == d.self.Encode() {
+		kpi = kpiSSS
+	} else {
+		kpi = kpiZ
+	}
 
 	d.rwm.Lock()
-	d.nodes[node.Encode()] = newDHTNode(node, kpiSSS)
+	d.nodes[node.Encode()] = newDHTNode(node, kpi)
 	d.rwm.Unlock()
 }
 
