@@ -224,16 +224,21 @@ func (d *dht) loop() {
 		refreshC = time.NewTicker(time.Second * time.Duration(d.refresh))
 		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh>>1))
 		evolutC  = time.NewTimer(time.Second * time.Duration(d.refresh<<2))
+		findNC   = time.NewTimer(time.Second * time.Duration(d.refresh<<1))
 	)
 	defer refreshC.Stop()
 	defer fixC.Stop()
 	defer evolutC.Stop()
+	defer findNC.Stop()
 
 	for {
 		select {
 		//退出事件
 		case <-d.ctx.Done():
 			goto loopEnd
+
+		//KClose事件
+		case <-findNC.C:
 
 		//刷新事件
 		case <-refreshC.C:
@@ -311,9 +316,53 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 	case proto.PacketType_store:
 
 	case proto.PacketType_findnode:
+		var findnode = new(proto.FindNode)
+		err = enc.Unmarshal(msg.GetPkt(), findnode)
+		if err != nil {
+			d.logger.Warnw(ctx, "receive findnode message", "type", errInvalidMessage, "err", err)
+			return
+		}
+		d.doFindNode(sctx, findnode)
 
 	case proto.PacketType_findvalue:
 
+	}
+}
+
+func (d *dht) doFindNode(ctx context.Context, msg *proto.FindNode) {
+	if msg.GetTo() != d.self.Encode() {
+		return
+	}
+	var now = time.Now().UnixNano()
+
+	switch msg.GetState() {
+	case proto.State_ack:
+		kclose := msg.GetK()
+		for i := range kclose {
+			d.store(ctx, d.self.Decode(kclose[i]))
+		}
+
+	case proto.State_syn:
+		msg.State = proto.State_ack
+		msg.Rt = now
+		msg.To = msg.From
+		msg.From = d.self.Encode()
+
+		//query k-closest
+		msg.K = d.closest(ctx, d.self.Decode(msg.Q), d.k)
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal findnode message", "err", err)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_findnode,
+			Pkt:  buf,
+		}
+
+		d.send(ctx, d.self.Decode(msg.To), pkt)
 	}
 }
 
@@ -386,6 +435,38 @@ func (d *dht) doRefresh(ctx context.Context) {
 	}
 }
 
+func (d *dht) doKClose(ctx context.Context) {
+
+	var (
+		now    = time.Now().UnixNano()
+		sctx   = context.WithValue(ctx, logx.TraceId, mathx.UUID())
+		kClose = d.closest(sctx, d.self, d.k)
+	)
+
+	for _, node := range kClose {
+		var msg = new(proto.FindNode)
+
+		msg.From = d.self.Encode()
+		msg.To = node
+		msg.St = now
+		msg.State = proto.State_syn
+		msg.Q = d.self.Encode()
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(sctx, "send findnode message", "type", errInvalidMessage, "err", err, "msg", msg)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_findnode,
+			Pkt:  buf,
+		}
+
+		d.send(ctx, d.self.Decode(node), pkt)
+	}
+}
+
 func (d *dht) doFix(ctx context.Context) {
 	var sctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 	nodes := d.rtm.ListU64()
@@ -414,6 +495,14 @@ func (d *dht) doFix(ctx context.Context) {
 		if err != nil {
 			d.logger.Warnw(sctx, "dht srv del rtm fail", "err", err)
 		}
+	}
+
+	for i := range d.bucket {
+		d.bucket[i] = 0
+	}
+
+	for node := range d.nodes {
+		d.bucket[d.xor(d.self, d.self.Decode(node))]++
 	}
 }
 
@@ -491,22 +580,32 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 	}
 }
 
-func (d *dht) xor(n INode) uint8 {
+func (d *dht) xor(src INode, dst INode) uint8 {
 	var (
-		dist = d.bit
-		bit  = uint64(0x8000000000000000)
-		x    = d.self.Encode() ^ n.Encode()
+		dist  = d.bit - 1 //[0,d.bit)
+		probe = uint64(0x8000000000000000)
+		//距离的定义:
+		// src: 101010101010110.........10101
+		// dst: 101010101010111.........10101
+		//  ^ : 000000000000001.........00000
+		//		-----------------------------
+		//	                  |--->dist<----|
+		x = src.Encode() ^ dst.Encode()
 	)
 
-	for bit > 0 && x > 0 {
-		if bit&x > 0 {
+	for probe > 0 {
+		if probe&x > 0 {
 			break
 		}
-		bit >>= 1
+		probe >>= 1
 		dist--
 	}
 
-	return d.bit - dist
+	if dist > d.bit || dist < 0 { //溢出
+		dist = 0
+	}
+
+	return dist % d.bit
 }
 
 func (d *dht) store(ctx context.Context, node INode) {
@@ -523,6 +622,11 @@ func (d *dht) store(ctx context.Context, node INode) {
 		kpi = kpiSSS
 	} else {
 		kpi = kpiZ
+	}
+
+	if x := d.xor(d.self, node); d.bucket[x] > d.k {
+		d.logger.Infow(ctx, "dht srv bucket is full", "slot", x)
+		return
 	}
 
 	d.rwm.Lock()
@@ -563,5 +667,44 @@ func (d *dht) dump(ctx context.Context) interface{} {
 			"score":  fmt.Sprintf("0x%x", value.score),
 		})
 	}
+	return r
+}
+
+func (d *dht) closest(ctx context.Context, node INode, k uint8) []uint64 {
+	var (
+		dist  = make([]uint8, 0, d.bit)
+		nodes = make([]uint64, 0, d.bit)
+	)
+
+	d.rwm.RLock()
+	for n := range d.nodes {
+		var x = d.xor(node, d.self.Decode(n))
+		dist = append(dist, x)
+		nodes = append(nodes, n)
+	}
+	d.rwm.RUnlock()
+
+	var h, err = NewDHTHeap(dist, nodes)
+	if err != nil {
+		d.logger.Warnw(ctx, "dht srv k-close node fail", "err", err, "node", node.Encode())
+		return nil
+	}
+
+	return h.Top(k)
+}
+
+func (d *dht) random(ctx context.Context) []uint64 {
+	var r = make([]uint64, 0, d.alpha)
+
+	d.rwm.RLock()
+	defer d.rwm.RUnlock()
+
+	for node := range d.nodes {
+		if len(r) >= int(d.alpha) {
+			break
+		}
+		r = append(r, node)
+	}
+
 	return r
 }

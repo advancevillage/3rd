@@ -27,3 +27,6 @@ jobs:
 
     - name: cli cky
       run: go build -o cli/cky/cky cli/cky/main.go
+
+    - name: dht heap
+      run: go test -v -count=1 -cover -test.run Test_dht_heap ./dht
