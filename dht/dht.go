@@ -260,7 +260,7 @@ func (d *dht) loopTimer() {
 
 	var (
 		t       = mathx.Primes(d.factor)
-		lt      = len(t)
+		lt      = len(t) - 1
 		fixC    = time.NewTicker(time.Second * time.Duration(t[lt-3]))
 		evolutC = time.NewTimer(time.Second * time.Duration(t[lt]))
 	)
