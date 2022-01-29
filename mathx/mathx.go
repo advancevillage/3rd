@@ -99,3 +99,35 @@ func CRC16(b []byte) uint16 {
 	}
 	return ^fcs
 }
+
+//------------------------------primes------------------------------------
+func Primes(n int) []int {
+	var v []int
+	//素数的定义: 只能被1和它本身整除
+	//Sieve of Eratosthenes Algo https://zh.wikipedia.org/wiki/埃拉托斯特尼筛法
+	var isPrim = make([]bool, n)
+
+	for i := range isPrim {
+		isPrim[i] = true
+	}
+
+	for i := 2; i*i < n; i++ { //i [2, sqrt(n)]
+		if isPrim[i] {
+			for j := i * i; j < n; j += i {
+				isPrim[j] = false
+			}
+		} else {
+			continue
+		}
+	}
+
+	for i := 2; i < n; i++ {
+		if isPrim[i] {
+			v = append(v, i)
+		} else {
+			continue
+		}
+	}
+
+	return v
+}

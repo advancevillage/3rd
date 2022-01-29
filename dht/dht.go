@@ -105,7 +105,7 @@ func NewDHT(ctx context.Context, logger logx.ILogger, zone uint16, network strin
 	d.k = 4
 	d.bit = 0x40
 	d.alpha = 3
-	d.refresh = 5
+	d.factor = 10
 	d.bucket = make([]uint8, d.bit)
 	d.seed = seed
 
@@ -126,11 +126,11 @@ type dht struct {
 	logger logx.ILogger
 
 	//常数设置
-	k       uint8
-	alpha   uint8
-	bit     uint8
-	bucket  []uint8
-	refresh int
+	k      uint8
+	alpha  uint8
+	bit    uint8
+	bucket []uint8
+	factor int
 
 	//路由表
 	rtm   radix.IRadixTree
@@ -258,29 +258,19 @@ func (d *dht) loopTimer() {
 	defer d.wg.Done()
 
 	var (
-		refreshC = time.NewTicker(time.Second * time.Duration(d.refresh))
-		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh>>1))
-		evolutC  = time.NewTimer(time.Second * time.Duration(d.refresh<<2))
-		findNC   = time.NewTimer(time.Second * time.Duration(d.refresh<<1))
+		t       = mathx.Primes(d.factor)
+		lt      = len(t)
+		fixC    = time.NewTicker(time.Second * time.Duration(t[lt-3]))
+		evolutC = time.NewTimer(time.Second * time.Duration(t[lt]))
 	)
-	defer refreshC.Stop()
 	defer fixC.Stop()
 	defer evolutC.Stop()
-	defer findNC.Stop()
 
 	for {
 		select {
 		//退出事件
 		case <-d.ctx.Done():
 			goto loopTimerEnd
-
-		//KClose事件
-		case <-findNC.C:
-			d.doKClose(d.ctx)
-
-		//刷新事件
-		case <-refreshC.C:
-			d.doRefresh(d.ctx)
 
 		//修复事件
 		case <-fixC.C:
@@ -294,6 +284,41 @@ func (d *dht) loopTimer() {
 
 loopTimerEnd:
 	d.logger.Infow(d.ctx, "dht srv main loop timer end")
+}
+
+func (d *dht) loopRPC() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	var (
+		t        = mathx.Primes(d.factor)
+		lt       = len(t) - 1
+		refreshC = time.NewTicker(time.Second * time.Duration(t[lt-2]))
+		findNC   = time.NewTimer(time.Second * time.Duration(t[lt-1]))
+	)
+	defer refreshC.Stop()
+	defer findNC.Stop()
+
+	for {
+		select {
+		//退出事件
+		case <-d.ctx.Done():
+			goto loopRPCEnd
+
+		//KClose事件
+		case <-findNC.C:
+			d.doKClose(d.ctx)
+
+		//刷新事件
+		case <-refreshC.C:
+			d.doRefresh(d.ctx)
+
+		}
+	}
+
+loopRPCEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop rpc end")
+
 }
 
 func (d *dht) doSend(ctx context.Context, pkt IDHTPacket) {
