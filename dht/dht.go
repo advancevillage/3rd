@@ -692,6 +692,7 @@ func (d *dht) dump(ctx context.Context) interface{} {
 		r = append(r, map[string]interface{}{
 			"nodeId": fmt.Sprintf("0x%x", node),
 			"score":  fmt.Sprintf("0x%x", value.score),
+			"ext":    value,
 		})
 	}
 	return r
