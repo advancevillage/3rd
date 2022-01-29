@@ -548,6 +548,8 @@ func (d *dht) doEvolut(ctx context.Context) {
 		}
 	}
 
+	d.logger.Infow(ctx, "dht srv evolut bad node", "bad", bad)
+
 	for i := range bad {
 		node := d.self.Decode(bad[i])
 		d.remove(sctx, node)
