@@ -223,6 +223,7 @@ func (n *dhtNode) kpi() {
 func (d *dht) loop() {
 	go d.loopTimer()
 	go d.loopNetIO()
+	go d.loopRPC()
 	d.wg.Wait()
 
 	//回收事件
