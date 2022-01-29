@@ -100,7 +100,7 @@ func dhtSrv(node uint64) {
 		select {
 		case <-ctx.Done():
 		default:
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 2)
 			logger.Infow(ctx, "dht srv dump", "inner", srv.Monitor())
 		}
 	}
