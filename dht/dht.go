@@ -291,7 +291,7 @@ func (d *dht) loopEvolut() {
 	var (
 		t       = mathx.Primes(d.factor)
 		lt      = len(t) - 1
-		evolutC = time.NewTimer(time.Second * time.Duration(t[lt]))
+		evolutC = time.NewTicker(time.Second * time.Duration(t[lt]))
 	)
 	defer evolutC.Stop()
 
@@ -347,7 +347,7 @@ func (d *dht) loopKClose() {
 	var (
 		t      = mathx.Primes(d.factor)
 		lt     = len(t) - 1
-		findNC = time.NewTimer(time.Second * time.Duration(t[lt-1]))
+		findNC = time.NewTicker(time.Second * time.Duration(t[lt-1]))
 	)
 	defer findNC.Stop()
 
