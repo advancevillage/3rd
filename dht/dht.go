@@ -136,6 +136,7 @@ type dht struct {
 	rtm   radix.IRadixTree
 	nodes map[uint64]*dhtNode //存储节点列表
 	rwm   sync.RWMutex
+	wg    sync.WaitGroup
 	seed  []uint64 //初始节点
 
 	//通讯协议
@@ -220,6 +221,42 @@ func (n *dhtNode) kpi() {
 }
 
 func (d *dht) loop() {
+	go d.loopTimer()
+	go d.loopNetIO()
+	d.wg.Wait()
+
+	//回收事件
+	d.doGc(d.ctx)
+}
+
+func (d *dht) loopNetIO() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	for {
+		select {
+		//收报事件
+		case p := <-d.packetInCh:
+			d.doReceive(p.Ctx(), p)
+
+		//发报事件
+		case p := <-d.packetOutCh:
+			d.doSend(p.Ctx(), p)
+
+		case <-d.ctx.Done():
+			goto loopIOEnd
+		}
+	}
+
+loopIOEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop io end")
+
+}
+
+func (d *dht) loopTimer() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
 	var (
 		refreshC = time.NewTicker(time.Second * time.Duration(d.refresh))
 		fixC     = time.NewTicker(time.Second * time.Duration(d.refresh>>1))
@@ -235,10 +272,11 @@ func (d *dht) loop() {
 		select {
 		//退出事件
 		case <-d.ctx.Done():
-			goto loopEnd
+			goto loopTimerEnd
 
 		//KClose事件
 		case <-findNC.C:
+			d.doKClose(d.ctx)
 
 		//刷新事件
 		case <-refreshC.C:
@@ -251,22 +289,11 @@ func (d *dht) loop() {
 		//进化事件
 		case <-evolutC.C:
 			d.doEvolut(d.ctx)
-
-		//收报事件
-		case p := <-d.packetInCh:
-			d.doReceive(p.Ctx(), p)
-
-		//发报事件
-		case p := <-d.packetOutCh:
-			d.doSend(p.Ctx(), p)
 		}
 	}
 
-loopEnd:
-	d.logger.Infow(d.ctx, "dht srv main loop end")
-
-	//回收事件
-	d.doGc(d.ctx)
+loopTimerEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop timer end")
 }
 
 func (d *dht) doSend(ctx context.Context, pkt IDHTPacket) {
@@ -471,14 +498,14 @@ func (d *dht) doFix(ctx context.Context) {
 	var sctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 	nodes := d.rtm.ListU64()
 
-	var m = make(map[uint64]bool)
+	var index = make(map[uint64]bool)
 
 	for _, node := range nodes {
-		m[node] = true
+		index[node] = true
 	}
 
 	for node := range d.nodes {
-		if _, ok := m[node]; ok {
+		if _, ok := index[node]; ok {
 			continue
 		}
 		err := d.rtm.AddU64(node, 0xffffffffffffffff, node)
@@ -487,7 +514,7 @@ func (d *dht) doFix(ctx context.Context) {
 		}
 	}
 
-	for node := range m {
+	for node := range index {
 		if _, ok := d.nodes[node]; ok {
 			continue
 		}
