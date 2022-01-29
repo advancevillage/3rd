@@ -207,7 +207,7 @@ func (n *dhtNode) kpi() {
 		n.score = kpiZ
 	}
 
-	if last == n.score {
+	if last == n.score && n.score != kpiZ {
 		n.keep++
 	} else {
 		n.keep = 0
@@ -408,7 +408,6 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 		}
 		value.succ++
 		value.delay = now - msg.St
-		value.kpi()
 
 	case proto.State_syn:
 		msg.State = proto.State_ack
@@ -459,6 +458,11 @@ func (d *dht) doRefresh(ctx context.Context) {
 
 		d.send(ctx, d.self.Decode(node), pkt)
 		value.total++
+
+		if node == d.self.Encode() {
+			d.local(ctx)
+		}
+		value.kpi()
 	}
 }
 
@@ -738,4 +742,14 @@ func (d *dht) random(ctx context.Context) []uint64 {
 	}
 
 	return r
+}
+
+func (d *dht) local(ctx context.Context) {
+	d.rwm.RLock()
+	defer d.rwm.RUnlock()
+
+	if value, ok := d.nodes[d.self.Encode()]; ok {
+		value.delay = 0
+		value.succ++
+	}
 }
