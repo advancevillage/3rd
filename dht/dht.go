@@ -221,9 +221,11 @@ func (n *dhtNode) kpi() {
 }
 
 func (d *dht) loop() {
-	go d.loopTimer()
 	go d.loopNetIO()
-	go d.loopRPC()
+	go d.loopFix()
+	go d.loopEvolut()
+	go d.loopRefresh()
+	go d.loopKClose()
 	d.wg.Wait()
 
 	//回收事件
@@ -245,37 +247,59 @@ func (d *dht) loopNetIO() {
 			d.doSend(p.Ctx(), p)
 
 		case <-d.ctx.Done():
-			goto loopIOEnd
+			goto loopNetIOEnd
 		}
 	}
 
-loopIOEnd:
-	d.logger.Infow(d.ctx, "dht srv main loop io end")
+loopNetIOEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop net io end")
 
 }
 
-func (d *dht) loopTimer() {
+func (d *dht) loopFix() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	var (
+		t    = mathx.Primes(d.factor)
+		lt   = len(t) - 1
+		fixC = time.NewTicker(time.Second * time.Duration(t[lt-3]))
+	)
+	defer fixC.Stop()
+
+	for {
+		select {
+		//退出事件
+		case <-d.ctx.Done():
+			goto loopFixEnd
+
+		//修复事件
+		case <-fixC.C:
+			d.doFix(d.ctx)
+
+		}
+	}
+
+loopFixEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop fix end")
+}
+
+func (d *dht) loopEvolut() {
 	d.wg.Add(1)
 	defer d.wg.Done()
 
 	var (
 		t       = mathx.Primes(d.factor)
 		lt      = len(t) - 1
-		fixC    = time.NewTicker(time.Second * time.Duration(t[lt-3]))
 		evolutC = time.NewTimer(time.Second * time.Duration(t[lt]))
 	)
-	defer fixC.Stop()
 	defer evolutC.Stop()
 
 	for {
 		select {
 		//退出事件
 		case <-d.ctx.Done():
-			goto loopTimerEnd
-
-		//修复事件
-		case <-fixC.C:
-			d.doFix(d.ctx)
+			goto loopEvolutEnd
 
 		//进化事件
 		case <-evolutC.C:
@@ -283,11 +307,11 @@ func (d *dht) loopTimer() {
 		}
 	}
 
-loopTimerEnd:
-	d.logger.Infow(d.ctx, "dht srv main loop timer end")
+loopEvolutEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop evolut end")
 }
 
-func (d *dht) loopRPC() {
+func (d *dht) loopRefresh() {
 	d.wg.Add(1)
 	defer d.wg.Done()
 
@@ -295,20 +319,14 @@ func (d *dht) loopRPC() {
 		t        = mathx.Primes(d.factor)
 		lt       = len(t) - 1
 		refreshC = time.NewTicker(time.Second * time.Duration(t[lt-2]))
-		findNC   = time.NewTimer(time.Second * time.Duration(t[lt-1]))
 	)
 	defer refreshC.Stop()
-	defer findNC.Stop()
 
 	for {
 		select {
 		//退出事件
 		case <-d.ctx.Done():
-			goto loopRPCEnd
-
-		//KClose事件
-		case <-findNC.C:
-			d.doKClose(d.ctx)
+			goto loopRefreshEnd
 
 		//刷新事件
 		case <-refreshC.C:
@@ -317,8 +335,37 @@ func (d *dht) loopRPC() {
 		}
 	}
 
-loopRPCEnd:
-	d.logger.Infow(d.ctx, "dht srv main loop rpc end")
+loopRefreshEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop refresh end")
+
+}
+
+func (d *dht) loopKClose() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	var (
+		t      = mathx.Primes(d.factor)
+		lt     = len(t) - 1
+		findNC = time.NewTimer(time.Second * time.Duration(t[lt-1]))
+	)
+	defer findNC.Stop()
+
+	for {
+		select {
+		//退出事件
+		case <-d.ctx.Done():
+			goto loopKCloseEnd
+
+		//KClose事件
+		case <-findNC.C:
+			d.doKClose(d.ctx)
+
+		}
+	}
+
+loopKCloseEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop kclose end")
 
 }
 
