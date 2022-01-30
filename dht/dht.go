@@ -29,22 +29,33 @@ var (
 type kpiL uint8
 
 var (
-	kpiSSS = kpiL(0x01) // <= 5ms & fail <= 2
-	kpiSS  = kpiL(0x02) // <= 10ms & fail <= 2
-	kpiS   = kpiL(0x03) // <=  20ms && fail <= 4
-	kpiA   = kpiL(0x04) // <= 40ms && fail <= 4
-	kpiB   = kpiL(0x05) // <= 80ms && fail <= 4
-	kpiC   = kpiL(0x06) // <= 160ms && fail <= 4
-	kpiD   = kpiL(0x07) // <=320ms && fail <= 4
-	kpiE   = kpiL(0x08) //<=640ms && fail <= 6
-	kpiF   = kpiL(0x09) // <= 1000ms && fail <= 6
-	kpiG   = kpiL(0x0a) // <= 1500ms && fail <= 6
-	kpiH   = kpiL(0x0b) // <= 2000ms && fail <= 6
-	kpiI   = kpiL(0x0c) // <= 2500ms && fail <= 6
-	kpiJ   = kpiL(0x0e) // <= 3000ms && fail <= 6
-	kpiK   = kpiL(0x0f) // <= 3500ms && fail <= 6
-	kpiM   = kpiL(0x10) // <= 4000ms && fail <= 6
-	kpiZ   = kpiL(0xff) // <= 4000ms && fail <= 6
+	kpiSSS = kpiL(0x01)
+	kpiSS  = kpiL(0x02)
+	kpiS   = kpiL(0x03)
+	kpiA   = kpiL(0x04)
+	kpiB   = kpiL(0x05)
+	kpiC   = kpiL(0x06)
+	kpiD   = kpiL(0x07)
+	kpiE   = kpiL(0x08)
+	kpiF   = kpiL(0x09)
+	kpiG   = kpiL(0x0a)
+	kpiH   = kpiL(0x0b)
+	kpiI   = kpiL(0x0c)
+	kpiJ   = kpiL(0x0e)
+	kpiK   = kpiL(0x0f)
+	kpiM   = kpiL(0x10)
+	kpiN   = kpiL(0x11)
+	kpiO   = kpiL(0x12)
+	kpiP   = kpiL(0x13)
+	kpiQ   = kpiL(0x14)
+	kpiR   = kpiL(0x15)
+	kpiT   = kpiL(0x16)
+	kpiU   = kpiL(0x17)
+	kpiV   = kpiL(0x18)
+	kpiW   = kpiL(0x19)
+	kpiX   = kpiL(0x1a)
+	kpiY   = kpiL(0x1b)
+	kpiZ   = kpiL(0xff)
 )
 
 type IDHT interface {
@@ -149,9 +160,8 @@ type dhtNode struct {
 	node  INode     //节点
 	at    time.Time //节点加入时间
 	delay int64     //纳秒
-	succ  int64     //接受次数
-	total int64     //发送次数
-	keep  int64     //连续保持状态次数
+	fail  int64
+	keep  int64
 	score kpiL
 }
 
@@ -159,64 +169,87 @@ func newDHTNode(node INode, initScore kpiL) *dhtNode {
 	return &dhtNode{
 		node:  node,
 		at:    time.Now(),
-		total: 0,
-		succ:  0,
 		delay: 0,
+		fail:  0,
 		keep:  0,
 		score: initScore,
 	}
 }
 
+//5 10 50 100 200 300 400 500 600 700 800 900 1000 1500 2000 2500 3000 3500 4000 5000 6000 7000  8000 9000 10000
+//4 5  6   7   8   9   10  11 12   13  14  15  16   17   18   19   20   21   22   23   24   25    26   27   28
 func (n *dhtNode) kpi() {
 	var delay = n.delay / 1e6
-	var fail = n.total - n.succ
+	var fail = n.fail
 	var last = n.score
 
 	switch {
-	case delay <= 5 && fail <= 2:
+	case delay <= 5 && fail <= 4:
 		n.score = kpiSSS
-	case delay <= 10 && fail <= 2:
+	case delay <= 10 && fail <= 5:
 		n.score = kpiSS
-	case delay <= 20 && fail <= 4:
+	case delay <= 50 && fail <= 6:
 		n.score = kpiS
-	case delay <= 40 && fail <= 4:
+	case delay <= 100 && fail <= 7:
 		n.score = kpiA
-	case delay <= 80 && fail <= 4:
+	case delay <= 200 && fail <= 8:
 		n.score = kpiB
-	case delay <= 160 && fail <= 4:
+	case delay <= 300 && fail <= 9:
 		n.score = kpiC
-	case delay <= 320 && fail <= 4:
+	case delay <= 400 && fail <= 10:
 		n.score = kpiD
-	case delay <= 640 && fail <= 6:
+	case delay <= 500 && fail <= 11:
 		n.score = kpiE
-	case delay <= 1000 && fail <= 6:
+	case delay <= 600 && fail <= 12:
 		n.score = kpiF
-	case delay <= 1500 && fail <= 6:
+	case delay <= 700 && fail <= 13:
 		n.score = kpiG
-	case delay <= 2000 && fail <= 6:
+	case delay <= 800 && fail <= 14:
 		n.score = kpiH
-	case delay <= 2500 && fail <= 6:
+	case delay <= 900 && fail <= 15:
 		n.score = kpiI
-	case delay <= 3000 && fail <= 6:
+	case delay <= 1000 && fail <= 16:
 		n.score = kpiJ
-	case delay <= 3500 && fail <= 6:
+	case delay <= 1500 && fail <= 17:
 		n.score = kpiK
-	case delay <= 4000 && fail <= 6:
+	case delay <= 2000 && fail <= 18:
 		n.score = kpiM
+	case delay <= 2500 && fail <= 19:
+		n.score = kpiN
+	case delay <= 3000 && fail <= 20:
+		n.score = kpiO
+	case delay <= 3500 && fail <= 21:
+		n.score = kpiP
+	case delay <= 4000 && fail <= 22:
+		n.score = kpiQ
+	case delay <= 5000 && fail <= 23:
+		n.score = kpiR
+	case delay <= 5000 && fail <= 24:
+		n.score = kpiT
+	case delay <= 6000 && fail <= 25:
+		n.score = kpiU
+	case delay <= 7000 && fail <= 26:
+		n.score = kpiV
+	case delay <= 8000 && fail <= 27:
+		n.score = kpiW
+	case delay <= 9000 && fail <= 28:
+		n.score = kpiX
+	case delay <= 10000 && fail <= 29:
+		n.score = kpiY
 	default:
 		n.score = kpiZ
 	}
 
-	if last == n.score && n.score != kpiZ {
-		n.keep++
-	} else {
+	if last != n.score || n.score == kpiZ {
 		n.keep = 0
+		return
 	}
 
-	switch {
-	case n.keep >= 0x20 && fail > 0:
-		n.keep -= 0x20
-		n.succ++
+	if p := n.keep / 0x10; p > 0 {
+		n.fail -= p
+		n.keep %= 0x10
+	} else {
+		n.keep++
 	}
 }
 
@@ -479,7 +512,7 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 		if !ok {
 			return
 		}
-		value.succ++
+		value.fail--
 		value.delay = now - msg.St
 
 	case proto.State_syn:
@@ -530,11 +563,7 @@ func (d *dht) doRefresh(ctx context.Context) {
 		}
 
 		d.send(ctx, d.self.Decode(node), pkt)
-		value.total++
-
-		if node == d.self.Encode() {
-			d.local(ctx)
-		}
+		value.fail++
 		value.kpi()
 	}
 }
@@ -634,10 +663,8 @@ func (d *dht) doGc(ctx context.Context) {
 }
 
 func (d *dht) readLoop() {
-	var buf = make([]byte, maxPacketSize)
-
 	for {
-		n, from, err := d.conn.ReadFromUDP(buf)
+		buf, from, err := d.conn.ReadFromUDP()
 
 		if err == io.EOF {
 			d.logger.Errorw(d.ctx, "dht srv read eof")
@@ -651,7 +678,7 @@ func (d *dht) readLoop() {
 		}
 
 		select {
-		case d.packetInCh <- NewPacket(d.ctx, from, buf[:n]):
+		case d.packetInCh <- NewPacket(d.ctx, from, buf):
 		case <-d.ctx.Done():
 			goto readLoopEnd
 		}
@@ -662,11 +689,6 @@ readLoopEnd:
 }
 
 func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
-
-	if to.Encode() == d.self.Encode() {
-		return
-	}
-
 	if trace, ok := ctx.Value(logx.TraceId).(string); ok {
 		pkt.Trace = []byte(trace)
 	} else {
@@ -718,16 +740,19 @@ func (d *dht) store(ctx context.Context, node INode) {
 	if node == nil {
 		return
 	}
+
+	d.rwm.RLock()
+	var _, ok = d.nodes[node.Encode()]
+	d.rwm.RUnlock()
+
+	if ok {
+		return
+	}
+
 	var err = d.rtm.AddU64(node.Encode(), 0xffffffffffffffff, node.Encode())
 	if err != nil {
 		d.logger.Warnw(ctx, "dht srv store node fail", "err", err, "node", node.Encode())
 		return
-	}
-	var kpi kpiL
-	if node.Encode() == d.self.Encode() {
-		kpi = kpiSSS
-	} else {
-		kpi = kpiZ
 	}
 
 	if x := d.xor(d.self, node); d.bucket[x] > d.k {
@@ -736,12 +761,20 @@ func (d *dht) store(ctx context.Context, node INode) {
 	}
 
 	d.rwm.Lock()
-	d.nodes[node.Encode()] = newDHTNode(node, kpi)
+	d.nodes[node.Encode()] = newDHTNode(node, kpiZ)
 	d.rwm.Unlock()
 }
 
 func (d *dht) remove(ctx context.Context, node INode) {
-	if node == nil || node.Encode() == d.self.Encode() {
+	if node == nil {
+		return
+	}
+
+	d.rwm.RLock()
+	var _, ok = d.nodes[node.Encode()]
+	d.rwm.RUnlock()
+
+	if !ok {
 		return
 	}
 
@@ -771,10 +804,9 @@ func (d *dht) dump(ctx context.Context) interface{} {
 		r = append(r, map[string]interface{}{
 			"nodeId": fmt.Sprintf("0x%x", node),
 			"score":  fmt.Sprintf("0x%x", value.score),
-			"total":  value.total,
-			"succ":   value.succ,
-			"keep":   value.keep,
 			"delay":  value.delay,
+			"fail":   value.fail,
+			"keep":   value.keep,
 		})
 	}
 	return r
@@ -817,14 +849,4 @@ func (d *dht) random(ctx context.Context) []uint64 {
 	}
 
 	return r
-}
-
-func (d *dht) local(ctx context.Context) {
-	d.rwm.RLock()
-	defer d.rwm.RUnlock()
-
-	if value, ok := d.nodes[d.self.Encode()]; ok {
-		value.delay = 0
-		value.succ++
-	}
 }

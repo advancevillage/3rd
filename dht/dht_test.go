@@ -21,7 +21,7 @@ var dhtTest = map[string]struct {
 }{
 	"case1": {
 		network: "udp",
-		addr:    "192.168.187.176:5555",
+		addr:    "192.168.1.6:5555",
 		level:   "info",
 		zone:    0x0000,
 		seed:    []uint64{},
@@ -65,7 +65,7 @@ func Test_dht(t *testing.T) {
 				case <-c:
 					return
 				default:
-					time.Sleep(time.Second)
+					time.Sleep(time.Second * 3)
 					logger.Infow(context.TODO(), "dump dht", "dump", s.Monitor())
 				}
 			}
