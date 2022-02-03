@@ -15,7 +15,7 @@ type dhtHeapNode struct {
 }
 
 type IDHTHeap interface {
-	Top(k uint8) []uint64
+	Top(k int) []uint64
 }
 
 type DHTHeap []dhtHeapNode
@@ -44,7 +44,7 @@ func (h *DHTHeap) Pop() interface{} {
 	return x
 }
 
-func (h *DHTHeap) Top(k uint8) []uint64 {
+func (h *DHTHeap) Top(k int) []uint64 {
 	var top = make([]uint64, 0, k)
 
 	for k > 0 && h.Len() > 0 {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -12,8 +13,13 @@ import (
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/mathx"
 	"github.com/advancevillage/3rd/proto"
+	"github.com/advancevillage/3rd/radix"
 	enc "github.com/golang/protobuf/proto"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 var (
 	errInvalidHost     = errors.New("invalid host")
@@ -27,9 +33,11 @@ var (
 
 type IDHT interface {
 	Start()
+	Store(ctx context.Context, b []byte)
 }
 
 type DHTCfg struct {
+	Fix     int      `json:"fix"`
 	Refresh int      `json:"refresh"`
 	Evolut  int      `json:"evolut"`
 	Zone    uint16   `json:"zone"`
@@ -50,6 +58,11 @@ func (d *dht) Start() {
 	}
 }
 
+func (d *dht) Store(ctx context.Context, b []byte) {
+	//先本地存储再发布订阅
+	d.kvCli.Set(ctx, b)
+}
+
 func NewDHT(ctx context.Context, logger logx.ILogger, cfg *DHTCfg) (IDHT, error) {
 	node, err := NewNodeWithAddr(cfg.Zone, cfg.Addr)
 	if err != nil {
@@ -65,7 +78,8 @@ func NewDHT(ctx context.Context, logger logx.ILogger, cfg *DHTCfg) (IDHT, error)
 	d.ctx, d.canecl = context.WithCancel(ctx)
 	d.logger = logger
 	d.cfg = cfg
-	d.nodeCli = newBktMgr(ctx, logger, node, 4, 64, cfg.Seeds)
+	d.nodeCli = newBktMgr(ctx, logger, node, cfg.K, 64, cfg.Seeds)
+	d.kvCli = newDHTKV(logger)
 	d.connCli = conn
 	d.packetInCh = make(chan IDHTPacket, cfg.Alpha)
 	d.packetOutCh = make(chan IDHTPacket, cfg.Alpha)
@@ -81,6 +95,7 @@ type dht struct {
 	cfg         *DHTCfg  //配置管理
 	nodeCli     IDHTNode //节点管理
 	connCli     IDHTConn //传输管理
+	kvCli       IDHTKV   //数据管理
 	packetInCh  chan IDHTPacket
 	packetOutCh chan IDHTPacket
 }
@@ -88,6 +103,8 @@ type dht struct {
 func (d *dht) loop() {
 	go d.loopNetIO()
 	go d.loopRefresh()
+	go d.loopFix()
+	go d.loopEvolut()
 	d.wg.Wait()
 }
 
@@ -148,8 +165,6 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 		sctx = context.WithValue(ctx, logx.TraceId, string(msg.GetTrace()))
 	)
 	switch msg.GetType() {
-	case proto.PacketType_null:
-
 	case proto.PacketType_ping:
 		var ping = new(proto.Ping)
 		err = enc.Unmarshal(msg.GetPkt(), ping)
@@ -160,11 +175,31 @@ func (d *dht) doReceive(ctx context.Context, pkt IDHTPacket) {
 		d.doPing(sctx, ping)
 
 	case proto.PacketType_store:
+		var store = new(proto.Store)
+		err = enc.Unmarshal(msg.GetPkt(), store)
+		if err != nil {
+			d.logger.Warnw(ctx, "receive store message", "type", errInvalidMessage, "err", err)
+			return
+		}
+		d.doStore(sctx, store)
 
 	case proto.PacketType_findnode:
+		var findnode = new(proto.FindNode)
+		err = enc.Unmarshal(msg.GetPkt(), findnode)
+		if err != nil {
+			d.logger.Warnw(ctx, "receive findnode message", "type", errInvalidMessage, "err", err)
+			return
+		}
+		d.doFindNode(sctx, findnode)
 
 	case proto.PacketType_findvalue:
-
+		var findvalue = new(proto.FindValue)
+		err = enc.Unmarshal(msg.GetPkt(), findvalue)
+		if err != nil {
+			d.logger.Warnw(ctx, "receive findvalue message", "type", errInvalidMessage, "err", err)
+			return
+		}
+		d.doFindValue(ctx, findvalue)
 	}
 }
 
@@ -234,6 +269,94 @@ func (d *dht) doRefresh(ctx context.Context) {
 	wg.Wait()
 }
 
+func (d *dht) doEvolut(ctx context.Context) {
+	var (
+		wg    sync.WaitGroup
+		connC = make(chan struct{}, d.cfg.Alpha)
+		now   = time.Now().UnixNano()
+		sctx  = context.WithValue(ctx, logx.TraceId, mathx.UUID())
+		nodes = d.nodeCli.Random(sctx)
+	)
+
+	for _, v := range nodes {
+		wg.Add(1)
+		connC <- struct{}{}
+
+		go func(node INode) {
+			defer func() {
+				wg.Done()
+				<-connC
+			}()
+
+			var msg = new(proto.FindNode)
+			msg.From = d.nodeCli.Self(sctx)
+			msg.To = Encode(node)
+			msg.St = now
+			msg.State = proto.State_syn
+			msg.Q = d.nodeCli.Self(sctx)
+
+			buf, err := enc.Marshal(msg)
+			if err != nil {
+				d.logger.Warnw(sctx, "send findnode message", "type", errInvalidMessage, "err", err, "msg", msg)
+				return
+			}
+			pkt := &proto.Packet{
+				Type: proto.PacketType_findnode,
+				Pkt:  buf,
+			}
+			d.send(sctx, node, pkt)
+		}(v)
+	}
+	wg.Wait()
+}
+
+func (d *dht) loopFix() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	var fixC = time.NewTicker(time.Second * time.Duration(d.cfg.Fix))
+	defer fixC.Stop()
+
+	for {
+		select {
+		//退出事件
+		case <-d.ctx.Done():
+			goto loopFixEnd
+
+		//刷新事件
+		case <-fixC.C:
+			d.kvCli.Fix(context.WithValue(d.ctx, logx.TraceId, mathx.UUID()))
+
+		}
+	}
+
+loopFixEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop fix end")
+
+}
+
+func (d *dht) loopEvolut() {
+	d.wg.Add(1)
+	defer d.wg.Done()
+
+	var evolutC = time.NewTicker(time.Second * time.Duration(d.cfg.Evolut))
+	defer evolutC.Stop()
+
+	for {
+		select {
+		case <-d.ctx.Done():
+			goto loopEvolutEnd
+
+		case <-evolutC.C:
+			d.doEvolut(d.ctx)
+		}
+	}
+
+loopEvolutEnd:
+	d.logger.Infow(d.ctx, "dht srv main loop evolut end")
+
+}
+
 func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 	//1. 检查目的节点是不是给自己的
 	if msg.GetTo() != d.nodeCli.Self(ctx) {
@@ -259,6 +382,141 @@ func (d *dht) doPing(ctx context.Context, msg *proto.Ping) {
 
 		pkt := &proto.Packet{
 			Type: proto.PacketType_ping,
+			Pkt:  buf,
+		}
+
+		d.send(ctx, Decode(msg.GetTo()), pkt)
+	}
+}
+
+func (d *dht) doFindNode(ctx context.Context, msg *proto.FindNode) {
+	//1. 检查目的节点是不是给自己的
+	if msg.GetTo() != d.nodeCli.Self(ctx) {
+		return
+	}
+	var now = time.Now().UnixNano()
+	//2. 检查消息状态
+	switch msg.GetState() {
+	case proto.State_ack:
+		var k = msg.GetK()
+		for i := range k {
+			d.nodeCli.Set(ctx, Decode(k[i]))
+		}
+
+	case proto.State_syn:
+		var q = msg.GetQ() // query q's k-closest
+
+		msg.To = msg.GetFrom()
+		msg.From = d.nodeCli.Self(ctx)
+		msg.Rt = now
+		msg.State = proto.State_ack
+		msg.K = d.nodeCli.KClose(ctx, Decode(q), d.cfg.K)
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal findnode message", "err", err)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_findnode,
+			Pkt:  buf,
+		}
+
+		d.send(ctx, Decode(msg.GetTo()), pkt)
+
+	}
+
+}
+
+func (d *dht) doFindValue(ctx context.Context, msg *proto.FindValue) {
+	if msg.GetTo() != d.nodeCli.Self(ctx) {
+		return
+	}
+	var now = time.Now().UnixNano()
+
+	switch msg.GetState() {
+	case proto.State_unfound:
+		d.logger.Warnw(ctx, "dht srv findvalue not found", "key", msg.GetQ())
+
+	case proto.State_ack:
+		d.logger.Infow(ctx, "dht srv findvalue", "key", msg.GetQ(), "node", msg.GetN())
+
+	case proto.State_syn:
+		var k = msg.GetQ()
+		var kclose = d.nodeCli.KClose(ctx, Decode(k), 1)
+		if len(kclose) <= 0 {
+			d.logger.Infow(ctx, "dht srv findvalue message fail", "key", k)
+			return
+		}
+		var closest = kclose[0]
+
+		if closest == d.nodeCli.Self(ctx) {
+			msg.To = msg.From
+			msg.From = d.nodeCli.Self(ctx)
+			msg.Rt = now
+			msg.State = proto.State_ack
+
+			if d.kvCli.Exist(ctx, k) {
+				msg.N = d.nodeCli.Self(ctx)
+			} else {
+				msg.State = proto.State_unfound
+			}
+		} else {
+			msg.To = closest
+		}
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal findvalue  message", "err", err)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_findvalue,
+			Pkt:  buf,
+		}
+		d.send(ctx, Decode(msg.GetTo()), pkt)
+	}
+}
+
+func (d *dht) doStore(ctx context.Context, msg *proto.Store) {
+	if msg.GetTo() != d.nodeCli.Self(ctx) {
+		return
+	}
+	var now = time.Now().UnixNano()
+
+	switch msg.GetState() {
+	case proto.State_ack:
+		d.logger.Infow(ctx, "dht srv transfer kv", "key", msg.GetK(), "node", msg.GetFrom())
+
+	case proto.State_syn:
+		var k = msg.GetK()
+		var kclose = d.nodeCli.KClose(ctx, Decode(k), 1)
+		if len(kclose) <= 0 {
+			d.logger.Infow(ctx, "dht srv store message find closest node fail", "key", k)
+			return
+		}
+		var closest = kclose[0]
+
+		if closest == d.nodeCli.Self(ctx) {
+			msg.To = msg.From
+			msg.From = d.nodeCli.Self(ctx)
+			msg.Rt = now
+			msg.State = proto.State_ack
+			d.kvCli.Set(ctx, msg.GetV())
+		} else {
+			msg.To = closest
+		}
+
+		buf, err := enc.Marshal(msg)
+		if err != nil {
+			d.logger.Warnw(ctx, "dht srv marshal store message", "err", err)
+			return
+		}
+
+		pkt := &proto.Packet{
+			Type: proto.PacketType_store,
 			Pkt:  buf,
 		}
 
@@ -313,13 +571,15 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 }
 
 type IDHTNode interface {
+	Show(ctx context.Context) interface{}
 	Self(ctx context.Context) uint64
 	List(ctx context.Context) []INode
 	Syn(ctx context.Context, n INode)
 	Ack(ctx context.Context, n INode, delay int64)
 	Set(ctx context.Context, n INode)
 	Del(ctx context.Context, n INode)
-	Show(ctx context.Context) interface{}
+	Random(ctx context.Context) []INode
+	KClose(ctx context.Context, n INode, k int) []uint64
 }
 
 type bktmgr struct {
@@ -360,7 +620,7 @@ func (mgr *bktmgr) List(ctx context.Context) []INode {
 		var nn = mgr.bkts[i].List(ctx)
 		n = append(n, nn...)
 	}
-	mgr.Show(ctx)
+
 	return n
 }
 
@@ -394,6 +654,41 @@ func (mgr *bktmgr) Show(ctx context.Context) interface{} {
 	mgr.logger.Infow(ctx, "show bucket[:]", "info", r)
 	return r
 
+}
+
+func (mgr *bktmgr) KClose(ctx context.Context, n INode, k int) []uint64 {
+	var (
+		dist  = make([]uint8, 0, mgr.bit)
+		nodes = make([]uint64, 0, mgr.bit)
+		all   = mgr.List(ctx)
+	)
+
+	for i := range all {
+		var x = XOR(n, all[i])
+		dist = append(dist, x)
+		nodes = append(nodes, Encode(all[i]))
+	}
+
+	var h, err = NewDHTHeap(dist, nodes)
+	if err != nil {
+		mgr.logger.Warnw(ctx, "dht srv k-close node fail", "err", err, "node", Encode(n))
+		return nil
+	}
+	return h.Top(k)
+}
+
+func (mgr *bktmgr) Random(ctx context.Context) []INode {
+	var n []INode
+
+	for i := 0; i < mgr.bit; i++ {
+		var nn = mgr.bkts[i].List(ctx)
+		if len(nn) <= 0 {
+			continue
+		}
+		var rnn = nn[rand.Intn(len(nn))]
+		n = append(n, rnn)
+	}
+	return n
 }
 
 type IDHTBkt interface {
@@ -466,6 +761,14 @@ func (b *bucket) Ack(ctx context.Context, node INode, delay int64) {
 
 func (b *bucket) Set(ctx context.Context, node INode) {
 	if b.Len() > b.k {
+		return
+	}
+
+	b.rwl.RLock()
+	var _, ok = b.nodes[Encode(node)]
+	b.rwl.RUnlock()
+
+	if ok {
 		return
 	}
 
@@ -642,5 +945,101 @@ func (n *node) kpi() {
 		n.keep %= 0x10
 	} else {
 		n.keep++
+	}
+}
+
+type IDHTKV interface {
+	Fix(ctx context.Context)
+	Set(ctx context.Context, b []byte)
+	Exist(ctx context.Context, key uint64) bool
+}
+
+type kv struct {
+	rtm     radix.IRadixTree
+	rwl     sync.RWMutex
+	storage map[uint64][]byte
+	backup  map[uint64]int
+	ctx     context.Context
+	logger  logx.ILogger
+}
+
+func newDHTKV(logger logx.ILogger) IDHTKV {
+	var a = &kv{
+		rtm:     radix.NewRadixTree(),
+		storage: make(map[uint64][]byte),
+		backup:  make(map[uint64]int),
+		logger:  logger,
+	}
+	return a
+}
+
+func (a *kv) Set(ctx context.Context, b []byte) {
+	if a.isExist(b) {
+		return
+	}
+	var k = a.id(b)
+	var err = a.rtm.AddU64(k, 0xffffffffffffffff, k)
+	if err != nil {
+		a.logger.Warnw(ctx, "storage add kv fail", "key", k, "value", b)
+		return
+	}
+
+	a.rwl.Lock()
+	a.storage[k] = b
+	a.rwl.Unlock()
+}
+
+func (a *kv) Exist(ctx context.Context, key uint64) bool {
+	var k, err = a.rtm.GetU64(key)
+	if err != nil {
+		return false
+	} else {
+		return k == key
+	}
+}
+
+func (a *kv) Fix(ctx context.Context) {
+	var index = a.rtm.ListU64()
+	var m = make(map[uint64]bool, len(index))
+
+	for _, v := range index {
+		m[v] = true
+	}
+
+	a.rwl.RLock()
+	defer a.rwl.RUnlock()
+
+	for k := range m {
+		if _, ok := a.storage[k]; ok {
+			continue
+		}
+		var err = a.rtm.DelU64(k, 0xffffffffffffffff)
+		if err != nil {
+			a.logger.Warnw(ctx, "storage del kv fail", "key", k)
+		}
+	}
+
+	for k := range a.storage {
+		if m[k] {
+			continue
+		}
+		var err = a.rtm.AddU64(k, 0xffffffffffffffff, k)
+		if err != nil {
+			a.logger.Warnw(ctx, "storage add kv fail", "key", k)
+		}
+	}
+}
+
+func (a *kv) id(b []byte) uint64 {
+	return CRC(b)
+}
+
+func (a *kv) isExist(b []byte) bool {
+	var k = a.id(b)
+	var kk, err = a.rtm.GetU64(k)
+	if err != nil && err.Error() == "not found" {
+		return false
+	} else {
+		return k == kk
 	}
 }

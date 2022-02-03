@@ -71,7 +71,7 @@ func genNode(s string) {
 		ipv4 |= uint32(host[2]) << 8
 		ipv4 |= uint32(host[3])
 
-		node := dht.NewNode("udp", 0x0000, uint16(port), ipv4)
-		fmt.Printf("0x%x\n", node.Encode())
+		node := dht.NewNode(0x0000, uint16(port), ipv4)
+		fmt.Printf("0x%x\n", dht.Encode(node))
 	}
 }

@@ -50,8 +50,7 @@ func init() {
 
 func dhtSrv(node uint64) {
 	//解析参数
-	a := dht.NewNode("udp", 0x0000, 5555, 0x7f000001)
-	enc := a.Decode(node)
+	enc := dht.Decode(node)
 
 	seeds := strings.Split(seedStr, ",")
 	seed := []uint64{}
@@ -90,7 +89,17 @@ func dhtSrv(node uint64) {
 
 	logger.Infow(ctx, "dht seed list", "seeds", seed)
 
-	srv, err := dht.NewDHT(ctx, logger, enc.Zone(), enc.Protocol(), addr, seed)
+	srv, err := dht.NewDHT(ctx, logger, &dht.DHTCfg{
+		Fix:     5,
+		Refresh: 2,
+		Evolut:  10,
+		Network: "udp",
+		Zone:    enc.Zone(),
+		Addr:    addr,
+		Seeds:   seed,
+		Alpha:   3,
+		K:       4,
+	})
 	if err != nil {
 		return
 	}
@@ -100,8 +109,7 @@ func dhtSrv(node uint64) {
 		select {
 		case <-ctx.Done():
 		default:
-			time.Sleep(time.Second * 3)
-			logger.Infow(ctx, "dht srv dump", "inner", srv.Monitor())
+			time.Sleep(time.Second * 2)
 		}
 	}
 }

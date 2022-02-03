@@ -52,12 +52,15 @@ func Test_dht(t *testing.T) {
 				return
 			}
 			s, err := NewDHT(ctx, logger, &DHTCfg{
+				Fix:     5,
 				Refresh: 2,
+				Evolut:  10,
 				Network: p.network,
 				Zone:    p.zone,
 				Addr:    p.addr,
 				Seeds:   p.seed,
 				Alpha:   3,
+				K:       4,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -82,7 +85,7 @@ func Test_dht(t *testing.T) {
 var dhtDHTHeap = map[string]struct {
 	dist []uint8
 	node []uint64
-	k    uint8
+	k    int
 	exp  []uint64
 	err  error
 }{
