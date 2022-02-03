@@ -34,6 +34,7 @@ var (
 type IDHT interface {
 	Start()
 	Store(ctx context.Context, b []byte)
+	Show(ctx context.Context) interface{}
 }
 
 type DHTCfg struct {
@@ -61,6 +62,10 @@ func (d *dht) Start() {
 func (d *dht) Store(ctx context.Context, b []byte) {
 	//先本地存储再发布订阅
 	d.kvCli.Set(ctx, b)
+}
+
+func (d *dht) Show(ctx context.Context) interface{} {
+	return d.nodeCli.Show(ctx)
 }
 
 func NewDHT(ctx context.Context, logger logx.ILogger, cfg *DHTCfg) (IDHT, error) {

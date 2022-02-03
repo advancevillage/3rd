@@ -110,6 +110,7 @@ func dhtSrv(node uint64) {
 		case <-ctx.Done():
 		default:
 			time.Sleep(time.Second * 2)
+			logger.Infow(ctx, "dht show", "info", srv.Show(ctx))
 		}
 	}
 }
