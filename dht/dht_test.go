@@ -2,11 +2,12 @@ package dht
 
 import (
 	"context"
+	"fmt"
+	"hash/crc64"
 	"os"
 	"os/signal"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +51,14 @@ func Test_dht(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			s, err := NewDHT(ctx, logger, p.zone, p.network, p.addr, p.seed)
+			s, err := NewDHT(ctx, logger, &DHTCfg{
+				Refresh: 2,
+				Network: p.network,
+				Zone:    p.zone,
+				Addr:    p.addr,
+				Seeds:   p.seed,
+				Alpha:   3,
+			})
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -64,9 +72,6 @@ func Test_dht(t *testing.T) {
 					return
 				case <-c:
 					return
-				default:
-					time.Sleep(time.Second * 3)
-					logger.Infow(context.TODO(), "dump dht", "dump", s.Monitor())
 				}
 			}
 		}
@@ -132,4 +137,12 @@ func Test_dht_heap(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
+}
+
+func Test_crc64(t *testing.T) {
+	var data = "1234"
+	var table = crc64.MakeTable(crc64.ECMA)
+
+	fmt.Println(crc64.Checksum([]byte(data), table))
+
 }

@@ -3,6 +3,7 @@ package dht
 import (
 	"context"
 	"net"
+	"strings"
 )
 
 type IDHTPacket interface {
@@ -50,11 +51,19 @@ type udpConn struct {
 	magic byte
 }
 
-func NewUDPConn(node INode) (IDHTConn, error) {
-	if node == nil || node.Protocol() != "udp" {
+func NewConn(network string, node INode) (IDHTConn, error) {
+	if node == nil {
 		return nil, errInvalidNode
 	}
+	switch strings.ToLower(network) {
+	case "udp":
+		return newUDPConn(node)
+	default:
+		return nil, errInvalidProtocol
+	}
+}
 
+func newUDPConn(node INode) (IDHTConn, error) {
 	var a = byte(node.Ipv4() >> 24)
 	var b = byte(node.Ipv4() >> 16)
 	var c = byte(node.Ipv4() >> 8)
