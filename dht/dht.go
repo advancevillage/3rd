@@ -61,11 +61,14 @@ func (d *dht) Start() {
 
 func (d *dht) Store(ctx context.Context, b []byte) {
 	//先本地存储再发布订阅
-	d.kvCli.Set(ctx, b)
+	d.kvCli.Store(ctx, CRC(b), b)
 }
 
 func (d *dht) Show(ctx context.Context) interface{} {
-	return d.nodeCli.Show(ctx)
+	var r = make(map[string]interface{})
+	r["nodes"] = d.nodeCli.Show(ctx)
+	r["values"] = d.kvCli.Show(ctx)
+	return r
 }
 
 func NewDHT(ctx context.Context, logger logx.ILogger, cfg *DHTCfg) (IDHT, error) {
@@ -224,7 +227,6 @@ func (d *dht) loopRefresh() {
 		//刷新事件
 		case <-refreshC.C:
 			d.doRefresh(d.ctx)
-
 		}
 	}
 
@@ -354,6 +356,7 @@ func (d *dht) loopEvolut() {
 
 		case <-evolutC.C:
 			d.doEvolut(d.ctx)
+			d.nodeCli.Evolut(context.WithValue(d.ctx, logx.TraceId, mathx.UUID()))
 		}
 	}
 
@@ -509,7 +512,7 @@ func (d *dht) doStore(ctx context.Context, msg *proto.Store) {
 			msg.From = d.nodeCli.Self(ctx)
 			msg.Rt = now
 			msg.State = proto.State_ack
-			d.kvCli.Set(ctx, msg.GetV())
+			d.kvCli.Store(ctx, k, msg.GetV())
 		} else {
 			msg.To = closest
 		}
@@ -576,13 +579,14 @@ func (d *dht) send(ctx context.Context, to INode, pkt *proto.Packet) {
 }
 
 type IDHTNode interface {
-	Show(ctx context.Context) interface{}
+	Evolut(ctx context.Context)
 	Self(ctx context.Context) uint64
 	List(ctx context.Context) []INode
 	Syn(ctx context.Context, n INode)
-	Ack(ctx context.Context, n INode, delay int64)
 	Set(ctx context.Context, n INode)
 	Del(ctx context.Context, n INode)
+	Show(ctx context.Context) interface{}
+	Ack(ctx context.Context, n INode, delay int64)
 	Random(ctx context.Context) []INode
 	KClose(ctx context.Context, n INode, k int) []uint64
 }
@@ -650,13 +654,15 @@ func (mgr *bktmgr) Del(ctx context.Context, n INode) {
 }
 
 func (mgr *bktmgr) Show(ctx context.Context) interface{} {
-	var r []interface{}
+	var r = make(map[string]interface{})
 
 	for i := 0; i < mgr.bit; i++ {
-		var rr = mgr.bkts[i].Show(ctx)
-		r = append(r, rr)
+		var rr = mgr.bkts[i].Show(ctx).([]map[string]interface{})
+		if len(rr) <= 0 {
+			continue
+		}
+		r[fmt.Sprintf("bucket[%d]", i)] = rr
 	}
-	mgr.logger.Infow(ctx, "show bucket[:]", "info", r)
 	return r
 
 }
@@ -694,6 +700,12 @@ func (mgr *bktmgr) Random(ctx context.Context) []INode {
 		n = append(n, rnn)
 	}
 	return n
+}
+
+func (mgr *bktmgr) Evolut(ctx context.Context) {
+	for i := 0; i < mgr.bit; i++ {
+		mgr.bkts[i].Evolut(ctx)
+	}
 }
 
 type IDHTBkt interface {
@@ -833,7 +845,7 @@ func newNode(id INode) *node {
 		delay: 0,
 		fail:  0,
 		keep:  0,
-		score: kpiZ,
+		score: kpiJ,
 	}
 }
 
@@ -955,16 +967,15 @@ func (n *node) kpi() {
 
 type IDHTKV interface {
 	Fix(ctx context.Context)
-	Set(ctx context.Context, b []byte)
+	Show(ctx context.Context) interface{}
 	Exist(ctx context.Context, key uint64) bool
+	Store(ctx context.Context, k uint64, b []byte)
 }
 
 type kv struct {
 	rtm     radix.IRadixTree
 	rwl     sync.RWMutex
 	storage map[uint64][]byte
-	backup  map[uint64]int
-	ctx     context.Context
 	logger  logx.ILogger
 }
 
@@ -972,17 +983,19 @@ func newDHTKV(logger logx.ILogger) IDHTKV {
 	var a = &kv{
 		rtm:     radix.NewRadixTree(),
 		storage: make(map[uint64][]byte),
-		backup:  make(map[uint64]int),
 		logger:  logger,
 	}
 	return a
 }
 
-func (a *kv) Set(ctx context.Context, b []byte) {
-	if a.isExist(b) {
+func (a *kv) Show(ctx context.Context) interface{} {
+	return a.rtm.ListU64()
+}
+
+func (a *kv) Store(ctx context.Context, k uint64, b []byte) {
+	if a.Exist(ctx, k) {
 		return
 	}
-	var k = a.id(b)
 	var err = a.rtm.AddU64(k, 0xffffffffffffffff, k)
 	if err != nil {
 		a.logger.Warnw(ctx, "storage add kv fail", "key", k, "value", b)
@@ -1032,19 +1045,5 @@ func (a *kv) Fix(ctx context.Context) {
 		if err != nil {
 			a.logger.Warnw(ctx, "storage add kv fail", "key", k)
 		}
-	}
-}
-
-func (a *kv) id(b []byte) uint64 {
-	return CRC(b)
-}
-
-func (a *kv) isExist(b []byte) bool {
-	var k = a.id(b)
-	var kk, err = a.rtm.GetU64(k)
-	if err != nil && err.Error() == "not found" {
-		return false
-	} else {
-		return k == kk
 	}
 }
