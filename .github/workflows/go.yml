@@ -30,3 +30,6 @@ jobs:
 
     - name: dht heap
       run: go test -v -count=1 -cover -test.run Test_dht_heap ./dht
+
+    - name: sm3
+      run: go test -v -count=1 -cover -test.run Test_sm3 ./cryptox/sm3
