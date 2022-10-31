@@ -33,3 +33,9 @@ jobs:
 
     - name: sm3
       run: go test -v -count=1 -cover -test.run Test_sm3 ./cryptox/sm3
+
+    - name: sm4
+      run: go test -v -count=1 -cover -test.run Test_sm4 ./cryptox/sm4
+    
+    - name: sm4-2
+      run: go test -bench='sm4$' -cpu=2,4  -benchtime=1s -count=3 ./cryptox/sm4
