@@ -39,3 +39,6 @@ jobs:
     
     - name: sm4-2
       run: go test -bench='sm4$' -cpu=2,4  -benchtime=1s -count=3 ./cryptox/sm4
+
+    - name: gf
+      run: go test -v -count=1 -cover  ./mathx/gf/
