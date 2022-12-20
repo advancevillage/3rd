@@ -87,7 +87,11 @@ func Test_gf(t *testing.T) {
 
 	for n, p := range data {
 		f := func(t *testing.T) {
-			g := newgf(p.m)
+			g, err := newgf(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
 
 			assert.Equal(t, p.t0, g.t0)
 			assert.Equal(t, p.t1, g.t1)
@@ -97,7 +101,7 @@ func Test_gf(t *testing.T) {
 
 }
 
-func Test_gf_op(t *testing.T) {
+func Test_gf_ploy(t *testing.T) {
 
 	var data = map[string]struct {
 		m  uint32
@@ -148,12 +152,83 @@ func Test_gf_op(t *testing.T) {
 
 	for n, p := range data {
 		f := func(t *testing.T) {
-			g := NewGF(p.m)
+			g, err := NewGfOp(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
 
-			assert.Equal(t, g.Add(p.a, p.b), p.v0)
-			assert.Equal(t, g.Sub(p.a, p.b), p.v1)
-			assert.Equal(t, g.Mul(p.a, p.b), p.v2)
-			assert.Equal(t, g.Div(p.a, p.b), p.v3)
+			assert.Equal(t, g.Add(p.a, p.b, OpPloy), p.v0)
+			assert.Equal(t, g.Sub(p.a, p.b, OpPloy), p.v1)
+			assert.Equal(t, g.Mul(p.a, p.b, OpPloy), p.v2)
+			assert.Equal(t, g.Div(p.a, p.b, OpPloy), p.v3)
+		}
+		t.Run(n, f)
+	}
+
+}
+
+func Test_gf_alpha(t *testing.T) {
+
+	var data = map[string]struct {
+		m  uint32
+		a  uint32
+		b  uint32
+		v0 uint32 // a + b
+		v1 uint32 // a - b
+		v2 uint32 // a * b
+		v3 uint32 // a / b
+	}{
+		"casem4": {
+			m:  4,
+			a:  2,
+			b:  10,
+			v0: 4,
+			v1: 4,
+			v2: 12,
+			v3: 7,
+		},
+		"casem4-2": {
+			m:  4,
+			a:  0,
+			b:  10,
+			v0: 5,
+			v1: 5,
+			v2: 10,
+			v3: 5,
+		},
+		"casem8": {
+			m:  8,
+			a:  16,
+			b:  128,
+			v0: 23,
+			v1: 23,
+			v2: 144,
+			v3: 143,
+		},
+		"casem8-2": {
+			m:  8,
+			a:  0,
+			b:  158,
+			v0: 93,
+			v1: 93,
+			v2: 158,
+			v3: 97,
+		},
+	}
+
+	for n, p := range data {
+		f := func(t *testing.T) {
+			g, err := NewGfOp(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+
+			assert.Equal(t, g.Add(p.a, p.b, OpPower), p.v0)
+			assert.Equal(t, g.Sub(p.a, p.b, OpPower), p.v1)
+			assert.Equal(t, g.Mul(p.a, p.b, OpPower), p.v2)
+			assert.Equal(t, g.Div(p.a, p.b, OpPower), p.v3)
 		}
 		t.Run(n, f)
 	}

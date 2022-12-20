@@ -1,11 +1,13 @@
 package gf
 
-type GF interface {
-	Add(a, b uint32) uint32
-	Sub(a, b uint32) uint32
-	Mul(a, b uint32) uint32
-	Div(a, b uint32) uint32
-}
+import "fmt"
+
+type OpType byte
+
+const (
+	OpPower = OpType(0x00)
+	OpPloy  = OpType(0x01)
+)
 
 //Galois Fields. One Important Conclusions is that:
 //
@@ -293,6 +295,13 @@ type GF interface {
 // a^254 | 10001110 | 0x^8 1x^7 0x^6 0x^5 0x^4 1x^3 1x^2 1x^1 0x^0 | 142
 // a^255 | 00000001 | 0x^8 0x^7 0x^6 0x^5 0x^4 0x^3 0x^2 0x^1 1x^0 | 1
 
+// 伽罗瓦幂和多项式间转换
+type Gf interface {
+	Atop(alpha uint32) (ploy uint32)
+	Ptoa(ploy uint32) (alpha uint32)
+	Size() uint32
+}
+
 type gf struct {
 	m  uint32   // GF(2^m)
 	n  uint32   // GF集合长度
@@ -301,11 +310,11 @@ type gf struct {
 	t1 []uint32 // 根据十进制查询生成元
 }
 
-func NewGF(m uint32) GF {
+func NewGf(m uint32) (Gf, error) {
 	return newgf(m)
 }
 
-func newgf(m uint32) *gf {
+func newgf(m uint32) (*gf, error) {
 	g := &gf{}
 	switch m {
 	case 4:
@@ -319,7 +328,7 @@ func newgf(m uint32) *gf {
 		g.pp = 0x11d // 100011101 p(x) = x^8 + x^4 + x^3 + x^2 + 1
 
 	default:
-		panic("gf only support 2^4 or 2^8")
+		return nil, fmt.Errorf("gf only support 2^4 or 2^8")
 	}
 
 	g.t0 = make([]uint32, g.n)
@@ -340,52 +349,128 @@ func newgf(m uint32) *gf {
 		g.t1[g.t0[i]] = i
 	}
 
-	return g
+	return g, nil
 }
 
-func (g *gf) Add(a, b uint32) uint32 {
-	return g.add(a, b)
+// alpah^(g.n-1) = 1
+func (g *gf) Atop(alpha uint32) (ploy uint32) {
+	alpha %= g.n - 1
+	return g.t0[alpha]
 }
 
-func (g *gf) Sub(a, b uint32) uint32 {
-	return g.sub(a, b)
+func (g *gf) Ptoa(ploy uint32) (alpah uint32) {
+	return g.t1[ploy%g.n]
 }
 
-func (g *gf) Mul(a, b uint32) uint32 {
-	return g.mul(a, b)
+func (g *gf) Size() uint32 {
+	return g.n
 }
 
-func (g *gf) Div(a, b uint32) uint32 {
-	return g.div(a, b)
+// 伽罗瓦域的加减乘除运算
+type GfOp interface {
+	// 伽罗瓦域多项式的幂的加减乘除运算 或 多项式的加减乘除运算
+	Add(uint32, uint32, OpType) uint32
+	Sub(uint32, uint32, OpType) uint32
+	Mul(uint32, uint32, OpType) uint32
+	Div(uint32, uint32, OpType) uint32
 }
 
-func (g *gf) add(a, b uint32) uint32 {
-	return (a ^ b) % g.n
+func NewGfOp(m uint32) (GfOp, error) {
+	g, err := NewGf(m)
+	if err != nil {
+		return nil, err
+	}
+	return &gfop{g: g}, nil
 }
 
-func (g *gf) sub(a, b uint32) uint32 {
-	return (a ^ b) % g.n
+type gfop struct {
+	g Gf
 }
 
-func (g *gf) mul(a, b uint32) uint32 {
+func (g *gfop) Add(a uint32, b uint32, op OpType) (v uint32) {
+	switch op {
+	case OpPloy:
+		v = g.ployAdd(a, b)
+	case OpPower:
+		v = g.alphaAdd(a, b)
+	}
+	return
+}
+
+func (g *gfop) Sub(a uint32, b uint32, op OpType) (v uint32) {
+	switch op {
+	case OpPloy:
+		v = g.ploySub(a, b)
+	case OpPower:
+		v = g.alphaSub(a, b)
+	}
+	return
+}
+
+func (g *gfop) Mul(a uint32, b uint32, op OpType) (v uint32) {
+	switch op {
+	case OpPloy:
+		v = g.ployMul(a, b)
+	case OpPower:
+		v = g.alphaMul(a, b)
+	}
+	return
+}
+
+func (g *gfop) Div(a uint32, b uint32, op OpType) (v uint32) {
+	switch op {
+	case OpPloy:
+		v = g.ployDiv(a, b)
+	case OpPower:
+		v = g.alphaDiv(a, b)
+	}
+	return
+}
+
+func (g *gfop) ployAdd(a, b uint32) uint32 {
+	return (a ^ b) % g.g.Size()
+}
+
+func (g *gfop) ploySub(a, b uint32) uint32 {
+	return (a ^ b) % g.g.Size()
+}
+
+func (g *gfop) ployMul(a, b uint32) uint32 {
 	switch {
 	case a == 0 || b == 0:
 		return 0
 
 	default:
-		return g.t0[(g.t1[a]+g.t1[b])%g.n]
+		return g.g.Atop(g.alphaMul(g.g.Ptoa(a), g.g.Ptoa(b)))
 	}
 }
 
 // a / b = a * b^-1
-func (g *gf) div(a, b uint32) uint32 {
-	return g.mul(a, g.inv(b))
+func (g *gfop) ployDiv(a, b uint32) uint32 {
+	return g.ployMul(a, g.ployInv(b))
 }
 
 // a * a^-1 = 1 ( a != 0 ) 求解逆元
-func (g *gf) inv(a uint32) uint32 {
+func (g *gfop) ployInv(a uint32) uint32 {
 	if a == 0 {
 		panic("inverse operation require non-zero")
 	}
-	return g.t0[g.n-1-g.t1[a]]
+	return g.g.Atop(g.g.Size() - 1 - g.g.Ptoa(a))
+}
+
+// 伽罗瓦中的a^i 的加法。查表转m-1阶多项式加运算，在查表转幂
+func (g *gfop) alphaAdd(a, b uint32) uint32 {
+	return g.g.Ptoa(g.ployAdd(g.g.Atop(a), g.g.Atop(b)))
+}
+
+func (g *gfop) alphaSub(a, b uint32) uint32 {
+	return g.g.Ptoa(g.ploySub(g.g.Atop(a), g.g.Atop(b)))
+}
+
+func (g *gfop) alphaMul(a, b uint32) uint32 {
+	return g.g.Ptoa(g.g.Atop(a)) + g.g.Ptoa(g.g.Atop(b))
+}
+
+func (g *gfop) alphaDiv(a, b uint32) uint32 {
+	return g.g.Ptoa(g.g.Atop(a)) + g.g.Size() - 1 - g.g.Ptoa(g.g.Atop(b))
 }

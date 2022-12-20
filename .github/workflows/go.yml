@@ -42,3 +42,6 @@ jobs:
 
     - name: gf
       run: go test -v -count=1 -cover  ./mathx/gf/
+
+    - name: bch
+      run: go test -v -count=1 -cover ./mathx/bch/
