@@ -91,3 +91,48 @@ func Test_bch_gx(t *testing.T) {
 	}
 
 }
+
+func Test_bch_encode(t *testing.T) {
+	var data = map[string]struct {
+		m   uint32
+		t   uint32
+		mx  uint32
+		exp uint32
+	}{
+		"m=4, t=3, mx=0b00101": {
+			m:   4,
+			t:   3,
+			mx:  0b00101,
+			exp: 0b001010011011100,
+		},
+		"m=4, t=3, mx=0b01001": {
+			m:   4,
+			t:   3,
+			mx:  0b01001,
+			exp: 0x72f3 ^ 0b101010000010010,
+		},
+		"m=4, t=3, mx=0b00000": {
+			m:   4,
+			t:   3,
+			mx:  0b00000,
+			exp: 0x5412 ^ 0b101010000010010,
+		},
+	}
+
+	for n, p := range data {
+		f := func(t *testing.T) {
+			c, err := newbch(p.m, p.t)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			c.gmp()
+			c.ggx()
+			act := c.encode(p.mx)
+
+			assert.Equal(t, p.exp, act)
+		}
+		t.Run(n, f)
+	}
+
+}

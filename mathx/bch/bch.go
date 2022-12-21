@@ -190,3 +190,52 @@ func (c *bch) ggx() {
 	c.gx = p
 	c.k = c.n - uint32(len(c.gx))
 }
+
+// BCH是循环码的一种，BCH(n,k)中n编码长度，k信息长度，信息码多项式m(x)
+//
+//  [x^(n - k) * m(x)] / gx = Q(x) ... r(x)
+//
+// 即  x^(n - k) * m(x) = Q(x)*g(x) + r(x)
+//
+// C(x) = x^(n - k) * m(x) + r(x)
+//
+// encode_bch: http://www.eccpage.com/bch3.c
+func (c *bch) encode(m uint32) uint32 {
+	var (
+		n  = int(c.k)
+		nn = len(c.gx) - 1
+		mx = make([]uint32, nn+n)
+	)
+
+	for i := 0; i < n; i++ {
+		mx[nn+i] = (m >> i) & 0x1
+	}
+
+	for i := n - 1; i >= 0; i-- {
+		feedback := mx[nn+i] ^ mx[nn-1]
+
+		if feedback > 0 {
+			for j := nn - 1; j > 0; j-- {
+				if c.gx[j] > 0 {
+					mx[j] = mx[j-1] ^ feedback
+				} else {
+					mx[j] = mx[j-1]
+				}
+			}
+			mx[0] = c.gx[0] & feedback
+		} else {
+			for j := nn - 1; j > 0; j-- {
+				mx[j] = mx[j-1]
+			}
+			mx[0] = 0
+		}
+	}
+
+	m = 0
+
+	for i := 0; i < nn+n; i++ {
+		m |= mx[i] << i
+	}
+
+	return m
+}
