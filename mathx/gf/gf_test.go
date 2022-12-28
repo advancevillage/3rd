@@ -152,7 +152,12 @@ func Test_gf_ploy(t *testing.T) {
 
 	for n, p := range data {
 		f := func(t *testing.T) {
-			g, err := NewGfOp(p.m)
+			gg, err := NewGf(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			g, err := NewGfOp(gg)
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -219,7 +224,12 @@ func Test_gf_alpha(t *testing.T) {
 
 	for n, p := range data {
 		f := func(t *testing.T) {
-			g, err := NewGfOp(p.m)
+			gg, err := NewGf(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			g, err := NewGfOp(gg)
 			if err != nil {
 				t.Fatal(err)
 				return

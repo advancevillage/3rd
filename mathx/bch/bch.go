@@ -6,6 +6,46 @@ import (
 	"github.com/advancevillage/3rd/mathx/gf"
 )
 
+type Bch interface {
+	Encode(m uint32) uint32
+}
+
+func NewPrimitiveBch(m, t uint32) (Bch, error) {
+	var b, err = newbch(m, t)
+	if err != nil {
+		return nil, err
+	}
+	b.gmp()
+	b.ggx()
+	return b, nil
+}
+
+func NewBch(n, gx uint32) (Bch, error) {
+	var b = &bch{}
+
+	b.n = n
+
+	nn := 0 // 检查位长度
+	// g(x) = x^12 + x^11 + x^10 + x^9 + x^8 + x^5 + x^2 + 1
+	// g(x) = 0b1 1111 0010 0101
+	// len(gx) = 12
+	for i := 0; i < 32; i++ {
+		if (gx>>i)&0x1 > 0 {
+			nn = i
+		} else {
+			continue
+		}
+	}
+	b.k = n - uint32(nn)        // 数据位长度
+	b.gx = make([]uint32, nn+1) // 生成多项式
+
+	for i := 0; i <= nn; i++ {
+		b.gx[i] = (gx >> i) & 0x1
+	}
+
+	return b, nil
+}
+
 type bch struct {
 	g   gf.Gf
 	gop gf.GfOp
@@ -24,7 +64,7 @@ func newbch(m, t uint32) (*bch, error) {
 		return nil, err
 	}
 
-	gop, err := gf.NewGfOp(m)
+	gop, err := gf.NewGfOp(g)
 	if err != nil {
 		return nil, err
 	}
@@ -238,4 +278,8 @@ func (c *bch) encode(m uint32) uint32 {
 	}
 
 	return m
+}
+
+func (c *bch) Encode(m uint32) uint32 {
+	return c.encode(m)
 }

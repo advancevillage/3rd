@@ -320,12 +320,17 @@ func newgf(m uint32) (*gf, error) {
 	case 4:
 		g.m = 4
 		g.n = 1 << g.m
-		g.pp = 0x13 // 10011 p(x) = x^4 + x + 1
+		g.pp = 0b10011 // 10011 p(x) = x^4 + x + 1
+
+	case 5:
+		g.m = 5
+		g.n = 1 << g.m
+		g.pp = 0b100101 // 100101 p(x) = x^5 + x^2 + 1
 
 	case 8:
 		g.m = 8
 		g.n = 1 << g.m
-		g.pp = 0x11d // 100011101 p(x) = x^8 + x^4 + x^3 + x^2 + 1
+		g.pp = 0b100011101 // 100011101 p(x) = x^8 + x^4 + x^3 + x^2 + 1
 
 	default:
 		return nil, fmt.Errorf("gf only support 2^4 or 2^8")
@@ -375,11 +380,7 @@ type GfOp interface {
 	Div(uint32, uint32, OpType) uint32
 }
 
-func NewGfOp(m uint32) (GfOp, error) {
-	g, err := NewGf(m)
-	if err != nil {
-		return nil, err
-	}
+func NewGfOp(g Gf) (GfOp, error) {
 	return &gfop{g: g}, nil
 }
 
