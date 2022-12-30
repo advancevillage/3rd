@@ -244,3 +244,36 @@ func Test_gf_alpha(t *testing.T) {
 	}
 
 }
+
+func Test_gf_rs(t *testing.T) {
+	var data = map[string]struct {
+		m uint32
+		a uint32
+		b uint32
+	}{
+		"case1": {
+			m: 8,
+			a: 64,
+			b: 49,
+		},
+	}
+
+	for n, p := range data {
+		f := func(t *testing.T) {
+			g, err := NewGf(p.m)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			gop, err := NewGfOp(g)
+			if err != nil {
+				t.Fatal(err)
+				return
+			}
+			t.Log(gop.Add(p.a, p.b, OpPloy))
+			t.Log(gop.Mul(p.a, p.b, OpPloy))
+		}
+		t.Run(n, f)
+	}
+
+}
