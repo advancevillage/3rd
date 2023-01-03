@@ -5,6 +5,7 @@ import (
 )
 
 type Rs interface {
+	Encode(mx []uint32, nEcCw uint32) []uint32
 }
 
 // Reed-Solomon(RS) 里德-所罗门编码； 该编码定义在伽罗瓦域中，将数据流重新排列，以块(symbol)为单位。
@@ -62,6 +63,10 @@ type Rs interface {
 type rs struct {
 	g   gf.Gf
 	gop gf.GfOp
+}
+
+func NewRs(m uint32) (Rs, error) {
+	return newrs(m)
 }
 
 func newrs(m uint32) (*rs, error) {
@@ -166,4 +171,8 @@ func (r *rs) encode(cw []uint32, nEcCw uint32) []uint32 {
 	}
 
 	return mx
+}
+
+func (r *rs) Encode(mx []uint32, nEcCw uint32) []uint32 {
+	return r.encode(mx, nEcCw)
 }
