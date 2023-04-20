@@ -128,6 +128,7 @@ func NewWithGx(n int, gx []byte) (ICyclicCode, error) {
 	for i := 0; i < c.n-c.k; i++ {
 		c.MatrixH[i] = c.gH(i)
 	}
+
 	return c, nil
 }
 
@@ -173,4 +174,19 @@ func (c cc) G() [][]byte {
 
 func (c cc) H() [][]byte {
 	return c.MatrixH
+}
+
+func (c cc) encode(m []byte) ([]byte, error) {
+	if len(m) != c.k {
+		return m, fmt.Errorf("msg bit length must be %d, but current value is %d.", c.k, len(m))
+	}
+	cx := make([]byte, c.n)
+
+	for i := 0; i < c.n; i++ {
+		for j := 0; j < c.k; j++ {
+			cx[i] ^= m[j] & c.MatrixG[c.k-1-j][i]
+		}
+	}
+
+	return cx, nil
 }
