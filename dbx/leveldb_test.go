@@ -2,10 +2,10 @@ package dbx
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"testing"
 
-	"github.com/advancevillage/3rd/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,53 +15,53 @@ var ldbTestData = map[string]struct {
 	value  string
 }{
 	"case1": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case2": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case3": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case4": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case5": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case6": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case7": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case8": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case9": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 	"case10": {
-		key:    utils.RandsString(8),
-		value:  utils.RandsString(16),
+		key:    randsString(8),
+		value:  randsString(16),
 		prefix: "t-",
 	},
 }
@@ -140,4 +140,14 @@ func Test_p_ldb(t *testing.T) {
 		t.Run(n, f)
 	}
 	os.Remove(dir)
+}
+
+func randsString(n int) string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	r := rand.New(rand.NewSource(99))
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[r.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
