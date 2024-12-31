@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"time"
 )
@@ -17,13 +15,15 @@ type IHTTPClient interface {
 	GET(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error)
 	POST(ctx context.Context, uri string, headers map[string]string, buf []byte) ([]byte, error)
 	PostForm(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error)
-	Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, upload string) ([]byte, error)
+	Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, field string, filename string, fieldReader io.Reader) ([]byte, error)
 
 	hdr(h map[string]string)
 	timeout(t int)
 }
 
 type HTTPCliOpt func(IHTTPClient)
+
+var _ IHTTPClient = (*httpCli)(nil)
 
 type httpCli struct {
 	h  map[string]string
@@ -103,7 +103,7 @@ func (c *httpCli) GET(ctx context.Context, uri string, params map[string]string,
 	//6. 请求结束后关闭连接
 	defer response.Body.Close()
 	//7. 读书响应数据
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (c *httpCli) POST(ctx context.Context, uri string, headers map[string]strin
 	//5. 请求结束后关闭连接
 	defer response.Body.Close()
 	//6. 读书响应数据
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -189,35 +189,28 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params map[string]st
 	//6. 请求结束后关闭连接
 	defer response.Body.Close()
 	//7. 读书响应数据
-	body, err := ioutil.ReadAll(response.Body)
+	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
 	return body, nil
 }
 
-func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, upload string) ([]byte, error) {
+func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, field string, filename string, fieldReader io.Reader) ([]byte, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
 		response *http.Response
-		file     *os.File
 		body     = &bytes.Buffer{}
 		err      error
 	)
-	//1. 读取文件
-	file, err = os.Open(upload)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
 	//2. 分片
 	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile("file", filepath.Base(upload))
+	part, err := writer.CreateFormFile(field, filepath.Base(filename))
 	if err != nil {
 		return nil, err
 	}
-	_, err = io.Copy(part, file)
+	_, err = io.Copy(part, fieldReader)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +252,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]stri
 	//8. 关闭连接
 	defer response.Body.Close()
 	//9. 响应
-	buf, err := ioutil.ReadAll(response.Body)
+	buf, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
