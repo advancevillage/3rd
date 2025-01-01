@@ -91,11 +91,11 @@ func newbch(m, t uint32) (*bch, error) {
 //
 // beta是GF(q^m)中的元素，以beta为根的阶数最小多项式，称为最小多项式F(X)，即 F(beta) = 0
 //
-//         e-1
-//         __
-//  F(X) = ||  (X - Beta^(q^i)
-//         --
-//         i=0
+//	       e-1
+//	       __
+//	F(X) = ||  (X - Beta^(q^i)
+//	       --
+//	       i=0
 //
 // 满足 beta^(q^e) = beta, e为最小正整数; 即 beta^(q^e - 1) = 1
 //
@@ -159,22 +159,22 @@ func (c *bch) gmp() {
 }
 
 // BCH码生成多项式
-//      g[x] = LCM(f1[x]f2[x]f3[x]......f(2t)[x])
+//
+//	g[x] = LCM(f1[x]f2[x]f3[x]......f(2t)[x])
 //
 // f(2t)[x] 是极小多项式
 //
 // 涉及多项式相乘，多项式相乘用矩阵求解
 //
-//                      |A|             |AB   A|
-//  (x + A)(x + B) =    | | x |B  1| =  |      |  = AB + (A+B)x + x^2
-//                      |1|             |B    1|
+//	                    |A|             |AB   A|
+//	(x + A)(x + B) =    | | x |B  1| =  |      |  = AB + (A+B)x + x^2
+//	                    |1|             |B    1|
 //
 // 注意：AB 为伽罗瓦乘法运算， A + B 为伽罗瓦加法运算
 //
-//                                  |AB |                | ABC     AB   0|
-//  (AB + (A+B)x + x^2)(C + x) =    |A+B| x |C  1  0| =  |(A+B)C   A+B  0|  = ABC + [(A+B)C + AB]x + (A+B+C)x^2 + x^3
-//                                  | 1 |                |  C       1   0|
-//
+//	                                |AB |                | ABC     AB   0|
+//	(AB + (A+B)x + x^2)(C + x) =    |A+B| x |C  1  0| =  |(A+B)C   A+B  0|  = ABC + [(A+B)C + AB]x + (A+B+C)x^2 + x^3
+//	                                | 1 |                |  C       1   0|
 func (c *bch) ggx() {
 	//1. 计算生成多项式的极小多项式列表
 	var (
@@ -233,7 +233,7 @@ func (c *bch) ggx() {
 
 // BCH是循环码的一种，BCH(n,k)中n编码长度，k信息长度，信息码多项式m(x)
 //
-//  [x^(n - k) * m(x)] / gx = Q(x) ... r(x)
+//	[x^(n - k) * m(x)] / gx = Q(x) ... r(x)
 //
 // 即  x^(n - k) * m(x) = Q(x)*g(x) + r(x)
 //
