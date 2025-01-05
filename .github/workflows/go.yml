@@ -1,13 +1,21 @@
-name: UnitTest
+name: tests
 
 on:
   push:
     branches: [ master ]
 
 jobs:
-
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    services:
+       mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: test
+          MYSQL_ROOT_PASSWORD: password
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3 
     steps:
     - uses: actions/checkout@v2
 
@@ -48,3 +56,6 @@ jobs:
 
     - name: rs
       run: go test -v -count=1 -cover ./mathx/rs/
+
+    - name: dbx
+      run: go test -v -count=1 -cover ./dbx/

@@ -1,4 +1,4 @@
-//author: richard
+// author: richard
 package dbx
 
 import (
@@ -16,10 +16,10 @@ type IDBProxy interface {
 	ExecSql(ctx context.Context, schema string, sqlStr string) ([]*dbproxy.SqlRow, error)
 }
 
-//@overview: 基于mysql数据库实现.需要支持的功能断开重连,读写分离. 断开重连功能标准库已经实现.
-//@author: richard.sun
-//@date: 2020-11
-//@param:
+// @overview: 基于mysql数据库实现.需要支持的功能断开重连,读写分离. 断开重连功能标准库已经实现.
+// @author: richard.sun
+// @date: 2020-11
+// @param:
 // f   数据库连接器
 // dns 数据库地址
 // db  数据库连接

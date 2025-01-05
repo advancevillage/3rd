@@ -1,4 +1,4 @@
-//author: richard
+// author: richard
 package dbx
 
 import (
@@ -40,8 +40,9 @@ func newTestDBProxyService() (*testDBProxy, error) {
 	return &s, nil
 }
 
-//@overview: 单元测试数据库接口
-//@param:
+// @overview: 单元测试数据库接口
+// @param:
+//
 //	td(test data) 测试数据. yaml格式
 func (s *testDBProxy) RunInDBProxy(td map[string]interface{}, t *testing.T, f func(*testing.T)) {
 	//0. 预先在数据库中创建表
@@ -87,8 +88,8 @@ func (s *testDBProxy) RunInDBProxy(td map[string]interface{}, t *testing.T, f fu
 	})
 }
 
-//@overview: 单元测试Case
-//case1 单表查询 case2 多表查询 case3 单表更新 case4 多表更新 case5 单表删除 case6 多表删除
+// @overview: 单元测试Case
+// case1 单表查询 case2 多表查询 case3 单表更新 case4 多表更新 case5 单表删除 case6 多表删除
 var testData = map[string]struct {
 	data     map[string]interface{}
 	sqlStr   string
