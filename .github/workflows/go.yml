@@ -34,20 +34,20 @@ jobs:
           age  int not null default 0 comment '年龄',
           createTime int(64) not null default 0 comment '创建时间',                                      
           updateTime int(64) not null default 0 comment '更新时间',
-          deleteTime int(64) not null default 0 comment '删除时间',                                    - name: go-version
-          primary key (`id`)                                                                             uses: actions/setup-go@v2
-        )engine=innodb auto_increment=0 default charset utf8;                                              with:
+          deleteTime int(64) not null default 0 comment '删除时间',                                
+          primary key (`id`)                                                                       
+        )engine=innodb auto_increment=0 default charset utf8;                                      
                                                               
-       create table if not exists t_test_class (                                                        - name: mathx
-           cid int auto_increment,                                                                        run: go test -v -count=1 -cover ./mathx/
+       create table if not exists t_test_class (                                                   
+           cid int auto_increment,                                                                 
            uid int not null default 0 comment '用户id',
-           name char(64) not null default '' comment '名称',                                            - name: netx
-           teacher  char(64) not null default '' comment '教师',                                          run: go test -v -count=1 -cover ./netx/
+           name char(64) not null default '' comment '名称',                                       
+           teacher  char(64) not null default '' comment '教师',                                   
            createTime int(64) not null default 0 comment '创建时间',
-           updateTime int(64) not null default 0 comment '更新时间',                                    - name: radix
-           deleteTime int(64) not null default 0 comment '删除时间',                                      run: go test -v -count=1 -cover ./radix/
+           updateTime int(64) not null default 0 comment '更新时间',                               
+           deleteTime int(64) not null default 0 comment '删除时间',                               
            primary key (`cid`)
-       )engine=innodb auto_increment=0 default charset utf8;                                            - name: cli cky
+       )engine=innodb auto_increment=0 default charset utf8;                                       
        EOF
 
     - name: go-version
