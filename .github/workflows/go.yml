@@ -19,6 +19,37 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: init-mysql-data
+      run: |
+        mysql -h 127.0.0.1 -P 3306 -u root -ppassword << EOF
+        create database if not exists  test default charset utf8;
+        create user 'test'@'%' identified by 'password';
+        grant  all on test.* to 'test'@'%';
+        flush privileges;
+        use test;
+
+        create table if not exists t_test_user (
+          id int auto_increment,
+          name char(64) not null default '' comment '名称',                                                
+          age  int not null default 0 comment '年龄',
+          createTime int(64) not null default 0 comment '创建时间',                                      
+          updateTime int(64) not null default 0 comment '更新时间',
+          deleteTime int(64) not null default 0 comment '删除时间',                                    - name: go-version
+          primary key (`id`)                                                                             uses: actions/setup-go@v2
+        )engine=innodb auto_increment=0 default charset utf8;                                              with:
+                                                              
+       create table if not exists t_test_class (                                                        - name: mathx
+           cid int auto_increment,                                                                        run: go test -v -count=1 -cover ./mathx/
+           uid int not null default 0 comment '用户id',
+           name char(64) not null default '' comment '名称',                                            - name: netx
+           teacher  char(64) not null default '' comment '教师',                                          run: go test -v -count=1 -cover ./netx/
+           createTime int(64) not null default 0 comment '创建时间',
+           updateTime int(64) not null default 0 comment '更新时间',                                    - name: radix
+           deleteTime int(64) not null default 0 comment '删除时间',                                      run: go test -v -count=1 -cover ./radix/
+           primary key (`cid`)
+       )engine=innodb auto_increment=0 default charset utf8;                                            - name: cli cky
+       EOF
+
     - name: go-version
       uses: actions/setup-go@v2
       with:

@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	testDB = "mysql://root:password@tcp(localhost:3306)/test"
+	testDB = "mysql://test:password@tcp(localhost:3306)/test"
 )
 
 const testSchema = "test"
