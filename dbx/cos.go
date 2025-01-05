@@ -15,8 +15,13 @@ import (
 
 type S3 interface {
 	Uploader
+	Operator
 	Downloader
+}
+
+type Operator interface {
 	Exist(ctx context.Context, name string) (bool, error)
+	Clean(cxx context.Context, name string) error
 }
 
 type Downloader interface {
@@ -64,6 +69,20 @@ func (t *TxCos) Exist(ctx context.Context, name string) (bool, error) {
 
 	default:
 		return false, err
+	}
+}
+
+func (t *TxCos) Clean(ctx context.Context, name string) error {
+	_, err := t.c.Object.Delete(ctx, name, nil)
+	switch {
+	case err == nil:
+		return nil
+
+	case cos.IsNotFoundError(err):
+		return nil
+
+	default:
+		return err
 	}
 }
 

@@ -2,10 +2,10 @@ package dbx
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"testing"
 
+	"github.com/advancevillage/3rd/mathx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,53 +15,53 @@ var ldbTestData = map[string]struct {
 	value  string
 }{
 	"case1": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case2": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case3": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case4": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case5": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case6": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case7": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case8": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case9": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 	"case10": {
-		key:    randsString(8),
-		value:  randsString(16),
+		key:    mathx.RandStr(8),
+		value:  mathx.RandStr(16),
 		prefix: "t-",
 	},
 }
@@ -140,14 +140,4 @@ func Test_p_ldb(t *testing.T) {
 		t.Run(n, f)
 	}
 	os.Remove(dir)
-}
-
-func randsString(n int) string {
-	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	r := rand.New(rand.NewSource(99))
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[r.Intn(len(letterRunes))]
-	}
-	return string(b)
 }

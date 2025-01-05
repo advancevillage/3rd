@@ -1,4 +1,4 @@
-//author: richard
+// author: richard
 package dbx
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	testDB = "mysql://test:password@tcp(localhost:3306)/test"
+	testDB = "mysql://root:password@tcp(localhost:3306)/test"
 )
 
 const testSchema = "test"
@@ -58,19 +58,20 @@ func init() {
 
 type DBProxyTestFunc func(t *testing.T, dbCli IDBProxy)
 
-//@overview: Mainly this package was created for testing purposes, to give the ability
-//to seed a database with records from simple .yaml files.
-//@author: richard.sun
-//@date: 2020-11
-//@param:
+// @overview: Mainly this package was created for testing purposes, to give the ability
+// to seed a database with records from simple .yaml files.
+// @author: richard.sun
+// @date: 2020-11
+// @param:
 // yaml	string yaml 格式
-//      const input = `
-//      roles:
-//      - name: User
-//      users:
-//      - name: Roman
-//        role_id: 1
-//      `
+//
+//	const input = `
+//	roles:
+//	- name: User
+//	users:
+//	- name: Roman
+//	  role_id: 1
+//	`
 func RunUnitTest(yaml string, t *testing.T, f DBProxyTestFunc) {
 	if testing.Short() {
 		t.SkipNow()
