@@ -20,6 +20,7 @@ type S3 interface {
 }
 
 type Operator interface {
+	Url(ctx context.Context, name string) (string, error)
 	Exist(ctx context.Context, name string) (bool, error)
 	Clean(cxx context.Context, name string) error
 }
@@ -55,6 +56,10 @@ func NewCosS3(ctx context.Context, bucket string, region string, ak string, sk s
 }
 
 func (t *TxCos) Download(ctx context.Context, name string) (string, error) {
+	return t.getPresignedUrl(ctx, http.MethodGet, name)
+}
+
+func (t *TxCos) Url(ctx context.Context, name string) (string, error) {
 	return t.getPresignedUrl(ctx, http.MethodGet, name)
 }
 
