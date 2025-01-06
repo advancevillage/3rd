@@ -21,7 +21,7 @@ jobs:
 
     - name: init-mysql-data
       run: |
-        mysql -h 127.0.0.1 -P 3306 -u root -ppassword <<EOF
+        mysql -h 127.0.0.1 -P 3306 -u root -ppassword << "EOF"
         CREATE DATABASE IF NOT EXISTS test DEFAULT CHARSET utf8mb4;
         CREATE USER IF NOT EXISTS 'test'@'%' IDENTIFIED BY 'password';
         GRANT ALL PRIVILEGES ON test.* TO 'test'@'%';
