@@ -2,6 +2,7 @@ package dbx_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/advancevillage/3rd/dbx"
@@ -11,9 +12,11 @@ import (
 )
 
 func Test_S3(t *testing.T) {
+	var (
+		ak = os.Getenv("COS_AK")
+		sk = os.Getenv("COS_SK")
+	)
 	var data = map[string]struct {
-		ak     string
-		sk     string
 		bucket string
 		region string
 		ext    map[string]interface{}
@@ -21,8 +24,6 @@ func Test_S3(t *testing.T) {
 		"case1": {
 			bucket: "xmagic-1259635961",
 			region: "ap-shanghai",
-			ak:     "AKIDmPxIQO9h1B8ECzax74pOlupXmodEdrsg",
-			sk:     "e4KOFsHTRBk6FBuQjpiOchnkZEm7HEyV",
 			ext: map[string]interface{}{
 				"name":  "test/" + mathx.RandStr(5) + ".txt",
 				"total": 6,
@@ -39,8 +40,6 @@ func Test_S3(t *testing.T) {
 		"case2": {
 			bucket: "xmagic-1259635961",
 			region: "ap-shanghai",
-			ak:     "AKIDmPxIQO9h1B8ECzax74pOlupXmodEdrsg",
-			sk:     "e4KOFsHTRBk6FBuQjpiOchnkZEm7HEyV",
 			ext: map[string]interface{}{
 				"name":  "test/" + mathx.RandStr(5) + ".txt",
 				"total": 1,
@@ -53,7 +52,7 @@ func Test_S3(t *testing.T) {
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			c, err := dbx.NewCosS3(context.TODO(), v.bucket, v.region, v.ak, v.sk)
+			c, err := dbx.NewCosS3(context.TODO(), v.bucket, v.region, ak, sk)
 			if err != nil {
 				t.Fatal(err)
 				return
