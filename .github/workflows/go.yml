@@ -27,8 +27,8 @@ jobs:
         grant  all on test.* to 'test'@'%';
         flush privileges;
         use test;
-        create table if not exists t_test_user (`id` int auto_increment,`name` char(64) not null default '' comment '名称',`age`  int not null default 0 comment '年龄',`createTime` int(64) not null default 0 comment '创建时间',`updateTime` int(64) not null default 0 comment '更新时间',`deleteTime` int(64) not null default 0 comment '删除时间',primary key (`id`))engine=innodb default charset utf8;
-        create table if not exists t_test_class (`cid` int auto_increment,`uid` int not null default 0 comment '用户id',`name` char(64) not null default '' comment '名称',`teacher`  char(64) not null default '' comment '教师',`createTime` int(64) not null default 0 comment '创建时间',`updateTime` int(64) not null default 0 comment '更新时间',`deleteTime` int(64) not null default 0 comment '删除时间',primary key (`cid`))engine=innodb default charset utf8;
+        CREATE TABLE IF NOT EXISTS t_test_user (`id` INT AUTO_INCREMENT,`name` CHAR(64) NOT NULL DEFAULT '' COMMENT '名称',`age` INT NOT NULL DEFAULT 0 COMMENT '年龄',`createTime` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',`updateTime` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间',`deleteTime` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户测试表';
+        CREATE TABLE IF NOT EXISTS t_test_class (`cid` INT AUTO_INCREMENT COMMENT '班级ID',`uid` INT NOT NULL DEFAULT 0 COMMENT '用户ID',`name` CHAR(64) NOT NULL DEFAULT '' COMMENT '名称',`teacher` CHAR(64) NOT NULL DEFAULT '' COMMENT '教师',`createTime` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',`updateTime` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间',`deleteTime` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间',PRIMARY KEY (`cid`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级表';
         EOF
 
     - name: go-version
