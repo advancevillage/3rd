@@ -21,15 +21,15 @@ jobs:
 
     - name: init-mysql-data
       run: |
-         mysql -h 127.0.0.1 -P 3306 -u root -ppassword << EOF
-         create database if not exists  test default charset utf8;
-         create user 'test'@'%' identified by 'password';
-         grant  all on test.* to 'test'@'%';
-         flush privileges;
-         use test;
-         create table if not exists t_test_user (id int auto_increment,name char(64) not null default '' comment '名称',age  int not null default 0 comment '年龄',createTime int(64) not null default 0 comment '创建时间',updateTime int(64) not null default 0 comment '更新时间',deleteTime int(64) not null default 0 comment '删除时间',primary key (`id`))engine=innodb auto_increment=0 default charset utf8; 
-         create table if not exists t_test_class (cid int auto_increment,uid int not null default 0 comment '用户id',name char(64) not null default '' comment '名称',teacher  char(64) not null default '' comment '教师',createTime int(64) not null default 0 comment '创建时间',updateTime int(64) not null default 0 comment '更新时间',deleteTime int(64) not null default 0 comment '删除时间',primary key (`cid`))engine=innodb auto_increment=0 default charset utf8; 
-         EOF
+        mysql -h 127.0.0.1 -P 3306 -u root -ppassword << EOF
+        create database if not exists  test default charset utf8;
+        create user 'test'@'%' identified by 'password';
+        grant  all on test.* to 'test'@'%';
+        flush privileges;
+        use test;
+        create table if not exists t_test_user (`id` int auto_increment,`name` char(64) not null default '' comment '名称',`age`  int not null default 0 comment '年龄',`createTime` int(64) not null default 0 comment '创建时间',`updateTime` int(64) not null default 0 comment '更新时间',`deleteTime` int(64) not null default 0 comment '删除时间',primary key (`id`))engine=innodb default charset utf8;
+        create table if not exists t_test_class (`cid` int auto_increment,`uid` int not null default 0 comment '用户id',`name` char(64) not null default '' comment '名称',`teacher`  char(64) not null default '' comment '教师',`createTime` int(64) not null default 0 comment '创建时间',`updateTime` int(64) not null default 0 comment '更新时间',`deleteTime` int(64) not null default 0 comment '删除时间',primary key (`cid`))engine=innodb default charset utf8;
+        EOF
 
     - name: go-version
       uses: actions/setup-go@v2
