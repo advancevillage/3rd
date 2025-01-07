@@ -3,6 +3,7 @@ package netx
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -12,10 +13,10 @@ import (
 )
 
 type IHTTPClient interface {
-	GET(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error)
-	POST(ctx context.Context, uri string, headers map[string]string, buf []byte) ([]byte, error)
-	PostForm(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error)
-	Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, field string, filename string, fieldReader io.Reader) ([]byte, error)
+	GET(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}) ([]byte, error)
+	POST(ctx context.Context, uri string, headers map[string]interface{}, buf []byte) ([]byte, error)
+	PostForm(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}) ([]byte, error)
+	Upload(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}, field string, filename string, fieldReader io.Reader) ([]byte, error)
 
 	hdr(h map[string]string)
 	timeout(t int)
@@ -63,7 +64,7 @@ func (c *httpCli) timeout(tm int) {
 	c.tm = tm
 }
 
-func (c *httpCli) GET(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error) {
+func (c *httpCli) GET(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}) ([]byte, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -81,12 +82,12 @@ func (c *httpCli) GET(ctx context.Context, uri string, params map[string]string,
 	//3. 设置请求参数
 	query = request.URL.Query()
 	for k, v := range params {
-		query.Add(k, v)
+		query.Add(k, fmt.Sprint(v))
 	}
 	request.URL.RawQuery = query.Encode()
 	//4. 设置请求头 headers > config.Configure.Header
 	for k, v := range headers {
-		request.Header.Add(k, v)
+		request.Header.Add(k, fmt.Sprint(v))
 	}
 	for k, v := range c.h {
 		if _, ok := headers[k]; ok {
@@ -110,7 +111,7 @@ func (c *httpCli) GET(ctx context.Context, uri string, params map[string]string,
 	return body, nil
 }
 
-func (c *httpCli) POST(ctx context.Context, uri string, headers map[string]string, buf []byte) ([]byte, error) {
+func (c *httpCli) POST(ctx context.Context, uri string, headers map[string]interface{}, buf []byte) ([]byte, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -126,7 +127,7 @@ func (c *httpCli) POST(ctx context.Context, uri string, headers map[string]strin
 	}
 	//3. 设置请求头 headers > config.Configure.Header
 	for k, v := range headers {
-		request.Header.Add(k, v)
+		request.Header.Add(k, fmt.Sprint(v))
 	}
 	for k, v := range c.h {
 		if _, ok := headers[k]; ok {
@@ -150,7 +151,7 @@ func (c *httpCli) POST(ctx context.Context, uri string, headers map[string]strin
 	return body, nil
 }
 
-func (c *httpCli) PostForm(ctx context.Context, uri string, params map[string]string, headers map[string]string) ([]byte, error) {
+func (c *httpCli) PostForm(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}) ([]byte, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -168,11 +169,11 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params map[string]st
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	//3. 设置From
 	for k, v := range params {
-		form.Add(k, v)
+		form.Add(k, fmt.Sprint(v))
 	}
 	//4. 设置请求头 headers > config.Configure.Header
 	for k, v := range headers {
-		request.Header.Add(k, v)
+		request.Header.Add(k, fmt.Sprint(v))
 	}
 	for k, v := range c.h {
 		if _, ok := headers[k]; ok {
@@ -196,7 +197,7 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params map[string]st
 	return body, nil
 }
 
-func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]string, headers map[string]string, field string, filename string, fieldReader io.Reader) ([]byte, error) {
+func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]interface{}, headers map[string]interface{}, field string, filename string, fieldReader io.Reader) ([]byte, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -216,7 +217,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]stri
 	}
 	//3. 设置参数
 	for k, v := range params {
-		err = writer.WriteField(k, v)
+		err = writer.WriteField(k, fmt.Sprint(v))
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +236,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params map[string]stri
 	//6. 设置请求头
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	for k, v := range headers {
-		request.Header.Add(k, v)
+		request.Header.Add(k, fmt.Sprint(v))
 	}
 	for k, v := range c.h {
 		if _, ok := headers[k]; ok {

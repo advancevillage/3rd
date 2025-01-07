@@ -128,7 +128,7 @@ func Test_srv_cli(t *testing.T) {
 			var b []byte
 			switch p.method {
 			case http.MethodGet:
-				ps := map[string]string{
+				ps := map[string]interface{}{
 					logx.TraceId: traceId,
 				}
 				b, err = cli.GET(context.TODO(), url, ps, nil)
