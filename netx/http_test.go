@@ -11,6 +11,7 @@ import (
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/mathx"
+	"github.com/advancevillage/3rd/x"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -125,13 +126,13 @@ func Test_srv_cli(t *testing.T) {
 			url := fmt.Sprintf("http://%s:%d%s", p.host, p.port, p.path)
 			traceId := mathx.UUID()
 			l.Infow(context.TODO(), "listen and serve", "host", p.host, "port", p.port, logx.TraceId, traceId)
-			var b []byte
+			var b HttpResponse
 			switch p.method {
 			case http.MethodGet:
-				ps := map[string]interface{}{
-					logx.TraceId: traceId,
-				}
-				b, err = cli.GET(context.TODO(), url, ps, nil)
+				ps := x.NewBuilder(
+					x.WithKV(logx.TraceId, traceId),
+				)
+				b, err = cli.GET(context.TODO(), url, ps, x.NewBuilder())
 			case http.MethodPost:
 				type rq struct {
 					TraceId string `json:"traceId"`
@@ -146,7 +147,7 @@ func Test_srv_cli(t *testing.T) {
 					t.Fatal(err)
 					return
 				}
-				b, err = cli.POST(context.TODO(), url, nil, buf)
+				b, err = cli.POST(context.TODO(), url, x.NewBuilder(), buf)
 			default:
 				t.Fatal("don't support method")
 				return
@@ -162,7 +163,7 @@ func Test_srv_cli(t *testing.T) {
 			}
 			var rr = new(reply)
 
-			err = json.Unmarshal(b, rr)
+			err = json.Unmarshal(b.Body(), rr)
 			if err != nil {
 				t.Fatal(err)
 				return

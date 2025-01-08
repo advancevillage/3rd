@@ -91,3 +91,6 @@ jobs:
       env:
         COS_AK: ${{ vars.COS_AK }}
         COS_SK: ${{ vars.COS_SK }}
+
+    - name: x
+      run: go test -v -count=1 -cover ./x/
