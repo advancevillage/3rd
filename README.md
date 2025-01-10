@@ -1,11 +1,39 @@
-### 3rd
-<img src="https://camo.githubusercontent.com/20065c601e7a02381bee3a76007952d94dcb3f2d/68747470733a2f2f7472617669732d63692e6f72672f6f6c69766572652f656c61737469632e7376673f6272616e63683d72656c656173652d6272616e63682e7636" alt="Build Status" style="max-width:100%;"/>
-<img src="https://camo.githubusercontent.com/2afd9bd1040ee3eca5d58a22b67cf1fd86057ffb/687474703a2f2f696d672e736869656c64732e696f2f62616467652f676f646f632d7265666572656e63652d626c75652e7376673f7374796c653d666c6174" alt="Godoc" style="max-width:100%;"/>
-<img src="https://camo.githubusercontent.com/80a3f4387388a340de7d3b66176e2a53c56d2ea5/687474703a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d7265642e7376673f7374796c653d666c6174" alt="license" style="max-width:100%;"/>
-<img src="https://camo.githubusercontent.com/98181c2cd08d758e1824b7466ebd326f5f81c1ac/68747470733a2f2f6170702e666f7373612e696f2f6170692f70726f6a656374732f6769742532426769746875622e636f6d2532466f6c6976657265253246656c61737469632e7376673f747970653d736869656c64" alt="FOSSA Status" style="max-width:100%;"/>
 
-### 编码设计原则
-````
-    1: 错误处理由调用者处理： 函数实现遇到err直接退出,不进行日志的处理
-````
+### 目录说明
+
+
+
+### gRPC
+1. 安装gRPC核心库
+https://pkg.go.dev/google.golang.org/grpc
+
+```
+require (
+    google.golang.org/grpc v1.69.2
+)
+
+```
+2. Go plugins for the protocol compiler
+```
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+```
+3. Protocol buffer compiler, protoc, version 3.
+```
+brew install protobuf (MacOS)
+apt install -y protobuf-compiler (Linux)
+
+$ protoc --version
+$ libprotoc 3.12.4
+```
+4. 设置PATH
+```
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+5. 编辑proto
+```
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative netx/grpc.proto
+```
+6. 文档
+https://grpc.io/docs/languages/go/quickstart/
 
