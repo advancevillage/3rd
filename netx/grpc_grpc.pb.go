@@ -8,7 +8,6 @@ package netx
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -20,103 +19,208 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Greeter_SayHello_FullMethodName = "/hello.Greeter/SayHello"
+	Healthor_Ping_FullMethodName     = "/Healthor/Ping"
+	Healthor_CPing_FullMethodName    = "/Healthor/CPing"
+	Healthor_SPing_FullMethodName    = "/Healthor/SPing"
+	Healthor_BidiPing_FullMethodName = "/Healthor/BidiPing"
 )
 
-// GreeterClient is the client API for Greeter service.
+// HealthorClient is the client API for Healthor service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GreeterClient interface {
-	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
+type HealthorClient interface {
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingReply, error)
+	CPing(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[PingRequest, PingReply], error)
+	SPing(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PingReply], error)
+	BidiPing(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PingRequest, PingReply], error)
 }
 
-type greeterClient struct {
+type healthorClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGreeterClient(cc grpc.ClientConnInterface) GreeterClient {
-	return &greeterClient{cc}
+func NewHealthorClient(cc grpc.ClientConnInterface) HealthorClient {
+	return &healthorClient{cc}
 }
 
-func (c *greeterClient) SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error) {
+func (c *healthorClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(HelloReply)
-	err := c.cc.Invoke(ctx, Greeter_SayHello_FullMethodName, in, out, cOpts...)
+	out := new(PingReply)
+	err := c.cc.Invoke(ctx, Healthor_Ping_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// GreeterServer is the server API for Greeter service.
-// All implementations must embed UnimplementedGreeterServer
-// for forward compatibility.
-type GreeterServer interface {
-	SayHello(context.Context, *HelloRequest) (*HelloReply, error)
-	mustEmbedUnimplementedGreeterServer()
+func (c *healthorClient) CPing(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[PingRequest, PingReply], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Healthor_ServiceDesc.Streams[0], Healthor_CPing_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PingRequest, PingReply]{ClientStream: stream}
+	return x, nil
 }
 
-// UnimplementedGreeterServer must be embedded to have
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_CPingClient = grpc.ClientStreamingClient[PingRequest, PingReply]
+
+func (c *healthorClient) SPing(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PingReply], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Healthor_ServiceDesc.Streams[1], Healthor_SPing_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PingRequest, PingReply]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_SPingClient = grpc.ServerStreamingClient[PingReply]
+
+func (c *healthorClient) BidiPing(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PingRequest, PingReply], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Healthor_ServiceDesc.Streams[2], Healthor_BidiPing_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PingRequest, PingReply]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_BidiPingClient = grpc.BidiStreamingClient[PingRequest, PingReply]
+
+// HealthorServer is the server API for Healthor service.
+// All implementations must embed UnimplementedHealthorServer
+// for forward compatibility.
+type HealthorServer interface {
+	Ping(context.Context, *PingRequest) (*PingReply, error)
+	CPing(grpc.ClientStreamingServer[PingRequest, PingReply]) error
+	SPing(*PingRequest, grpc.ServerStreamingServer[PingReply]) error
+	BidiPing(grpc.BidiStreamingServer[PingRequest, PingReply]) error
+	mustEmbedUnimplementedHealthorServer()
+}
+
+// UnimplementedHealthorServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedGreeterServer struct{}
+type UnimplementedHealthorServer struct{}
 
-func (UnimplementedGreeterServer) SayHello(context.Context, *HelloRequest) (*HelloReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SayHello not implemented")
+func (UnimplementedHealthorServer) Ping(context.Context, *PingRequest) (*PingReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
-func (UnimplementedGreeterServer) mustEmbedUnimplementedGreeterServer() {}
-func (UnimplementedGreeterServer) testEmbeddedByValue()                 {}
+func (UnimplementedHealthorServer) CPing(grpc.ClientStreamingServer[PingRequest, PingReply]) error {
+	return status.Errorf(codes.Unimplemented, "method CPing not implemented")
+}
+func (UnimplementedHealthorServer) SPing(*PingRequest, grpc.ServerStreamingServer[PingReply]) error {
+	return status.Errorf(codes.Unimplemented, "method SPing not implemented")
+}
+func (UnimplementedHealthorServer) BidiPing(grpc.BidiStreamingServer[PingRequest, PingReply]) error {
+	return status.Errorf(codes.Unimplemented, "method BidiPing not implemented")
+}
+func (UnimplementedHealthorServer) mustEmbedUnimplementedHealthorServer() {}
+func (UnimplementedHealthorServer) testEmbeddedByValue()                  {}
 
-// UnsafeGreeterServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GreeterServer will
+// UnsafeHealthorServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to HealthorServer will
 // result in compilation errors.
-type UnsafeGreeterServer interface {
-	mustEmbedUnimplementedGreeterServer()
+type UnsafeHealthorServer interface {
+	mustEmbedUnimplementedHealthorServer()
 }
 
-func RegisterGreeterServer(s grpc.ServiceRegistrar, srv GreeterServer) {
-	// If the following call pancis, it indicates UnimplementedGreeterServer was
+func RegisterHealthorServer(s grpc.ServiceRegistrar, srv HealthorServer) {
+	// If the following call pancis, it indicates UnimplementedHealthorServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&Greeter_ServiceDesc, srv)
+	s.RegisterService(&Healthor_ServiceDesc, srv)
 }
 
-func _Greeter_SayHello_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(HelloRequest)
+func _Healthor_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GreeterServer).SayHello(ctx, in)
+		return srv.(HealthorServer).Ping(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Greeter_SayHello_FullMethodName,
+		FullMethod: Healthor_Ping_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GreeterServer).SayHello(ctx, req.(*HelloRequest))
+		return srv.(HealthorServer).Ping(ctx, req.(*PingRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// Greeter_ServiceDesc is the grpc.ServiceDesc for Greeter service.
+func _Healthor_CPing_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(HealthorServer).CPing(&grpc.GenericServerStream[PingRequest, PingReply]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_CPingServer = grpc.ClientStreamingServer[PingRequest, PingReply]
+
+func _Healthor_SPing_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(PingRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(HealthorServer).SPing(m, &grpc.GenericServerStream[PingRequest, PingReply]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_SPingServer = grpc.ServerStreamingServer[PingReply]
+
+func _Healthor_BidiPing_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(HealthorServer).BidiPing(&grpc.GenericServerStream[PingRequest, PingReply]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Healthor_BidiPingServer = grpc.BidiStreamingServer[PingRequest, PingReply]
+
+// Healthor_ServiceDesc is the grpc.ServiceDesc for Healthor service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Greeter_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "hello.Greeter",
-	HandlerType: (*GreeterServer)(nil),
+var Healthor_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "Healthor",
+	HandlerType: (*HealthorServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SayHello",
-			Handler:    _Greeter_SayHello_Handler,
+			MethodName: "Ping",
+			Handler:    _Healthor_Ping_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "CPing",
+			Handler:       _Healthor_CPing_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SPing",
+			Handler:       _Healthor_SPing_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "BidiPing",
+			Handler:       _Healthor_BidiPing_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "netx/grpc.proto",
 }

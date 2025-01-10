@@ -1,24 +1,23 @@
+# 想你所想，无限可能
 
-### 目录说明
+## 目录
+- [第一章：gRPC](#gRPC)
+- [第二章：证书](#申请证书)
 
-
-
-### gRPC
-1. 安装gRPC核心库
-https://pkg.go.dev/google.golang.org/grpc
-
+## gRPC
+1. 安装grpc核心库
 ```
 require (
     google.golang.org/grpc v1.69.2
 )
 
 ```
-2. Go plugins for the protocol compiler
+2. go grpc 核心
 ```
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 ```
-3. Protocol buffer compiler, protoc, version 3.
+3. pb编译器
 ```
 brew install protobuf (MacOS)
 apt install -y protobuf-compiler (Linux)
@@ -37,3 +36,25 @@ protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=p
 6. 文档
 https://grpc.io/docs/languages/go/quickstart/
 
+
+## 申请证书
+1. 下载Certbot
+```
+brew install certbot
+certbot --version
+```
+地址：https://certbot.eff.org/instructions?ws=nginx&os=osx
+
+2. 获取证书
+```
+certbot certonly --manual --preferred-challenges dns -d *.sunhe.org -d sunhe.org --server https://acme-v02.api.letsencrypt.org/directory     
+
+可能问题:
+q. SSL: CERTIFICATE_VERIFY_FAILED]
+a. pip3 install --upgrade certifi
+```
+3. 域名添加记录
+```
+添加: txt _acme-challenge.sunhe.org xxxxxxx
+生效: dig txt _acme-challenge.sunhe.org @8.8.8.8
+```
