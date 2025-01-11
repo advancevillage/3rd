@@ -3,11 +3,12 @@ package netx
 import (
 	"context"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/advancevillage/3rd/logx"
-	"github.com/advancevillage/3rd/mathx"
 	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 type GrpcRegister func(grpc.ServiceRegistrar)
@@ -24,14 +25,14 @@ type ServerOption interface {
 	apply(*serverOptions)
 }
 
-func WithAddr(host string, port int) ServerOption {
+func WithServerAddr(host string, port int) ServerOption {
 	return newFuncServerOption(func(o *serverOptions) {
 		o.host = host
 		o.port = port
 	})
 }
 
-func WithCredential(crt, key string) ServerOption {
+func WithServerCredential(crt, key string) ServerOption {
 	return newFuncServerOption(func(o *serverOptions) {
 		o.crt = crt
 		o.key = key
@@ -88,12 +89,15 @@ func NewHealthorRegister(ctx context.Context, logger logx.ILogger) GrpcRegister 
 }
 
 func (s *healthorService) Ping(ctx context.Context, req *PingRequest) (*PingReply, error) {
-	return &PingReply{T: time.Now().UnixNano() / 1e6}, nil
+	now := time.Now().UnixNano() / 1e6
+	ctx = s.withLoggerContext(ctx)
+	s.logger.Infow(ctx, "stream finished", "count", 1, "reply", now)
+	return &PingReply{T: now}, nil
 }
 
 func (s *healthorService) CPing(stream Healthor_CPingServer) error {
 	var (
-		ctx   = context.WithValue(stream.Context(), logx.TraceId, mathx.UUID())
+		ctx   = s.withLoggerContext(stream.Context())
 		count = 0
 	)
 	for {
@@ -101,28 +105,29 @@ func (s *healthorService) CPing(stream Healthor_CPingServer) error {
 			req, err = stream.Recv()
 			now      = time.Now().UnixNano() / 1e6
 		)
-		count += 1
 		if err == io.EOF {
-			s.logger.Infow(ctx, "stream finished", "count", count, "send", now)
+			s.logger.Infow(ctx, "stream finished", "count", count, "reply", now)
 			return stream.SendAndClose(&PingReply{T: now})
 		}
+		count += 1
 		if err != nil {
-			s.logger.Errorw(ctx, "stream quit quit unexpectedly", "err", err, "count", count, "receive", req.T)
+			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count)
 			return err
 		}
+		s.logger.Infow(ctx, "streaming", "count", count, "receive", req.T)
 	}
 }
 
 func (s *healthorService) SPing(req *PingRequest, stream Healthor_SPingServer) error {
 	var (
-		ctx   = context.WithValue(stream.Context(), logx.TraceId, mathx.UUID())
+		ctx   = s.withLoggerContext(stream.Context())
 		count = 2
 	)
 	for i := 0; i < count; i++ {
 		var now = time.Now().UnixNano() / 1e6
 		err := stream.Send(&PingReply{T: now})
 		if err != nil {
-			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count, "send", now)
+			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", i, "reply", now)
 			return err
 		}
 		time.Sleep(time.Second)
@@ -133,7 +138,7 @@ func (s *healthorService) SPing(req *PingRequest, stream Healthor_SPingServer) e
 
 func (s *healthorService) BidiPing(stream Healthor_BidiPingServer) error {
 	var (
-		ctx   = context.WithValue(stream.Context(), logx.TraceId, mathx.UUID())
+		ctx   = s.withLoggerContext(stream.Context())
 		count = 0
 	)
 
@@ -142,24 +147,33 @@ func (s *healthorService) BidiPing(stream Healthor_BidiPingServer) error {
 			req, err = stream.Recv()
 			now      = time.Now().UnixNano() / 1e6
 		)
-		count += 1
 		if err == io.EOF {
-			s.logger.Infow(ctx, "stream finished", "count", count, "send", now)
+			s.logger.Infow(ctx, "stream finished", "count", count, "reply", now)
 			return nil
 		}
+		count += 1
 		if err != nil {
-			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count, "receive", req.T)
+			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count)
 			return err
 		}
 		err = stream.Send(&PingReply{T: now})
 		if err != nil {
-			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count, "send", now)
+			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", count, "reply", now)
 			return err
 		}
-		s.logger.Infow(ctx, "stream receive", "count", count, "send", now)
+		s.logger.Infow(ctx, "streaming", "count", count, "reply", now, "receive", req.T)
 	}
 }
 
 func (r *healthorService) Register(s grpc.ServiceRegistrar) {
 	RegisterHealthorServer(s, r)
+}
+
+func (s *healthorService) withLoggerContext(ctx context.Context) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ctx
+	}
+	traceIds := md.Get(logx.TraceId)
+	return context.WithValue(ctx, logx.TraceId, strings.Join(traceIds, ","))
 }
