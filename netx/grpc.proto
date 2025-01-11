@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/advancevillage/3rd/netx;netx";
+
+service Healthor {
+  rpc Ping(PingRequest) returns (PingReply) {}
+  rpc CPing(stream PingRequest) returns (PingReply) {}
+  rpc SPing(PingRequest) returns (stream PingReply) {}
+  rpc BidiPing(stream PingRequest) returns (stream PingReply) {}
+}
+
+message PingRequest {
+  int64 t = 1;
+}
+
+message PingReply {
+  int64 t = 1;
+}
+

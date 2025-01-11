@@ -3,7 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/advancevillage/3rd/logx"
@@ -34,7 +34,7 @@ func (c *httpCtx) Write(code int, body interface{}) {
 }
 
 func (c *httpCtx) Read() ([]byte, error) {
-	return ioutil.ReadAll(c.engine.Request.Body)
+	return io.ReadAll(c.engine.Request.Body)
 }
 
 func (c *httpCtx) ReadParam(q string) string {
