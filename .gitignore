@@ -13,7 +13,6 @@ aws/*
 p2p/dht
 *.key
 *.pub
-*.pem
 *.cap
 cli/cky/cky
 *.pcap
