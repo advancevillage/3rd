@@ -1,0 +1,13 @@
+app:
+  name: xmagic
+  host: 127.0.0.1
+  port: 1995
+
+log:
+  level: debug
+
+creds:
+  mtls:
+    cert: cert.pem
+    key: private.pem
+    
