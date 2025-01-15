@@ -25,6 +25,9 @@ func Test_builder(t *testing.T) {
 			}
 			t.Log(v.key, v.value)
 			b := x.NewBuilder(x.WithKV(v.key, v.value))
+			act, ok := b.Value(v.key)
+			assert.Equal(t, true, ok)
+			assert.Equal(t, v.value, act)
 			assert.Equal(t, exp, b.Build())
 		}
 		t.Run(n, f)

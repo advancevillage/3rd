@@ -12,6 +12,7 @@ func WithKV(key string, value interface{}) Option {
 }
 
 type Builder interface {
+	Value(key string) (any, bool)
 	Build() map[string]interface{}
 	write(key string, value interface{})
 }
@@ -44,4 +45,8 @@ func (o *builder) Build() map[string]interface{} {
 		return true
 	})
 	return m
+}
+
+func (o *builder) Value(key string) (any, bool) {
+	return o.m.Load(key)
 }
