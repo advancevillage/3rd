@@ -8,6 +8,7 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
+	github.com/jackc/pgx/v5 v5.7.2
 	github.com/kelindar/bitmap v1.5.2
 	github.com/romanyx/polluter v1.2.2
 	github.com/spf13/cobra v1.8.1
