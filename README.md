@@ -58,3 +58,13 @@ a. pip3 install --upgrade certifi
 添加: txt _acme-challenge.sunhe.org xxxxxxx
 生效: dig txt _acme-challenge.sunhe.org @8.8.8.8
 ```
+
+## mariadb
+1. 安装
+```
+docekr pull mariadb:11.6.2
+```
+2. 启动
+```
+docker run -d --name maria  -e MARIADB_ROOT_PASSWORD=password -p 3306:3306 mariadb:11.6.2
+```
