@@ -68,3 +68,15 @@ docekr pull mariadb:11.6.2
 ```
 docker run -d --name maria  -e MARIADB_ROOT_PASSWORD=password -p 3306:3306 mariadb:11.6.2
 ```
+
+## redis
+1. 安装
+```
+docekr pull redis:latest
+```
+2. 启动
+```
+docker run -d --name redis -p 6379:6379 redis:latest
+```
+
+
