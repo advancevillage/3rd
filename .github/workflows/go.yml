@@ -11,18 +11,18 @@ jobs:
     runs-on: ubuntu-24.04
     services:
        mariadb:
-        image: mariadb
-        env:
-          MARIADB_ROOT_PASSWORD: password
+        image: mariadb:latest   
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3 
+        env:
+          MARIADB_USER: root
+          MARIADB_ROOT_PASSWORD: password
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3
        redis:
         image: redis
         ports:
           - 6379:6379
         options: --health-cmd "redis-cli ping" --health-interval 10s  --health-timeout 5s --health-retries 5
-        
         
     steps:
     - uses: actions/checkout@v2
