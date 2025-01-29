@@ -3,6 +3,8 @@
 ## 目录
 - [第一章：gRPC](#gRPC)
 - [第二章：证书](#申请证书)
+- [第三章：数据库](#数据库)
+- [第四章：发布/订阅](#发布/订阅)
 
 ## gRPC
 1. 安装grpc核心库
@@ -59,7 +61,7 @@ a. pip3 install --upgrade certifi
 生效: dig txt _acme-challenge.sunhe.org @8.8.8.8
 ```
 
-## mariadb
+## 数据库
 1. 安装
 ```
 docekr pull mariadb:11.6.2
@@ -69,7 +71,8 @@ docekr pull mariadb:11.6.2
 docker run -d --name maria  -e MARIADB_ROOT_PASSWORD=password -p 3306:3306 mariadb:11.6.2
 ```
 
-## redis
+## 发布/订阅
+基于Redis Stream 实现Pub/Sub
 1. 安装
 ```
 docekr pull redis:latest
@@ -79,4 +82,22 @@ docekr pull redis:latest
 docker run -d --name redis -p 6379:6379 redis:latest
 ```
 
+## 分布式锁
+1. 操作的原子性
+```
+get and compare/read and save 等操作都是非原子性的，需要借助Lua脚本实现。
 
+```
+2. 谁加锁谁解锁
+```
+set key value [EX seconds] [PX milliseconds] [NX|XX] 虽然原子操作，实际并不安全，当执行耗时>过期事件。
+go1:  加锁-->CPU抖动-->过期释放-->执行中-->释放锁
+go2:                   加锁-->执行中-->释放锁(已被释放)
+go3:                          加锁-->执行中-->释放锁(已被释放)
+gon:                                  加锁-->执行中-->释放锁(已被释放)
+形成雪崩效应。所以谁加锁谁解锁。
+```
+3. 集群延迟保护
+```
+TODO
+```
