@@ -17,7 +17,7 @@ require (
 2. go grpc 核心
 ```
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 ```
 3. pb编译器
 ```
@@ -64,7 +64,7 @@ a. pip3 install --upgrade certifi
 ## 数据库
 1. 安装
 ```
-docekr pull mariadb:11.6.2
+docker pull mariadb:11.6.2
 ```
 2. 启动
 ```

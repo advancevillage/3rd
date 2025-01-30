@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+option go_package="github.com/advancevillage/3rd/dbx;dbx";
+
+//行数据
+message SqlRow {
+    repeated bytes column = 1; //列
+};
+
+
+message SqlReply {
+    repeated SqlRow rows = 1;
+    int64 insertId = 2;                 // 对于insert操作如果涉及到自增字段，可通过insert_id返回
+    int64 affectedRows = 3;             // 返回受影响的行数
+};
