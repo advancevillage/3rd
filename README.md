@@ -101,3 +101,9 @@ gon:                                  加锁-->执行中-->释放锁(已被释�
 ```
 TODO
 ```
+
+## 单员测试调试
+```
+dlv test ./dbx -- -test.run ^TestMariaSqlExecutor_ExecSql$
+b dbx/sqlx_test.go:107 
+```

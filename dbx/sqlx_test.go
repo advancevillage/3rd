@@ -3,6 +3,7 @@ package dbx_test
 
 import (
 	"context"
+	"database/sql"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/advancevillage/3rd/dbx"
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/mathx"
+	"github.com/romanyx/polluter"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )
@@ -65,12 +67,17 @@ type class struct {
 }
 
 var testData = map[string]struct {
-	data     map[string]interface{}
-	sqlStr   string
-	args     []any
-	excepted interface{}
+	dsn     string
+	data    map[string]interface{}
+	slt     string
+	sltArgs []any
+	sltExpt interface{}
+	upt     string
+	uptArgs []any
+	uptExpt interface{}
 }{
 	"case1": { //单表查询
+		dsn: "mysql://test:password@tcp(127.0.0.1:3306)/test",
 		data: map[string]interface{}{
 			"t_test_user": []user{
 				{1, "T1", 11, time.Now().Unix(), time.Now().Unix(), 0},
@@ -78,57 +85,75 @@ var testData = map[string]struct {
 				{3, "T3", 13, time.Now().Unix(), time.Now().Unix(), time.Now().Unix()},
 			},
 		},
-		sqlStr: `
-			select name, age
-			from t_test_user
-			where deleteTime = 0
-			order by id;
-		`,
-		excepted: []interface{}{
+		slt:     `select name, age from t_test_user where deleteTime = ? order by id;`,
+		sltArgs: []any{0},
+		sltExpt: []interface{}{
 			&user{Name: "T1", Age: 11},
+			&user{Name: "T2", Age: 12},
+		},
+		upt:     `update t_test_user set name = ? where id = ? limit 2;`,
+		uptArgs: []any{"T4", 1},
+		uptExpt: []interface{}{
+			&user{Name: "T4", Age: 11},
 			&user{Name: "T2", Age: 12},
 		},
 	},
 }
 
-func TestMysql_ExecSql(t *testing.T) {
+func TestMariaSqlExecutor_ExecSql(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second))
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
 	defer cancel()
-
-	executor, err := dbx.NewMariaSqlExecutor(ctx, logger)
-	assert.Nil(t, err)
 
 	for n, p := range testData {
 		f := func(t *testing.T) {
-			rows, err := executor.ExecSql(ctx, p.sqlStr)
+			executor, err := dbx.NewMariaSqlExecutor(ctx, logger, dbx.WithSqlDsn(p.dsn))
+			assert.Nil(t, err)
+
+			// 1. 查询
+			rows, err := executor.ExecSql(ctx, p.slt, p.sltArgs...)
 			assert.Nil(t, err)
 
 			var actual = make([]interface{}, 0, rows.AffectedRows)
-
 			for _, row := range rows.Rows {
 				var u = &user{}
 				u.Name = string(row.GetColumn()[0])
 				u.Age, err = strconv.Atoi(string(row.GetColumn()[1]))
-				if err != nil {
-					t.Fatal(err)
-					return
-				}
+				assert.Nil(t, err)
 				actual = append(actual, u)
 			}
+			assert.Equal(t, p.sltExpt, actual)
 
-			assert.Equal(t, p.excepted, actual)
+			// 2. 更新
+			rows, err = executor.ExecSql(ctx, p.upt, p.uptArgs...)
+			assert.Nil(t, err)
+			assert.Equal(t, int64(1), rows.GetAffectedRows())
+
+			// 3. 查询
+			rows, err = executor.ExecSql(ctx, p.slt, p.sltArgs...)
+			assert.Nil(t, err)
+
+			actual = make([]interface{}, 0, rows.AffectedRows)
+			for _, row := range rows.Rows {
+				var u = &user{}
+				u.Name = string(row.GetColumn()[0])
+				u.Age, err = strconv.Atoi(string(row.GetColumn()[1]))
+				assert.Nil(t, err)
+				actual = append(actual, u)
+			}
+			assert.Equal(t, p.uptExpt, actual)
+
 		}
 		t.Run(n, func(t *testing.T) {
-			pre(p.data, executor, t, f)
+			prepare(p.data, p.dsn, t, f)
 		})
 	}
 }
 
-func pre(td map[string]interface{}, executor dbx.SqlExecutor, t *testing.T, f func(*testing.T)) {
+func prepare(td map[string]interface{}, dsn string, t *testing.T, f func(*testing.T)) {
 	//0. 预先在数据库中创建表
 	var tables = []string{"t_test_user", "t_test_class"}
 	var result = make([]string, 0, len(td))
@@ -163,9 +188,17 @@ func pre(td map[string]interface{}, executor dbx.SqlExecutor, t *testing.T, f fu
 			}
 		}
 	}
-	var seed = strings.Join(result, "")
-	reply, err := executor.ExecSql(context.TODO(), seed)
+	var db, err = sql.Open("mysql", strings.TrimPrefix(dsn, "mysql://"))
 	assert.Nil(t, err)
-	assert.Equal(t, reply.GetAffectedRows(), int64(len(result)))
+	//2. 构建数据
+	var p = polluter.New(polluter.MySQLEngine(db))
+	var seed = strings.NewReader(strings.Join(result, ""))
+	//3. 数据库注入测试数据
+	err = p.Pollute(seed)
+	assert.Nil(t, err)
+	defer db.Close()
 	f(t)
+	db.Exec("truncate table t_test_user;")
+	db.Exec("truncate table t_test_class;")
+
 }

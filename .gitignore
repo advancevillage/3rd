@@ -16,3 +16,4 @@ p2p/dht
 *.cap
 cli/cky/cky
 *.pcap
+debug.*

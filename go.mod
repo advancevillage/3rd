@@ -3,7 +3,6 @@ module github.com/advancevillage/3rd
 go 1.23.5
 
 require (
-	github.com/DATA-DOG/go-txdb v0.1.3
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-sql-driver/mysql v1.8.1

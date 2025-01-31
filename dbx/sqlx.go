@@ -73,7 +73,7 @@ func newMariaSqlExecutor(ctx context.Context, logger logx.ILogger, opt ...SqlOpt
 	}
 
 	// 2. 连接数据库
-	conn, err := sql.Open("mysql", opts.dsn)
+	conn, err := sql.Open("mysql", strings.TrimPrefix(opts.dsn, "mysql://"))
 	if err != nil {
 		logger.Errorw(ctx, "connect sql maria failed", "err", err, "dsn", opts.dsn)
 		return nil, err
@@ -99,16 +99,15 @@ func newMariaSqlExecutor(ctx context.Context, logger logx.ILogger, opt ...SqlOpt
 	}, nil
 }
 
-// SQL一律小写
 func (c *maria) ExecSql(ctx context.Context, query string, args ...any) (*SqlReply, error) {
 	query = strings.TrimSpace(query)
-	query = strings.ToLower(query)
-	switch {
-	case strings.HasPrefix(query[:6], "select"):
-		return c.query(ctx, query, args)
+	switch strings.ToLower(query[:6]) {
+	case "select":
+		return c.query(ctx, query, args...)
 
 	default:
-		return c.exec(ctx, query, args)
+		// insert update delete
+		return c.exec(ctx, query, args...)
 	}
 }
 
@@ -128,7 +127,7 @@ func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply
 	defer stmt.Close()
 
 	// 2. 执行SQL
-	rows, err = stmt.QueryContext(ctx, args)
+	rows, err = stmt.QueryContext(ctx, args...)
 	if err != nil {
 		c.logger.Errorw(ctx, "query sql maria failed", "err", err, "query", query)
 		return nil, err
@@ -176,7 +175,7 @@ func (c *maria) exec(ctx context.Context, query string, args ...any) (*SqlReply,
 	defer stmt.Close()
 
 	// 2. 执行SQL
-	affect, err = stmt.ExecContext(ctx, args)
+	affect, err = stmt.ExecContext(ctx, args...)
 	if err != nil {
 		c.logger.Errorw(ctx, "exec sql maria failed", "err", err, "query", query)
 		return nil, err
