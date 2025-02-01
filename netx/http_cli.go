@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
 )
 
@@ -48,62 +49,29 @@ func (c *httpResponse) StatusCode() int {
 	return c.statusCode
 }
 
-type IHTTPClient interface {
-	GET(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error)
-	POST(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error)
-	PostForm(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error)
+type HttpClient interface {
+	Get(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error)
+	Post(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error)
 	Upload(ctx context.Context, uri string, params x.Builder, headers x.Builder, field string, filename string, fieldReader io.Reader) (HttpResponse, error)
-
-	hdr(h map[string]string)
-	timeout(t int)
+	PostForm(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error)
 }
 
-type HTTPCliOpt func(IHTTPClient)
-
-var _ IHTTPClient = (*httpCli)(nil)
+var _ HttpClient = (*httpCli)(nil)
 
 type httpCli struct {
-	h  map[string]string
-	tm int
+	opts   clientOptions
+	logger logx.ILogger
 }
 
-func WithHTTPCliHdr(hdr map[string]string) HTTPCliOpt {
-	return func(c IHTTPClient) {
-		c.hdr(hdr)
+func newHttpClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption) (*httpCli, error) {
+	opts := defaultClientOptions
+	for _, o := range opt {
+		o.apply(&opts)
 	}
+	return &httpCli{opts: opts, logger: logger}, nil
 }
 
-func WithHTTPCliTimeout(t int) HTTPCliOpt {
-	return func(c IHTTPClient) {
-		c.timeout(t)
-	}
-}
-
-func NewHTTPCli(opts ...HTTPCliOpt) (IHTTPClient, error) {
-	var cli = &httpCli{
-		h:  make(map[string]string),
-		tm: 3,
-	}
-
-	for _, opt := range opts {
-		opt(cli)
-	}
-
-	return cli, nil
-}
-
-func (c *httpCli) hdr(h map[string]string) {
-	c.h = h
-}
-
-func (c *httpCli) timeout(tm int) {
-	if tm <= 0 {
-		tm = 3
-	}
-	c.tm = tm
-}
-
-func (c *httpCli) GET(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error) {
+func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -114,7 +82,7 @@ func (c *httpCli) GET(ctx context.Context, uri string, params x.Builder, headers
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.tm)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -130,11 +98,11 @@ func (c *httpCli) GET(ctx context.Context, uri string, params x.Builder, headers
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
-	for k, v := range c.h {
+	for k, v := range c.opts.hdr {
 		if _, ok := hdr[k]; ok {
 			continue
 		} else {
-			request.Header.Add(k, v)
+			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
 	//5. 发送HTTP请求
@@ -152,7 +120,7 @@ func (c *httpCli) GET(ctx context.Context, uri string, params x.Builder, headers
 	return newHttpResponse(body, response.Header, response.StatusCode), nil
 }
 
-func (c *httpCli) POST(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error) {
+func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error) {
 	var (
 		client   *http.Client
 		request  *http.Request
@@ -161,7 +129,7 @@ func (c *httpCli) POST(ctx context.Context, uri string, headers x.Builder, buf [
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.tm)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodPost, uri, bytes.NewReader(buf))
 	if err != nil {
@@ -171,11 +139,11 @@ func (c *httpCli) POST(ctx context.Context, uri string, headers x.Builder, buf [
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
-	for k, v := range c.h {
+	for k, v := range c.opts.hdr {
 		if _, ok := hdr[k]; ok {
 			continue
 		} else {
-			request.Header.Add(k, v)
+			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
 	//4. 发送HTTP请求
@@ -204,7 +172,7 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.tm)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
 	//2. 创建请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -219,11 +187,11 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
-	for k, v := range c.h {
+	for k, v := range c.opts.hdr {
 		if _, ok := hdr[k]; ok {
 			continue
 		} else {
-			request.Header.Add(k, v)
+			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
 	//5. 发送HTTP请求
@@ -279,7 +247,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 		return nil, err
 	}
 	//4. 创建HTTP客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.tm)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
 	//5. 构建请求
 	request, err = http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -290,11 +258,11 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
-	for k, v := range c.h {
+	for k, v := range c.opts.hdr {
 		if _, ok := hdr[k]; ok {
 			continue
 		} else {
-			request.Header.Add(k, v)
+			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
 	//7. 发送请求

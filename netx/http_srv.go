@@ -3,174 +3,52 @@ package netx
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
+	"time"
 
 	"github.com/advancevillage/3rd/logx"
+	"github.com/advancevillage/3rd/mathx"
 	"github.com/gin-gonic/gin"
 )
 
-type IHTTPWriteReader interface {
-	Read() ([]byte, error)
-	Write(code int, body interface{})
-
-	ReadParam(q string) string
-	WriteParam(params map[string]string)
-
-	ReadHeader(h string) string
-	WriteHeader(headers map[string]string)
-}
-
-type httpCtx struct {
-	engine *gin.Context
-}
-
-func newHTTPCtx(ctx *gin.Context) IHTTPWriteReader {
-	return &httpCtx{engine: ctx}
-}
-
-func (c *httpCtx) Write(code int, body interface{}) {
-	c.engine.JSON(code, body)
-}
-
-func (c *httpCtx) Read() ([]byte, error) {
-	return io.ReadAll(c.engine.Request.Body)
-}
-
-func (c *httpCtx) ReadParam(q string) string {
-	var value = c.engine.PostForm(q)
-	if len(value) <= 0 {
-		value = c.engine.Query(q)
-	}
-	if len(value) <= 0 {
-		value = c.engine.Param(q)
-	}
-	if len(value) <= 0 {
-		value = c.engine.GetString(q)
-	}
-	if len(value) <= 0 {
-		value, _ = c.engine.Cookie(logx.TraceId)
-	}
-	return value
-}
-
-func (c *httpCtx) WriteParam(params map[string]string) {
-	var qry = c.engine.Request.URL.Query()
-	for k, v := range params {
-		qry.Add(k, v)
-	}
-	c.engine.Request.URL.RawQuery = qry.Encode()
-}
-
-func (c *httpCtx) ReadHeader(h string) string {
-	return c.engine.GetHeader(h)
-}
-
-func (c *httpCtx) WriteHeader(headers map[string]string) {
-	for key := range headers {
-		c.engine.Header(key, headers[key])
-	}
-}
-
-type HTTPFunc func(context.Context, IHTTPWriteReader)
-
-type IHTTPRouter interface {
-	Add(method string, path string, call HTTPFunc)
-	iterator(f func(method string, path string, f HTTPFunc))
-}
-
-type rt struct {
+type httpRouter struct {
 	method string
 	path   string
-	call   HTTPFunc
-}
-
-type rts []*rt
-
-func NewHTTPRouter() IHTTPRouter {
-	return new(rts)
-}
-
-func (c *rts) Add(method string, path string, f HTTPFunc) {
-	*c = append(*c, &rt{method: method, path: path, call: f})
-}
-
-func (c *rts) iterator(f func(method string, path string, call HTTPFunc)) {
-	for _, v := range *c {
-		f(v.method, v.path, v.call)
-	}
-}
-
-type IHTTPServer interface {
-	Start()
-	Exit() <-chan struct{}
-
-	rts(IHTTPRouter)
-	addr(h string, p int)
-	logger(l logx.ILogger)
-	sctx(ctx context.Context, cancel context.CancelFunc)
-}
-
-type HTTPSrvOpt func(IHTTPServer)
-
-func WithHTTPSrvAddr(h string, p int) HTTPSrvOpt {
-	return func(s IHTTPServer) {
-		s.addr(h, p)
-	}
-}
-
-func WithHTTPSrvLogger(l logx.ILogger) HTTPSrvOpt {
-	return func(s IHTTPServer) {
-		s.logger(l)
-	}
-}
-
-func WithHTTPSrvRts(rts IHTTPRouter) HTTPSrvOpt {
-	return func(s IHTTPServer) {
-		s.rts(rts)
-	}
-}
-
-func WithHTTPSrvCtx(ctx context.Context, cancel context.CancelFunc) HTTPSrvOpt {
-	return func(s IHTTPServer) {
-		s.sctx(ctx, cancel)
-	}
+	handle []HttpRegister
 }
 
 type httpSrv struct {
-	host   string             //服务主机
-	port   int                //服务端口
-	ctx    context.Context    //上下文
-	cancel context.CancelFunc //上下文取消函数
-	r      IHTTPRouter        //路由
-	srv    *http.Server       //HTTP服务
-	mux    *gin.Engine        //HTTP服务引擎
-	l      logx.ILogger       //日志
+	opts   serverOptions
+	logger logx.ILogger //日志
+
+	srv     *gin.Engine        // https server
+	rctx    context.Context    // root context
+	rcancel context.CancelFunc // root cancel
 }
 
-func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
-	var s = &httpSrv{}
-
-	for _, opt := range opts {
-		opt(s)
+func newHttpSrv(ctx context.Context, logger logx.ILogger, opt ...ServerOption) (*httpSrv, error) {
+	// 0. 设置配置
+	opts := defaultServerOptions
+	for _, o := range opt {
+		o.apply(&opts)
 	}
 
+	// 1. 服务对象
+	s := &httpSrv{logger: logger, opts: opts}
+
+	// 2. 上下文
+	s.rctx, s.rcancel = context.WithCancel(ctx)
+
+	// 3. 服务设置
 	gin.SetMode(gin.ReleaseMode)
-	s.mux = gin.New()
+	s.srv = gin.New()
 
-	s.mux.Use(s.trace())
+	// 4. 全局中间件
+	s.srv.Use(s.withArrivalMiddleware(), s.withLatencyMiddleware(), s.withTraceMiddleware())
 
-	s.srv = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", s.host, s.port),
-		Handler: s.mux,
-	}
-
-	if s.r != nil {
-		s.r.iterator(s.handle)
-	}
-
-	if s.ctx == nil {
-		s.ctx, s.cancel = context.WithCancel(context.Background())
+	// 5. 注册路由
+	for _, r := range opts.rs {
+		s.route(r.method, r.path, r.handle...)
 	}
 
 	return s, nil
@@ -178,63 +56,91 @@ func NewHTTPSrv(opts ...HTTPSrvOpt) (IHTTPServer, error) {
 
 func (s *httpSrv) Start() {
 	go s.start()
-	go waitQuitSignal(s.cancel)
-	select {
-	case <-s.ctx.Done():
-	}
+	go waitQuitSignal(s.rcancel)
+	<-s.rctx.Done()
+	s.logger.Infow(s.rctx, "http server closed", "host", s.opts.host, "port", s.opts.port)
+	time.Sleep(time.Second)
 }
 
 func (s *httpSrv) start() {
-	var err = s.srv.ListenAndServe()
+	s.logger.Infow(s.rctx, "https server start", "host", s.opts.host, "port", s.opts.port)
+	var err = s.srv.RunTLS(fmt.Sprintf("%s:%d", s.opts.host, s.opts.port), s.opts.crt, s.opts.key)
 	if err != nil {
-		s.l.Errorw(s.ctx, "http server", "start", err)
+		s.logger.Errorw(s.rctx, "https server failed", "err", err, "host", s.opts.host, "port", s.opts.port)
 	}
 }
 
-func (s *httpSrv) addr(h string, p int) {
-	s.host = h
-	s.port = p
+func (s *httpSrv) route(method, path string, f ...HttpRegister) {
+	var (
+		n  = len(f)
+		fs = make([]gin.HandlerFunc, 0, n)
+	)
+	for i := 0; i < n; i++ {
+		var (
+			idx = i
+			ff  = f[idx]
+		)
+		hf := func(c *gin.Context) {
+			// 1. 设置上下文
+			var (
+				ctx       = c.Request.Context()
+				trace, ok = c.Get(logx.TraceId)
+			)
+			if ok {
+				ctx = context.WithValue(ctx, logx.TraceId, trace)
+			}
+			r, err := ff(ctx, c.Request)
+			// 2. 系统错误
+			if err != nil {
+				c.AbortWithError(http.StatusInternalServerError, err)
+				return
+			}
+			// 3. 设置响应头
+			for k, v := range r.Header() {
+				c.Header(k, v[0])
+			}
+			// 4. 提取Content-Type
+			ct := r.Header().Get("Content-Type")
+			if len(ct) <= 0 {
+				ct = "application/json"
+			}
+			// 5. 中间件执行
+			if idx < n-1 {
+				c.Next()
+				return
+			}
+			// 6. 设置耗时请求头
+			c.Header(X_Request_Latency, fmt.Sprintf("%dms", time.Now().UnixNano()/1e6-c.GetInt64(X_Request_Latency)))
+			// 7. 设置响应
+			c.Data(r.StatusCode(), ct, r.Body())
+		}
+		fs = append(fs, hf)
+	}
+	s.srv.Handle(method, path, fs...)
 }
 
-func (s *httpSrv) rts(rts IHTTPRouter) {
-	if rts == nil {
-		s.r = NewHTTPRouter()
-	} else {
-		s.r = rts
+func (s *httpSrv) withTraceMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		trace, ok := c.Get(logx.TraceId)
+		if !ok {
+			trace = mathx.UUID()
+			c.Set(logx.TraceId, trace)
+		}
+		c.Header(logx.TraceId, fmt.Sprint(trace))
+		c.Next()
 	}
 }
 
-func (s *httpSrv) trace() gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		var wr = newHTTPCtx(ctx)
-		var traceId = wr.ReadParam(logx.TraceId)
-		var sctx = context.WithValue(ctx.Request.Context(), logx.TraceId, traceId)
-		ctx.Request = ctx.Request.Clone(sctx)
-		ctx.Next()
+func (s *httpSrv) withLatencyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(X_Request_Latency, time.Now().UnixNano()/1e6)
 	}
 }
 
-func (s *httpSrv) sctx(ctx context.Context, cancel context.CancelFunc) {
-	if ctx == nil {
-		s.ctx, s.cancel = context.WithCancel(context.Background())
-	} else {
-		s.ctx = ctx
-		s.cancel = cancel
+func (s *httpSrv) withArrivalMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		arrival := time.Now().UnixNano() / 1e6
+		c.Header(X_Request_Arrival, fmt.Sprint(arrival))
+		c.Next()
 	}
-}
-
-func (s *httpSrv) logger(l logx.ILogger) {
-	s.l = l
-}
-
-func (s *httpSrv) handle(method string, path string, f HTTPFunc) {
-	handler := func(ctx *gin.Context) {
-		var wr = newHTTPCtx(ctx)
-		f(ctx.Request.Context(), wr)
-	}
-	s.mux.Handle(method, path, handler)
-}
-
-func (s *httpSrv) Exit() <-chan struct{} {
-	return s.ctx.Done()
 }
