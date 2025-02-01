@@ -24,7 +24,7 @@ func Test_http(t *testing.T) {
 	host := "127.0.0.1"
 	port := 1995
 
-	opts := []ServerOption{WithServerAddr(host, port)}
+	opts := []ServerOption{WithServerAddr(host, port), WithInsecure()}
 
 	var data = map[string]struct {
 		method string

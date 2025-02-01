@@ -32,6 +32,12 @@ type ServerOption interface {
 	apply(*serverOptions)
 }
 
+func WithInsecure() ServerOption {
+	return newFuncServerOption(func(o *serverOptions) {
+		o.insecure = true
+	})
+}
+
 func WithServerAddr(host string, port int) ServerOption {
 	return newFuncServerOption(func(o *serverOptions) {
 		o.host = host
@@ -59,21 +65,23 @@ func WithHttpService(method, path string, f ...HttpRegister) ServerOption {
 }
 
 type serverOptions struct {
-	ss   []GrpcRegister // 注册gRPC服务
-	rs   []httpRouter   // 注册http服务
-	host string         // 服务地址
-	port int            // 端口
-	crt  string         // 证书 文件
-	key  string         // 私钥 文件
+	ss       []GrpcRegister // 注册gRPC服务
+	rs       []httpRouter   // 注册http服务
+	host     string         // 服务地址
+	port     int            // 端口
+	crt      string         // 证书 文件
+	key      string         // 私钥 文件
+	insecure bool           // 跳过证书验证
 }
 
 var defaultServerOptions = serverOptions{
-	host: "127.0.0.1",
-	port: 13147,
-	crt:  "cert.pem",
-	key:  "privkey.pem",
-	ss:   make([]GrpcRegister, 0, 1),
-	rs:   make([]httpRouter, 0, 1),
+	host:     "127.0.0.1",
+	port:     13147,
+	crt:      "cert.pem",
+	key:      "privkey.pem",
+	ss:       make([]GrpcRegister, 0, 1),
+	rs:       make([]httpRouter, 0, 1),
+	insecure: false,
 }
 
 type funcServerOption struct {
