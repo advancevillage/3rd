@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/advancevillage/3rd/logx"
+	"github.com/advancevillage/3rd/x"
 	"google.golang.org/grpc"
 )
 
@@ -14,6 +15,10 @@ type GrpcClient interface {
 
 func NewGrpcClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption) (GrpcClient, error) {
 	return newGrpcCli(ctx, logger, opt...)
+}
+
+func NewHttpClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption) (HttpClient, error) {
+	return newHttpClient(ctx, logger, opt...)
 }
 
 type ClientOption interface {
@@ -27,6 +32,19 @@ func WithClientAddr(host string, port int) ClientOption {
 	})
 }
 
+func WithClientTimeout(timeout int) ClientOption {
+	return newFuncClientOption(func(o *clientOptions) {
+		o.timeout = timeout
+	})
+}
+
+func WithClientHeader(hdr ...x.Option) ClientOption {
+	return newFuncClientOption(func(o *clientOptions) {
+		b := x.NewBuilder(hdr...)
+		o.hdr = b.Build()
+	})
+}
+
 func WithClientCredential(crt, domain string) ClientOption {
 	return newFuncClientOption(func(o *clientOptions) {
 		o.crt = crt
@@ -35,17 +53,21 @@ func WithClientCredential(crt, domain string) ClientOption {
 }
 
 type clientOptions struct {
-	host   string // 服务地址
-	port   int    // 端口
-	crt    string // 证书 文件
-	domain string // 域名
+	hdr     map[string]interface{} // 请求头
+	host    string                 // 服务地址
+	port    int                    // 端口
+	crt     string                 // 证书 文件
+	domain  string                 // 域名
+	timeout int
 }
 
 var defaultClientOptions = clientOptions{
-	host:   "127.0.0.1",
-	port:   13147,
-	crt:    "cert.pem",
-	domain: "api.sunhe.org",
+	hdr:     map[string]interface{}{},
+	host:    "127.0.0.1",
+	port:    13147,
+	crt:     "cert.pem",
+	domain:  "api.sunhe.org",
+	timeout: 3,
 }
 
 type funcClientOption struct {

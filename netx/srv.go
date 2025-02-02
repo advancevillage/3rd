@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -13,12 +14,18 @@ import (
 
 type GrpcRegister func(grpc.ServiceRegistrar)
 
+type HttpRegister func(ctx context.Context, r *http.Request) (HttpResponse, error)
+
 type Server interface {
 	Start()
 }
 
 func NewGrpcServer(ctx context.Context, logger logx.ILogger, opt ...ServerOption) (Server, error) {
 	return newGrpcSrv(ctx, logger, opt...)
+}
+
+func NewHttpServer(ctx context.Context, logger logx.ILogger, opt ...ServerOption) (Server, error) {
+	return newHttpSrv(ctx, logger, opt...)
 }
 
 type ServerOption interface {
@@ -45,8 +52,15 @@ func WithGrpcService(f GrpcRegister) ServerOption {
 	})
 }
 
+func WithHttpService(method, path string, f ...HttpRegister) ServerOption {
+	return newFuncServerOption(func(o *serverOptions) {
+		o.rs = append(o.rs, httpRouter{method, path, f})
+	})
+}
+
 type serverOptions struct {
 	ss   []GrpcRegister // 注册gRPC服务
+	rs   []httpRouter   // 注册http服务
 	host string         // 服务地址
 	port int            // 端口
 	crt  string         // 证书 文件
@@ -59,6 +73,7 @@ var defaultServerOptions = serverOptions{
 	crt:  "cert.pem",
 	key:  "privkey.pem",
 	ss:   make([]GrpcRegister, 0, 1),
+	rs:   make([]httpRouter, 0, 1),
 }
 
 type funcServerOption struct {
