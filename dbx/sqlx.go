@@ -143,8 +143,8 @@ func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply
 
 	// 4. 解析结果集
 	for rows.Next() {
-		row := make([][]byte, len(columns))
-		dest := make([]interface{}, len(columns))
+		row := make([]string, len(columns))
+		dest := make([]any, len(columns))
 		for i := range row {
 			dest[i] = &row[i]
 		}

@@ -64,12 +64,7 @@ func (s *httpSrv) Start() {
 
 func (s *httpSrv) start() {
 	s.logger.Infow(s.rctx, "https server start", "host", s.opts.host, "port", s.opts.port)
-	var err error
-	if s.opts.insecure {
-		err = s.srv.Run(fmt.Sprintf("%s:%d", s.opts.host, s.opts.port))
-	} else {
-		err = s.srv.RunTLS(fmt.Sprintf("%s:%d", s.opts.host, s.opts.port), s.opts.crt, s.opts.key)
-	}
+	err := s.srv.RunTLS(fmt.Sprintf("%s:%d", s.opts.host, s.opts.port), s.opts.crt, s.opts.key)
 	if err != nil {
 		s.logger.Errorw(s.rctx, "https server failed", "err", err, "host", s.opts.host, "port", s.opts.port)
 	}

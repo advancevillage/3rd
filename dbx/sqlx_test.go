@@ -121,7 +121,7 @@ func TestMariaSqlExecutor_ExecSql(t *testing.T) {
 			for _, row := range rows.Rows {
 				var u = &user{}
 				u.Name = string(row.GetColumn()[0])
-				u.Age, err = strconv.Atoi(string(row.GetColumn()[1]))
+				u.Age, err = strconv.Atoi(row.GetColumn()[1])
 				assert.Nil(t, err)
 				actual = append(actual, u)
 			}

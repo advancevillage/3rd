@@ -4,7 +4,7 @@ option go_package="github.com/advancevillage/3rd/dbx;dbx";
 
 //行数据
 message SqlRow {
-    repeated bytes column = 1; //列
+    repeated string column = 1; //列
 };
 
 

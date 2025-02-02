@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -17,14 +18,14 @@ func Test_http(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(time.Minute))
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(time.Second*2))
 	go waitQuitSignal(cancel)
 	ctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 
 	host := "127.0.0.1"
 	port := 1995
 
-	opts := []ServerOption{WithServerAddr(host, port), WithInsecure()}
+	opts := []ServerOption{WithServerAddr(host, port)}
 
 	var data = map[string]struct {
 		method string
@@ -57,10 +58,6 @@ func Test_http(t *testing.T) {
 				},
 			},
 		},
-		"case-post": {
-			method: http.MethodPost,
-			path:   "/resource",
-		},
 	}
 
 	for _, v := range data {
@@ -70,6 +67,19 @@ func Test_http(t *testing.T) {
 	s, err := NewHttpServer(ctx, logger, opts...)
 	assert.Nil(t, err)
 	go s.Start()
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			c, err := NewHttpClient(ctx, logger)
+			assert.Nil(t, err)
+			r, err := c.Get(ctx, fmt.Sprintf("https://t.sunhe.org:%d%s", port, v.path), x.NewBuilder(x.WithKV("name", "pyro")), x.NewBuilder())
+			assert.Nil(t, err)
+			assert.Equal(t, http.StatusOK, r.StatusCode())
+			assert.Equal(t, "application/json", r.Header().Get("Content-Type"))
+			assert.Equal(t, `{"name":"pyro"}`, string(r.Body()))
+		}
+		t.Run(n, f)
+	}
 
 	<-ctx.Done()
 }
