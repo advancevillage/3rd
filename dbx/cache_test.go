@@ -58,7 +58,7 @@ func Test_Locker(t *testing.T) {
 			ok, err = locker.Lock(ctx, v.key, v.val, v.ttl)
 			assert.Nil(t, err)
 			assert.Equal(t, true, ok)
-			time.Sleep(time.Second * time.Duration(v.ttl))
+			time.Sleep(time.Second * time.Duration(v.ttl+1))
 			// 超时解锁
 			ok, err = locker.Unlock(ctx, v.key, v.val)
 			assert.Nil(t, err)
