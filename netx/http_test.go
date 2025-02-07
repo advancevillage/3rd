@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,4 +84,39 @@ func Test_http(t *testing.T) {
 	}
 
 	<-ctx.Done()
+}
+
+func Test_should(t *testing.T) {
+	type Account struct {
+		Name  string  `json:"name"`
+		Age   int     `json:"age"`
+		Score float32 `json:"score"`
+	}
+
+	var data = map[string]struct {
+		input string
+		exp   *Account
+	}{
+		"case-1": {
+			input: `{"name":"puyu","age":99,"score":98.5}`,
+			exp: &Account{
+				Name:  "puyu",
+				Age:   99,
+				Score: 98.5,
+			},
+		},
+	}
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			act := &Account{}
+			r := &http.Request{
+				Body: io.NopCloser(strings.NewReader(v.input)),
+			}
+			err := ShouldBind(r, act)
+			assert.Nil(t, err)
+			assert.Equal(t, v.exp, act)
+		}
+		t.Run(n, f)
+	}
 }

@@ -15,6 +15,26 @@ import (
 	"github.com/advancevillage/3rd/x"
 )
 
+var _ HttpResponse = (*emptyHttpResponse)(nil)
+
+type emptyHttpResponse struct{}
+
+func NewEmptyResonse() HttpResponse {
+	return &emptyHttpResponse{}
+}
+
+func (c *emptyHttpResponse) Body() []byte {
+	return []byte{}
+}
+
+func (c *emptyHttpResponse) Header() http.Header {
+	return http.Header{}
+}
+
+func (c *emptyHttpResponse) StatusCode() int {
+	return http.StatusOK
+}
+
 type HttpResponse interface {
 	Body() []byte
 	Header() http.Header
