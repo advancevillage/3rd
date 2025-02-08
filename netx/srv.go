@@ -39,6 +39,12 @@ func WithServerAddr(host string, port int) ServerOption {
 	})
 }
 
+func WithServerName(name string) ServerOption {
+	return newFuncServerOption(func(o *serverOptions) {
+		o.name = name
+	})
+}
+
 func WithServerCredential(crt, key string) ServerOption {
 	return newFuncServerOption(func(o *serverOptions) {
 		o.crt = crt
@@ -65,11 +71,13 @@ type serverOptions struct {
 	port int            // 端口
 	crt  string         // 证书 文件
 	key  string         // 私钥 文件
+	name string         // 服务名称
 }
 
 var defaultServerOptions = serverOptions{
 	host: "127.0.0.1",
 	port: 13147,
+	name: "3rd",
 	crt:  "cert.pem",
 	key:  "privkey.pem",
 	ss:   make([]GrpcRegister, 0, 1),

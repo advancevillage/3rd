@@ -13,6 +13,7 @@ import (
 const (
 	X_Request_Latency = "X-Request-Latency"
 	X_Request_Arrival = "X-Request-Arrival"
+	X_Request_Server  = "X-Request-Server"
 )
 
 func waitQuitSignal(cancel context.CancelFunc) {
