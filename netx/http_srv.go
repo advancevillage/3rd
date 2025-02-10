@@ -3,7 +3,6 @@ package netx
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/advancevillage/3rd/logx"
@@ -92,7 +91,8 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 			r, err := ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
-				c.AbortWithError(http.StatusInternalServerError, err)
+				r = NewInternalServerErrorHttpResponse(err)
+				c.AbortWithStatusJSON(r.StatusCode(), r.Body())
 				return
 			}
 			// 3. 设置响应头
