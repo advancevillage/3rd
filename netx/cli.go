@@ -2,6 +2,7 @@ package netx
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
@@ -19,6 +20,12 @@ func NewGrpcClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption
 
 func NewHttpClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption) (HttpClient, error) {
 	return newHttpClient(ctx, logger, opt...)
+}
+
+type HttpResponse interface {
+	Body() []byte
+	Header() http.Header
+	StatusCode() int
 }
 
 type ClientOption interface {

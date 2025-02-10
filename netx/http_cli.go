@@ -3,6 +3,7 @@ package netx
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -14,6 +15,39 @@ import (
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
 )
+
+func NewBadRequestHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusBadRequest, err.Error())
+}
+
+func NewUnauthorizedHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusUnauthorized, err.Error())
+}
+
+func NewForbiddenHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusForbidden, err.Error())
+}
+
+func NewNotFoundHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusNotFound, err.Error())
+}
+
+func NewStatusOkHttpResponse(body []byte) HttpResponse {
+	return newHttpResponse(body, http.Header{}, http.StatusOK)
+}
+
+func NewInternalServerErrorHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusInternalServerError, err.Error())
+}
+
+func newCodeHttpResponse(code int, message string) HttpResponse {
+	b := x.NewBuilder(x.WithKV("httpCode", code), x.WithKV("httpMessage", message))
+	body, err := json.Marshal(b.Build())
+	if err != nil {
+		return NewEmptyResonse()
+	}
+	return newHttpResponse(body, http.Header{}, http.StatusBadRequest)
+}
 
 var _ HttpResponse = (*emptyHttpResponse)(nil)
 
@@ -33,12 +67,6 @@ func (c *emptyHttpResponse) Header() http.Header {
 
 func (c *emptyHttpResponse) StatusCode() int {
 	return http.StatusOK
-}
-
-type HttpResponse interface {
-	Body() []byte
-	Header() http.Header
-	StatusCode() int
 }
 
 var _ HttpResponse = (*httpResponse)(nil)
