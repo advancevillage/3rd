@@ -46,7 +46,7 @@ func newCodeHttpResponse(code int, message string) HttpResponse {
 	if err != nil {
 		return NewEmptyResonse()
 	}
-	return newHttpResponse(body, http.Header{}, http.StatusBadRequest)
+	return newHttpResponse(body, http.Header{}, code)
 }
 
 var _ HttpResponse = (*emptyHttpResponse)(nil)
