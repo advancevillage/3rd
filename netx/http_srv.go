@@ -91,8 +91,9 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 			r, err := ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
+				c.Abort()
 				r = NewInternalServerErrorHttpResponse(err)
-				c.AbortWithStatusJSON(r.StatusCode(), r.Body())
+				c.Data(r.StatusCode(), "application/json", r.Body())
 				return
 			}
 			// 3. 设置响应头
