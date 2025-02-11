@@ -104,7 +104,7 @@ func (c *maria) ExecSql(ctx context.Context, query string, args ...any) (*SqlRep
 		r   *SqlReply
 		err error
 	)
-	query = strings.ReplaceAll(query, "\t\n", " ")
+	query = strings.Join(strings.Fields(query), " ")
 	query = strings.TrimSpace(query)
 	switch strings.ToLower(query[:6]) {
 	case "select":
