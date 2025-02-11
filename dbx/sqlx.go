@@ -100,8 +100,10 @@ func newMariaSqlExecutor(ctx context.Context, logger logx.ILogger, opt ...SqlOpt
 }
 
 func (c *maria) ExecSql(ctx context.Context, query string, args ...any) (*SqlReply, error) {
-	c.logger.Infow(ctx, "exec sql", "query", strings.ReplaceAll(query, "\t\n", " "), "args", args)
+	query = strings.ReplaceAll(query, "\t", " ")
+	query = strings.ReplaceAll(query, "\n", " ")
 	query = strings.TrimSpace(query)
+	c.logger.Infow(ctx, "exec sql", "query", query, "args", args)
 	switch strings.ToLower(query[:6]) {
 	case "select":
 		return c.query(ctx, query, args...)
