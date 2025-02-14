@@ -138,6 +138,77 @@ func (p *producerRedis) Publish(ctx context.Context, payload string) error {
 	return err
 }
 
+func (p *producerRedis) Delay(ctx context.Context, payload string, delay time.Duration) error {
+	// 1. 计算延迟时间
+	var (
+		q     = fmt.Sprintf("%s-pending", p.opts.channel)
+		score = time.Now().Add(delay).UnixNano() / 1e6
+		err   = p.rdb.ZAdd(ctx, q, redis.Z{
+			Score: float64(score),
+			Member: map[string]interface{}{
+				logx.TraceId:     ctx.Value(logx.TraceId),
+				X_TICKET_TIME:    time.Now().UnixNano() / 1e6,
+				X_TICKET_PAYLOAD: payload,
+			},
+		}).Err()
+	)
+	if err != nil {
+		p.logger.Errorw(ctx, "redis deply publish failed", "err", err)
+		return err
+	}
+	return nil
+}
+
+func (p *producerRedis) loop(ctx context.Context) {
+	var t = time.NewTicker(time.Second)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			goto exitLoop
+
+		case <-t.C:
+			// 1. 获取消息
+			r := p.pending(ctx, fmt.Sprintf("%s-pending", p.opts.channel), 0, time.Now().UnixNano()/1e6)
+			if len(r) <= 0 {
+				continue
+			}
+			// 2. 解析消息
+			// TODO
+		}
+	}
+exitLoop:
+	p.logger.Infow(ctx, "producer loop exit", "time", time.Now().UnixNano()/1e6)
+}
+
+func (p *producerRedis) pending(ctx context.Context, q string, min int64, max int64) []interface{} {
+	lua := `
+		local key  = KEYS[1]
+		local from = ARGV[1]
+		local to   = ARGV[2]
+		local limit = tonumber(ARGV[3])
+
+		local members = redis.call('ZRANGEBYSCORE', key, from, to, 'LIMIT', 0, limit)
+		if #members > 0 then
+			redis.call('ZREM', key, unpack(members))
+		end
+		return members
+	`
+	var (
+		keys  = []string{q}
+		from  = 0
+		to    = time.Now().UnixNano() / 1e6
+		limit = 10
+	)
+	r, err := p.rdb.Eval(ctx, lua, keys, from, to, limit).Slice()
+	if err != nil {
+		p.logger.Errorw(ctx, "read pending failed", "err", err, "q", q)
+		return nil
+	}
+	return r
+}
+
 type consumerRedis struct {
 	opts       pubsubOption
 	rdb        *redis.Client
