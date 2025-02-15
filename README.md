@@ -106,7 +106,8 @@ TODO
 ```
 
 ## JWT
-https://github.com/golang-jwt/jwt v5.2.1
+1. 验证地址(hdr.payload.sign)
+https://jwt.io/#debugger-io
 
 ## 单元测试
 1. 数据库

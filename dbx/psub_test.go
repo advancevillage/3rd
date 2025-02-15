@@ -107,6 +107,13 @@ func Test_deay(t *testing.T) {
 			customer: fmt.Sprintf("cg-c-%d", 1),
 			delay:    time.Second * 3,
 		},
+		"case2": {
+			ps:       &testPubSub{payload: mathx.RandStr(10), logger: logger, tt: t},
+			cg:       mathx.RandStr(10),
+			topic:    mathx.RandStr(10),
+			customer: fmt.Sprintf("cg-c-%d", mathx.GId()),
+			delay:    0,
+		},
 	}
 	for n, v := range data {
 		f := func(t *testing.T) {
