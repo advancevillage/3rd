@@ -3,6 +3,7 @@ package netx
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/advancevillage/3rd/logx"
@@ -105,14 +106,20 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 			if len(ct) <= 0 {
 				ct = "application/json"
 			}
-			// 5. 中间件执行
+			// 5. 设置耗时请求头
+			c.Header(X_Request_Latency, fmt.Sprintf("%dms", time.Now().UnixNano()/1e6-c.GetInt64(X_Request_Latency)))
+			// 6. 非200状态码
+			if r.StatusCode() != http.StatusOK {
+				c.Abort()
+				c.Data(r.StatusCode(), ct, r.Body())
+				return
+			}
+			// 7. 中间件执行
 			if idx < n-1 {
 				c.Next()
 				return
 			}
-			// 6. 设置耗时请求头
-			c.Header(X_Request_Latency, fmt.Sprintf("%dms", time.Now().UnixNano()/1e6-c.GetInt64(X_Request_Latency)))
-			// 7. 设置响应
+			// 8. 设置响应
 			c.Data(r.StatusCode(), ct, r.Body())
 		}
 		fs = append(fs, hf)

@@ -202,3 +202,27 @@ func prepare(td map[string]interface{}, dsn string, t *testing.T, f func(*testin
 	db.Exec("truncate table t_test_class;")
 
 }
+
+func Test_sql_format(t *testing.T) {
+	var data = map[string]struct {
+		s   string
+		exp string
+	}{
+		"case1": {
+			s: `
+				select *
+				from t_test_user
+				limit 1;
+			`,
+			exp: "select * from t_test_user limit 1;",
+		},
+	}
+	// `strings.Fields` 自动分割并合并多余空格
+	for n, p := range data {
+		f := func(t *testing.T) {
+			act := strings.Join(strings.Fields(p.s), " ")
+			assert.Equal(t, p.exp, act)
+		}
+		t.Run(n, f)
+	}
+}
