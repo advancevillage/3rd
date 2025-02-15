@@ -102,8 +102,8 @@ func Test_deay(t *testing.T) {
 	}{
 		"case1": {
 			ps:       &testPubSub{payload: mathx.RandStr(10), logger: logger, tt: t},
-			cg:       "cg-g-1",
-			topic:    "pub-c-1",
+			cg:       "cg-g-1-d",
+			topic:    "pub-c-1-d",
 			customer: fmt.Sprintf("cg-c-%d", 1),
 			delay:    time.Second * 3,
 		},
