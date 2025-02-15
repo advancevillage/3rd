@@ -49,7 +49,7 @@ func Test_jwtx(t *testing.T) {
 			act, err := j.Parse(ctx, token)
 			assert.Nil(t, err)
 			assert.Equal(t, x.NewBuilder(v.opt...).Build(), act.Build())
-			t.Log(token, v.sk)
+			logger.Infow(ctx, "jwt token", "token", token, "sk", v.sk)
 		}
 		t.Run(n, f)
 	}
