@@ -3,6 +3,7 @@ package dbx
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 )
 
 type Publisher interface {
+	Delay(ctx context.Context, payload string, delay time.Duration) error
 	Publish(ctx context.Context, payload string) error
 }
 
@@ -113,12 +115,16 @@ func newProducerRedis(ctx context.Context, logger logx.ILogger, opt ...PubSubOpt
 		logger.Errorw(ctx, "redis parse url failed", "err", err, "dns", opts.dns)
 		return nil, err
 	}
-	// 3. 返回对象
-	return &producerRedis{
+	// 3. 设置对象
+	p := &producerRedis{
 		opts:   opts,
 		rdb:    redis.NewClient(rdbOpts),
 		logger: logger,
-	}, nil
+	}
+	// 4. 延迟队列
+	go p.loop(ctx)
+
+	return p, nil
 }
 
 func (p *producerRedis) Publish(ctx context.Context, payload string) error {
@@ -139,17 +145,20 @@ func (p *producerRedis) Publish(ctx context.Context, payload string) error {
 }
 
 func (p *producerRedis) Delay(ctx context.Context, payload string, delay time.Duration) error {
-	// 1. 计算延迟时间
+	// 1. 编码参数
+	var (
+		qs = url.Values{}
+	)
+	qs.Add(logx.TraceId, fmt.Sprint(ctx.Value(logx.TraceId)))
+	qs.Add(X_TICKET_TIME, fmt.Sprint(time.Now().UnixNano()/1e6))
+	qs.Add(X_TICKET_PAYLOAD, payload)
+	// 2. 进入延迟队列
 	var (
 		q     = fmt.Sprintf("%s-pending", p.opts.channel)
 		score = time.Now().Add(delay).UnixNano() / 1e6
 		err   = p.rdb.ZAdd(ctx, q, redis.Z{
-			Score: float64(score),
-			Member: map[string]interface{}{
-				logx.TraceId:     ctx.Value(logx.TraceId),
-				X_TICKET_TIME:    time.Now().UnixNano() / 1e6,
-				X_TICKET_PAYLOAD: payload,
-			},
+			Score:  float64(score),
+			Member: qs.Encode(),
 		}).Err()
 	)
 	if err != nil {
@@ -170,19 +179,43 @@ func (p *producerRedis) loop(ctx context.Context) {
 
 		case <-t.C:
 			// 1. 获取消息
-			r := p.pending(ctx, fmt.Sprintf("%s-pending", p.opts.channel), 0, time.Now().UnixNano()/1e6)
+			r := p.pending(ctx, fmt.Sprintf("%s-pending", p.opts.channel))
 			if len(r) <= 0 {
 				continue
 			}
 			// 2. 解析消息
-			// TODO
+			for i := range r {
+				qs, err := url.ParseQuery(r[i])
+				if err != nil {
+					continue
+				}
+				var (
+					st      = qs.Get(X_TICKET_TIME)
+					trace   = qs.Get(logx.TraceId)
+					payload = qs.Get(X_TICKET_PAYLOAD)
+				)
+				stime, err := strconv.ParseInt(fmt.Sprint(st), 10, 64)
+				if err != nil {
+					continue
+				}
+				var (
+					sctx  = context.WithValue(context.Background(), logx.TraceId, trace)
+					etime = time.Now().UnixNano() / 1e6
+				)
+				p.logger.Infow(sctx, "consume delay message", "period", etime-stime, "payload", payload)
+				// 3. 发布消息
+				err = p.Publish(sctx, fmt.Sprint(payload))
+				if err != nil {
+					p.logger.Errorw(sctx, "consume delay publish failed", "err", err)
+				}
+			}
 		}
 	}
 exitLoop:
 	p.logger.Infow(ctx, "producer loop exit", "time", time.Now().UnixNano()/1e6)
 }
 
-func (p *producerRedis) pending(ctx context.Context, q string, min int64, max int64) []interface{} {
+func (p *producerRedis) pending(ctx context.Context, q string) []string {
 	lua := `
 		local key  = KEYS[1]
 		local from = ARGV[1]
@@ -201,10 +234,9 @@ func (p *producerRedis) pending(ctx context.Context, q string, min int64, max in
 		to    = time.Now().UnixNano() / 1e6
 		limit = 10
 	)
-	r, err := p.rdb.Eval(ctx, lua, keys, from, to, limit).Slice()
+	r, err := p.rdb.Eval(ctx, lua, keys, from, to, limit).StringSlice()
 	if err != nil {
 		p.logger.Errorw(ctx, "read pending failed", "err", err, "q", q)
-		return nil
 	}
 	return r
 }

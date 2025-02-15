@@ -100,17 +100,25 @@ func newMariaSqlExecutor(ctx context.Context, logger logx.ILogger, opt ...SqlOpt
 }
 
 func (c *maria) ExecSql(ctx context.Context, query string, args ...any) (*SqlReply, error) {
+	var (
+		r   *SqlReply
+		err error
+	)
 	query = strings.Join(strings.Fields(query), " ")
 	query = strings.TrimSpace(query)
-	c.logger.Infow(ctx, "exec sql", "query", query, "args", args)
 	switch strings.ToLower(query[:6]) {
 	case "select":
-		return c.query(ctx, query, args...)
+		r, err = c.query(ctx, query, args...)
 
 	default:
 		// insert update delete
-		return c.exec(ctx, query, args...)
+		r, err = c.exec(ctx, query, args...)
 	}
+	if err != nil {
+		return nil, err
+	}
+	c.logger.Infow(ctx, "exec sql success", "query", query, "args", args, "affected", r.GetAffectedRows())
+	return r, nil
 }
 
 func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply, error) {
@@ -123,7 +131,7 @@ func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply
 	// 1. 预编译SQL
 	stmt, err := c.conn.PrepareContext(ctx, query)
 	if err != nil {
-		c.logger.Errorw(ctx, "prepare sql maria failed", "err", err, "query", query)
+		c.logger.Errorw(ctx, "prepare sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 	defer stmt.Close()
@@ -131,7 +139,7 @@ func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply
 	// 2. 执行SQL
 	rows, err = stmt.QueryContext(ctx, args...)
 	if err != nil {
-		c.logger.Errorw(ctx, "query sql maria failed", "err", err, "query", query)
+		c.logger.Errorw(ctx, "query sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 	defer rows.Close()
@@ -139,7 +147,7 @@ func (c *maria) query(ctx context.Context, query string, args ...any) (*SqlReply
 	// 3. 查询结果列数
 	columns, err = rows.Columns()
 	if err != nil {
-		c.logger.Errorw(ctx, "query sql maria failed", "err", err, "query", query)
+		c.logger.Errorw(ctx, "query sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 
@@ -171,7 +179,7 @@ func (c *maria) exec(ctx context.Context, query string, args ...any) (*SqlReply,
 	// 1. 预编译SQL
 	stmt, err := c.conn.PrepareContext(ctx, query)
 	if err != nil {
-		c.logger.Errorw(ctx, "prepare sql maria failed", "err", err, "query", query)
+		c.logger.Errorw(ctx, "prepare sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 	defer stmt.Close()
@@ -179,21 +187,21 @@ func (c *maria) exec(ctx context.Context, query string, args ...any) (*SqlReply,
 	// 2. 执行SQL
 	affect, err = stmt.ExecContext(ctx, args...)
 	if err != nil {
-		c.logger.Errorw(ctx, "exec sql maria failed", "err", err, "query", query)
+		c.logger.Errorw(ctx, "exec sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 
 	// 3. LastInsertId
 	result.InsertId, err = affect.LastInsertId()
 	if err != nil {
-		c.logger.Errorw(ctx, "exec sql maria failed", "err", err)
+		c.logger.Errorw(ctx, "exec sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 
 	// 4. 影响数据行数
 	result.AffectedRows, err = affect.RowsAffected()
 	if err != nil {
-		c.logger.Errorw(ctx, "exec sql maria failed", "err", err)
+		c.logger.Errorw(ctx, "exec sql maria failed", "err", err, "query", query, "args", args)
 		return nil, err
 	}
 
