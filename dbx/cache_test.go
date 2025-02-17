@@ -84,7 +84,7 @@ func Test_hash(t *testing.T) {
 	}{
 		"case1": {
 			key: mathx.RandStr(10),
-			exp: time.Second * 5,
+			exp: time.Second * 2,
 			field: []x.Option{
 				x.WithKV("inf", "JDZEYdHmXAoRXMwUrDFyBrFFtvEyuUqO"),
 			},
@@ -109,15 +109,35 @@ func Test_hash(t *testing.T) {
 	for n, v := range data {
 		f := func(t *testing.T) {
 			h := rc.CreateHashCacher(ctx, v.key, v.exp)
+			// 新增
 			err = h.Set(ctx, x.NewBuilder(append(v.field, v.incr...)...))
 			assert.Nil(t, err)
 
+			// 自增
 			err = h.Incr(ctx, x.NewBuilder(v.decr...))
 			assert.Nil(t, err)
 
+			// 获取
 			b, err := h.Get(ctx, "inf", "cnt", "sin")
 			assert.Nil(t, err)
 			assert.Equal(t, x.NewBuilder(v.expect...).Build(), b.Build())
+
+			// 删除
+			err = h.Del(ctx, "sin")
+			assert.Nil(t, err)
+
+			// 获取
+			b, err = h.Get(ctx, "inf", "cnt", "sin")
+			assert.Nil(t, err)
+			assert.NotEqual(t, x.NewBuilder(v.expect...).Build(), b.Build())
+
+			// 过期
+			time.Sleep(v.exp)
+
+			// 获取
+			b, err = h.Get(ctx, "inf", "cnt", "sin")
+			assert.Nil(t, err)
+			assert.Equal(t, x.NewBuilder().Build(), b.Build())
 		}
 		t.Run(n, f)
 	}

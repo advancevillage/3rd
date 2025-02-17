@@ -71,17 +71,17 @@ func newRedisClient(ctx context.Context, logger logx.ILogger, opt ...CacheOption
 	// 2. 创建连接
 	rdbOpts, err := redis.ParseURL(opts.dsn)
 	if err != nil {
-		logger.Errorw(ctx, "redis parse url failed", "err", err, "dns", opts.dsn)
+		logger.Errorw(ctx, "redis parse url failed", "err", err, "dsn", opts.dsn)
 		return nil, err
 	}
 	rdb := redis.NewClient(rdbOpts)
 	// 3. 验证连接
 	err = rdb.Ping(ctx).Err()
 	if err != nil {
-		logger.Errorw(ctx, "redis ping failed", "err", err, "dns", opts.dsn)
+		logger.Errorw(ctx, "redis ping failed", "err", err, "dsn", opts.dsn)
 		return nil, err
 	}
-	logger.Infow(ctx, "cache redis connect success", "dns", opts.dsn)
+	logger.Infow(ctx, "cache redis connect success", "dsn", opts.dsn)
 
 	// 4. 返回对象
 	return &redisClient{
@@ -209,6 +209,7 @@ func (c *redisCacher) hPipe(ctx context.Context, cmd string, key string, kv map[
 
 type HashCacher interface {
 	Get(ctx context.Context, fields ...string) (x.Builder, error)
+	Del(ctx context.Context, fields ...string) error
 	Set(ctx context.Context, b x.Builder) error
 	Incr(ctx context.Context, b x.Builder) error
 }
@@ -268,6 +269,19 @@ func (c *hashRedisCacher) Set(ctx context.Context, b x.Builder) error {
 		c.rc.logger.Errorw(ctx, "redis expire failed", "err", err, "key", c.key)
 		return err
 	}
+	return nil
+}
+
+func (c *hashRedisCacher) Del(ctx context.Context, fields ...string) error {
+	if len(fields) <= 0 {
+		return nil
+	}
+	r, err := c.rc.rdb.HDel(ctx, c.key, fields...).Result()
+	if err != nil {
+		c.rc.logger.Errorw(ctx, "redis hash del failed", "err", err, "key", c.key, "fields", fields)
+		return err
+	}
+	c.rc.logger.Infow(ctx, "redis hash del success", "key", c.key, "fields", fields, "cnt", r)
 	return nil
 }
 
