@@ -121,7 +121,11 @@ go test -v -count=1 -test.run Test_http ./netx/
 ```
 Q: 代理（Proxy）或 VPN 导致 TLS 连接失败
 A: 关闭代理; 进入Postman > Settings（⚙️ 设置）> Proxy), 关闭 "Use System Proxy"
-
+3. dlv升级
+```
+go install github.com/go-delve/delve/cmd/dlv@latest
+dlv version
+```
 
 ## 连通性
 1. nc -zv 127.0.0.1 6379
