@@ -20,7 +20,7 @@ type CacheOption interface {
 	apply(*cacheOption)
 }
 
-func WithCacheDNS(dsn string) CacheOption {
+func WithCacheDsn(dsn string) CacheOption {
 	return newFuncCacheOption(func(o *cacheOption) {
 		o.dsn = dsn
 	})
