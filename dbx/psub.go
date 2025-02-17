@@ -141,6 +141,7 @@ func (p *producerRedis) Publish(ctx context.Context, payload string) error {
 	if err != nil {
 		p.logger.Errorw(ctx, "redis publish failed", "err", err)
 	}
+	p.logger.Infow(ctx, "publish message success", "payload", payload)
 	return err
 }
 
@@ -165,6 +166,7 @@ func (p *producerRedis) Delay(ctx context.Context, payload string, delay time.Du
 		p.logger.Errorw(ctx, "redis deply publish failed", "err", err)
 		return err
 	}
+	p.logger.Infow(ctx, "publish delay message success", "score", score, "payload", payload)
 	return nil
 }
 
