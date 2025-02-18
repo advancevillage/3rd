@@ -32,8 +32,8 @@ func NewNotFoundHttpResponse(err error) HttpResponse {
 	return newCodeHttpResponse(http.StatusNotFound, err.Error())
 }
 
-func NewStatusOkHttpResponse(body []byte) HttpResponse {
-	return newHttpResponse(body, http.Header{}, http.StatusOK)
+func NewStatusOkHttpResponse(body []byte, hdr http.Header) HttpResponse {
+	return newHttpResponse(body, hdr, http.StatusOK)
 }
 
 func NewInternalServerErrorHttpResponse(err error) HttpResponse {
