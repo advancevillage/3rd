@@ -2,8 +2,11 @@ package netx
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/advancevillage/3rd/logx"
@@ -82,14 +85,8 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		)
 		hf := func(c *gin.Context) {
 			// 1. 设置上下文
-			var (
-				ctx       = c.Request.Context()
-				trace, ok = c.Get(logx.TraceId)
-			)
-			if ok {
-				ctx = context.WithValue(ctx, logx.TraceId, trace)
-			}
-			r, err := ff(ctx, c.Request)
+			var ctx = s.createRequestContext(c.Request.Context(), c)
+			var r, err = ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
 				c.Abort()
@@ -99,7 +96,15 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 			}
 			// 3. 设置响应头
 			for k, v := range r.Header() {
-				c.Header(k, v[0])
+				switch {
+				case len(v) <= 0:
+					// pass
+				case strings.HasPrefix(k, rEQUEXT_CTX):
+					s.updateRequestContext(c, strings.TrimLeft(k, rEQUEXT_CTX), strings.Join(v, ";"))
+
+				default:
+					c.Header(k, strings.Join(v, ";"))
+				}
 			}
 			// 4. 提取Content-Type
 			ct := r.Header().Get("Content-Type")
@@ -129,11 +134,15 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 
 func (s *httpSrv) withTraceMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		trace, ok := c.Get(logx.TraceId)
-		if !ok {
+		var (
+			rctx  = url.Values{}
+			trace = c.GetHeader(logx.TraceId)
+		)
+		if len(trace) <= 0 {
 			trace = mathx.UUID()
-			c.Set(logx.TraceId, trace)
 		}
+		rctx.Add(logx.TraceId, trace)
+		c.Set(rEQUEXT_CTX, rctx.Encode())
 		c.Header(logx.TraceId, fmt.Sprint(trace))
 		c.Next()
 	}
@@ -158,4 +167,31 @@ func (s *httpSrv) withNameMiddleware() gin.HandlerFunc {
 		c.Header(X_Request_Server, s.opts.name)
 		c.Next()
 	}
+}
+
+func (s *httpSrv) createRequestContext(ctx context.Context, c *gin.Context) context.Context {
+	kv, err := url.ParseQuery(c.GetString(rEQUEXT_CTX))
+	if err != nil {
+		return ctx
+	}
+	for k, v := range kv {
+		if len(v) <= 0 {
+			continue
+		}
+		ctx = context.WithValue(ctx, k, strings.Join(v, ";"))
+	}
+	return ctx
+}
+
+func (s *httpSrv) updateRequestContext(c *gin.Context, k string, v string) {
+	kv, err := url.ParseQuery(c.GetString(rEQUEXT_CTX))
+	if err != nil {
+		return
+	}
+	kk, err := base64.URLEncoding.DecodeString(k)
+	if err != nil {
+		return
+	}
+	kv.Add(string(kk), v)
+	c.Set(rEQUEXT_CTX, kv.Encode())
 }

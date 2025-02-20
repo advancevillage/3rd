@@ -3,6 +3,7 @@ package netx
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -51,10 +52,30 @@ func newCodeHttpResponse(code int, message string) HttpResponse {
 
 var _ HttpResponse = (*emptyHttpResponse)(nil)
 
-type emptyHttpResponse struct{}
+type emptyHttpResponse struct {
+	hdr http.Header
+}
+
+func newEmptyHttpResponse() *emptyHttpResponse {
+	return &emptyHttpResponse{
+		hdr: make(http.Header),
+	}
+}
 
 func NewEmptyResonse() HttpResponse {
-	return &emptyHttpResponse{}
+	return newEmptyHttpResponse()
+}
+
+func NewContextResponse(opt ...x.Option) HttpResponse {
+	var (
+		r = newEmptyHttpResponse()
+		b = x.NewBuilder(opt...)
+	)
+	for k, v := range b.Build() {
+		k = base64.URLEncoding.EncodeToString([]byte(k))
+		r.hdr.Add(fmt.Sprintf("%s%s", rEQUEXT_CTX, k), fmt.Sprint(v))
+	}
+	return r
 }
 
 func (c *emptyHttpResponse) Body() []byte {
@@ -62,7 +83,7 @@ func (c *emptyHttpResponse) Body() []byte {
 }
 
 func (c *emptyHttpResponse) Header() http.Header {
-	return http.Header{}
+	return c.hdr
 }
 
 func (c *emptyHttpResponse) StatusCode() int {

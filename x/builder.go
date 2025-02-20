@@ -2,12 +2,13 @@ package x
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
 func WithKV(key string, value interface{}) Option {
 	return func(b Builder) {
-		b.write(key, value)
+		b.write(strings.TrimSpace(key), value)
 	}
 }
 
