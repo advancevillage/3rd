@@ -3,7 +3,7 @@ package netx
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -72,7 +72,7 @@ func NewContextResponse(opt ...x.Option) HttpResponse {
 		b = x.NewBuilder(opt...)
 	)
 	for k, v := range b.Build() {
-		k = base64.URLEncoding.EncodeToString([]byte(k))
+		k = hex.EncodeToString([]byte(k))
 		r.hdr.Add(fmt.Sprintf("%s%s", rEQUEXT_CTX, k), fmt.Sprint(v))
 	}
 	return r

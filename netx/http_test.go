@@ -45,6 +45,8 @@ func Test_http(t *testing.T) {
 						x.WithKV("niu-niu", "3 year old"),
 						x.WithKV("niu_niu", "3-year_old"),
 						x.WithKV("niu_niu+34", "3_year+old"),
+						x.WithKV("accountId", "acc-1891362318018039808"),
+						x.WithKV("ABC", "acc-1891362318018039808"),
 					), nil
 				},
 				func(ctx context.Context, r *http.Request) (HttpResponse, error) {
@@ -53,6 +55,8 @@ func Test_http(t *testing.T) {
 					assert.Equal(t, "3 year old", ctx.Value("niu-niu"))
 					assert.Equal(t, "3-year_old", ctx.Value("niu_niu"))
 					assert.Equal(t, "3_year+old", ctx.Value("niu_niu+34"))
+					assert.Equal(t, "acc-1891362318018039808", ctx.Value("accountId"))
+					assert.Equal(t, "acc-1891362318018039808", ctx.Value("ABC"))
 					return NewEmptyResonse(), nil
 				},
 				func(ctx context.Context, r *http.Request) (HttpResponse, error) {

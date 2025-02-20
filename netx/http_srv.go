@@ -2,7 +2,7 @@ package netx
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -188,7 +188,7 @@ func (s *httpSrv) updateRequestContext(c *gin.Context, k string, v string) {
 	if err != nil {
 		return
 	}
-	kk, err := base64.URLEncoding.DecodeString(k)
+	kk, err := hex.DecodeString(k)
 	if err != nil {
 		return
 	}
