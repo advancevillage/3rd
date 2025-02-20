@@ -39,14 +39,24 @@ func Test_http(t *testing.T) {
 			path:   "/resource",
 			fs: []HttpRegister{
 				func(ctx context.Context, r *http.Request) (HttpResponse, error) {
-					logger, err := logx.NewLogger("debug")
-					assert.Nil(t, err)
-					logger.Infow(ctx, "http-get", "path", r.URL.Path)
-					return newHttpResponse(nil, r.Header, http.StatusOK), nil
+					logger.Infow(ctx, "http-get-01", "path", r.URL.Path)
+					return NewContextResponse(
+						x.WithKV("account", "niuniu"),
+						x.WithKV("niu-niu", "3 year old"),
+						x.WithKV("niu_niu", "3-year_old"),
+						x.WithKV("niu_niu+34", "3_year+old"),
+					), nil
 				},
 				func(ctx context.Context, r *http.Request) (HttpResponse, error) {
-					logger, err := logx.NewLogger("debug")
-					assert.Nil(t, err)
+					logger.Infow(ctx, "http-get-02", "path", r.URL.Path)
+					assert.Equal(t, "niuniu", ctx.Value("account"))
+					assert.Equal(t, "3 year old", ctx.Value("niu-niu"))
+					assert.Equal(t, "3-year_old", ctx.Value("niu_niu"))
+					assert.Equal(t, "3_year+old", ctx.Value("niu_niu+34"))
+					return NewEmptyResonse(), nil
+				},
+				func(ctx context.Context, r *http.Request) (HttpResponse, error) {
+					logger.Infow(ctx, "http-get-03", "path", r.URL.Path)
 
 					query := r.URL.Query()
 					name := query.Get("name") // 获取 URL 参数
@@ -72,7 +82,7 @@ func Test_http(t *testing.T) {
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			c, err := NewHttpClient(ctx, logger)
+			c, err := NewHttpClient(ctx, logger, WithClientTimeout(3600))
 			assert.Nil(t, err)
 			r, err := c.Get(ctx, fmt.Sprintf("http://t.sunhe.org:%d%s", port, v.path), x.NewBuilder(x.WithKV("name", "pyro")), x.NewBuilder())
 			assert.Nil(t, err)

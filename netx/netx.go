@@ -16,6 +16,10 @@ const (
 	X_Request_Server  = "X-Request-Server"
 )
 
+const (
+	rEQUEXT_CTX = "Inner-Request-Ctx"
+)
+
 func waitQuitSignal(cancel context.CancelFunc) {
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
