@@ -337,6 +337,7 @@ func (c *stringRedisCacher) Get(ctx context.Context) (string, error) {
 		c.rc.logger.Errorw(ctx, "redis string get failed", "err", err, "key", c.key)
 		return str, err
 	}
+	c.rc.logger.Infow(ctx, "redis string get success", "key", c.key, "value", str)
 	return str, nil
 }
 
@@ -346,6 +347,7 @@ func (c *stringRedisCacher) Set(ctx context.Context, value any) error {
 		c.rc.logger.Errorw(ctx, "redis string set failed", "err", err, "key", c.key, "value", value)
 		return err
 	}
+	c.rc.logger.Infow(ctx, "redis string set success", "key", c.key, "value", value)
 	return nil
 }
 
@@ -355,6 +357,7 @@ func (c *stringRedisCacher) Del(ctx context.Context) error {
 		c.rc.logger.Errorw(ctx, "redis string del failed", "err", err, "key", c.key)
 		return err
 	}
+	c.rc.logger.Infow(ctx, "redis string del success", "key", c.key)
 	return nil
 }
 
