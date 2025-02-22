@@ -2,6 +2,7 @@ package dbx_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -138,6 +139,124 @@ func Test_hash(t *testing.T) {
 			b, err = h.Get(ctx, "inf", "cnt", "sin")
 			assert.Nil(t, err)
 			assert.Equal(t, x.NewBuilder().Build(), b.Build())
+		}
+		t.Run(n, f)
+	}
+}
+
+func Test_string(t *testing.T) {
+	logger, err := logx.NewLogger("debug")
+	assert.Nil(t, err)
+	ctx := context.TODO()
+	var data = map[string]struct {
+		key string
+		exp time.Duration
+		val any
+	}{
+		"case1": {
+			key: mathx.RandStr(10),
+			exp: time.Second,
+			val: mathx.RandStrNum(50),
+		},
+	}
+	rc, err := dbx.NewCacheRedis(ctx, logger)
+	assert.Nil(t, err)
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			str := rc.CreateStringCacher(ctx, v.key, v.exp)
+			// 新增
+			err = str.Set(ctx, v.val)
+			assert.Nil(t, err)
+
+			// 获取
+			val, err := str.Get(ctx)
+			assert.Nil(t, err)
+			assert.Equal(t, v.val, val)
+
+			// 删除
+			err = str.Del(ctx)
+			assert.Nil(t, err)
+
+			// 获取
+			val, err = str.Get(ctx)
+			assert.Nil(t, err)
+			assert.Equal(t, "", val)
+
+			// 新增
+			err = str.Set(ctx, v.val)
+			assert.Nil(t, err)
+
+			// 过期
+			time.Sleep(v.exp + time.Millisecond)
+
+			// 获取
+			val, err = str.Get(ctx)
+			assert.Nil(t, err)
+			assert.Equal(t, "", val)
+		}
+		t.Run(n, f)
+	}
+}
+
+func Test_string_incr(t *testing.T) {
+	logger, err := logx.NewLogger("debug")
+	assert.Nil(t, err)
+	ctx := context.TODO()
+	var data = map[string]struct {
+		key  string
+		exp  time.Duration
+		val  any
+		incr int64
+	}{
+		"case1": {
+			key:  mathx.RandStr(10),
+			exp:  time.Millisecond * 500,
+			val:  int64(99),
+			incr: 2,
+		},
+	}
+	rc, err := dbx.NewCacheRedis(ctx, logger)
+	assert.Nil(t, err)
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			str := rc.CreateStringCacher(ctx, v.key, v.exp)
+			// 新增
+			err = str.Set(ctx, v.val)
+			assert.Nil(t, err)
+
+			// 自增
+			err = str.Incr(ctx, v.incr)
+			assert.Nil(t, err)
+
+			// 获取
+			val, err := str.Get(ctx)
+			assert.Nil(t, err)
+			act, err := strconv.ParseInt(val, 10, 64)
+			assert.Nil(t, err)
+			assert.Equal(t, v.val.(int64)+v.incr, act)
+
+			// 删除
+			err = str.Del(ctx)
+			assert.Nil(t, err)
+
+			// 获取
+			val, err = str.Get(ctx)
+			assert.Nil(t, err)
+			assert.Equal(t, "", val)
+
+			// 新增
+			err = str.Set(ctx, v.val)
+			assert.Nil(t, err)
+
+			// 过期
+			time.Sleep(v.exp + time.Millisecond)
+
+			// 获取
+			val, err = str.Get(ctx)
+			assert.Nil(t, err)
+			assert.Equal(t, "", val)
 		}
 		t.Run(n, f)
 	}

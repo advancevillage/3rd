@@ -142,6 +142,7 @@ func (c *redisLocker) Unlock(ctx context.Context, key string, val string) (bool,
 
 type Cacher interface {
 	CreateHashCacher(ctx context.Context, key string, exp time.Duration) HashCacher
+	CreateStringCacher(ctx context.Context, key string, exp time.Duration) StringCacher
 }
 
 const (
@@ -168,10 +169,14 @@ func newCacheRedis(ctx context.Context, logger logx.ILogger, opt ...CacheOption)
 }
 
 func (c *redisCacher) CreateHashCacher(ctx context.Context, key string, exp time.Duration) HashCacher {
-	return newHashRedisCacher(ctx, c, key, exp)
+	return newHashRedisCacher(c, key, exp)
 }
 
-func (c *redisCacher) hPipe(ctx context.Context, cmd string, key string, kv map[string]interface{}) error {
+func (c *redisCacher) CreateStringCacher(ctx context.Context, key string, exp time.Duration) StringCacher {
+	return newStringRedisCacher(c, key, exp)
+}
+
+func (c *redisCacher) hPipe(ctx context.Context, cmd string, key string, kv map[string]any) error {
 	var (
 		pipe = c.rdb.TxPipeline()
 		succ int
@@ -187,7 +192,6 @@ func (c *redisCacher) hPipe(ctx context.Context, cmd string, key string, kv map[
 			pipe.HSet(ctx, key, k, v)
 		}
 	}
-
 	var (
 		r, err = pipe.Exec(ctx)
 		et     = time.Now().UnixNano() / 1e6
@@ -222,7 +226,7 @@ type hashRedisCacher struct {
 	exp time.Duration
 }
 
-func newHashRedisCacher(ctx context.Context, rc *redisCacher, key string, exp time.Duration) HashCacher {
+func newHashRedisCacher(rc *redisCacher, key string, exp time.Duration) HashCacher {
 	return &hashRedisCacher{
 		rc:  rc,
 		key: key,
@@ -288,7 +292,7 @@ func (c *hashRedisCacher) Del(ctx context.Context, fields ...string) error {
 func (c *hashRedisCacher) Incr(ctx context.Context, b x.Builder) error {
 	var (
 		kv = b.Build()
-		ki = make(map[string]interface{}, len(kv))
+		ki = make(map[string]any, len(kv))
 	)
 	for k, v := range kv {
 		i, err := strconv.ParseInt(fmt.Sprint(v), 10, 64)
@@ -302,4 +306,64 @@ func (c *hashRedisCacher) Incr(ctx context.Context, b x.Builder) error {
 		return nil
 	}
 	return c.rc.hPipe(ctx, cmd_CACHE_HINCR, c.key, ki)
+}
+
+type StringCacher interface {
+	Get(ctx context.Context) (string, error)
+	Del(ctx context.Context) error
+	Set(ctx context.Context, value any) error
+	Incr(ctx context.Context, incr int64) error
+}
+
+var _ StringCacher = (*stringRedisCacher)(nil)
+
+type stringRedisCacher struct {
+	rc  *redisCacher
+	key string
+	exp time.Duration
+}
+
+func newStringRedisCacher(rc *redisCacher, key string, exp time.Duration) StringCacher {
+	return &stringRedisCacher{
+		rc:  rc,
+		key: key,
+		exp: exp,
+	}
+}
+
+func (c *stringRedisCacher) Get(ctx context.Context) (string, error) {
+	str, err := c.rc.rdb.Get(ctx, c.key).Result()
+	if err != nil && err != redis.Nil {
+		c.rc.logger.Errorw(ctx, "redis string get failed", "err", err, "key", c.key)
+		return str, err
+	}
+	return str, nil
+}
+
+func (c *stringRedisCacher) Set(ctx context.Context, value any) error {
+	err := c.rc.rdb.Set(ctx, c.key, value, c.exp).Err()
+	if err != nil {
+		c.rc.logger.Errorw(ctx, "redis string set failed", "err", err, "key", c.key, "value", value)
+		return err
+	}
+	return nil
+}
+
+func (c *stringRedisCacher) Del(ctx context.Context) error {
+	err := c.rc.rdb.Del(ctx, c.key).Err()
+	if err != nil {
+		c.rc.logger.Errorw(ctx, "redis string del failed", "err", err, "key", c.key)
+		return err
+	}
+	return nil
+}
+
+func (c *stringRedisCacher) Incr(ctx context.Context, incr int64) error {
+	next, err := c.rc.rdb.IncrBy(ctx, c.key, incr).Result()
+	if err != nil {
+		c.rc.logger.Errorw(ctx, "redis string incr failed", "err", err, "key", c.key, "incr", incr)
+		return err
+	}
+	c.rc.logger.Infow(ctx, "redis string incr success", "key", c.key, "incr", incr, "next", next)
+	return nil
 }
