@@ -16,7 +16,7 @@ func (k KeySizeError) Error() string {
 	return "cryptox/sm4: invalid key size " + strconv.Itoa(int(k))
 }
 
-//GB/T 32907-2016; SM4-128
+// GB/T 32907-2016; SM4-128
 func NewCipher(key []byte) (cipher.Block, error) {
 	k := len(key)
 	switch k {
