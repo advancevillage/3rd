@@ -17,6 +17,10 @@ import (
 	"github.com/advancevillage/3rd/x"
 )
 
+func NewTooManyRequestsHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusTooManyRequests, err.Error())
+}
+
 func NewBadRequestHttpResponse(err error) HttpResponse {
 	return newCodeHttpResponse(http.StatusBadRequest, err.Error())
 }
