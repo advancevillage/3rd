@@ -12,7 +12,7 @@ import (
 )
 
 type CacheLocker interface {
-	Lock(ctx context.Context, key string, val string, ttl int64) (bool, error)
+	Lock(ctx context.Context, key string, val string, ttl time.Duration) (bool, error)
 	Unlock(ctx context.Context, key string, val string) (bool, error)
 }
 
@@ -109,12 +109,13 @@ func newCacheRedisLocker(ctx context.Context, logger logx.ILogger, opt ...CacheO
 	return &redisLocker{*rc}, nil
 }
 
-func (c *redisLocker) Lock(ctx context.Context, key string, val string, ttl int64) (bool, error) {
-	ok, err := c.rdb.SetNX(ctx, key, val, time.Duration(ttl)*time.Second).Result()
+func (c *redisLocker) Lock(ctx context.Context, key string, val string, ttl time.Duration) (bool, error) {
+	ok, err := c.rdb.SetNX(ctx, key, val, ttl).Result()
 	if err != nil {
 		c.logger.Errorw(ctx, "redis lock failed", "err", err, "key", key, "val", val)
 		return false, err
 	}
+	c.logger.Infow(ctx, "redis lock success", "key", key, "val", val, "ttl", ttl)
 	return ok, nil
 }
 
@@ -135,8 +136,10 @@ func (c *redisLocker) Unlock(ctx context.Context, key string, val string) (bool,
 	r := result.(int64)
 	// key不存在或者不属于当前客户端
 	if r != 1 {
+		c.logger.Infow(ctx, "redis lock not found", "key", key, "val", val)
 		return false, nil
 	}
+	c.logger.Infow(ctx, "redis unlock success", "key", key, "val", val)
 	return true, nil
 }
 

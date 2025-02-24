@@ -23,19 +23,19 @@ func Test_Locker(t *testing.T) {
 	var data = map[string]struct {
 		key string
 		val string
-		ttl int64
+		ttl time.Duration
 	}{
 		"case1": {
 			key: mathx.RandStr(10),
 			val: mathx.RandStr(10),
-			ttl: 2,
+			ttl: time.Second * 2,
 		},
 	}
 
 	for n, v := range data {
 		f := func(t *testing.T) {
 			ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
-			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*time.Duration(v.ttl<<1)))
+			ctx, cancel := context.WithDeadline(ctx, time.Now().Add(v.ttl*2))
 			defer cancel()
 
 			locker, err := dbx.NewCacheRedisLocker(ctx, logger)
@@ -60,7 +60,7 @@ func Test_Locker(t *testing.T) {
 			ok, err = locker.Lock(ctx, v.key, v.val, v.ttl)
 			assert.Nil(t, err)
 			assert.Equal(t, true, ok)
-			time.Sleep(time.Second * time.Duration(v.ttl+1))
+			time.Sleep(time.Duration(v.ttl + time.Second))
 			// 超时解锁
 			ok, err = locker.Unlock(ctx, v.key, v.val)
 			assert.Nil(t, err)
