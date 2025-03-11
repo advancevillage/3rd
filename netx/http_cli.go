@@ -17,36 +17,43 @@ import (
 	"github.com/advancevillage/3rd/x"
 )
 
+// RFC 9110
+// https://www.rfc-editor.org/rfc/rfc9110.html
 func NewTooManyRequestsHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusTooManyRequests, err.Error())
+	return newCodeHttpResponse(http.StatusTooManyRequests, "too many requests", err)
 }
 
 func NewBadRequestHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusBadRequest, err.Error())
+	return newCodeHttpResponse(http.StatusBadRequest, "bad request", err)
 }
 
 func NewUnauthorizedHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusUnauthorized, err.Error())
+	return newCodeHttpResponse(http.StatusUnauthorized, "unauthorized", err)
 }
 
 func NewForbiddenHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusForbidden, err.Error())
+	return newCodeHttpResponse(http.StatusForbidden, "forbidden", err)
 }
 
 func NewNotFoundHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusNotFound, err.Error())
-}
-
-func NewStatusOkHttpResponse(body []byte, hdr http.Header) HttpResponse {
-	return newHttpResponse(body, hdr, http.StatusOK)
+	return newCodeHttpResponse(http.StatusNotFound, "not found", err)
 }
 
 func NewInternalServerErrorHttpResponse(err error) HttpResponse {
-	return newCodeHttpResponse(http.StatusInternalServerError, err.Error())
+	return newCodeHttpResponse(http.StatusInternalServerError, "internal server error", err)
 }
 
-func newCodeHttpResponse(code int, message string) HttpResponse {
-	b := x.NewBuilder(x.WithKV("httpCode", code), x.WithKV("httpMessage", message))
+func NewStatusOkHttpResponse(body any, hdr http.Header) HttpResponse {
+	b := x.NewBuilder(x.WithKV("code", http.StatusOK), x.WithKV("message", "success"), x.WithKV("data", body))
+	buf, err := json.Marshal(b.Build())
+	if err != nil {
+		return NewInternalServerErrorHttpResponse(err)
+	}
+	return newHttpResponse(buf, hdr, http.StatusOK)
+}
+
+func newCodeHttpResponse(code int, message string, err error) HttpResponse {
+	b := x.NewBuilder(x.WithKV("code", code), x.WithKV("message", message), x.WithKV("errors", []any{err.Error()}))
 	body, err := json.Marshal(b.Build())
 	if err != nil {
 		return NewEmptyResonse()

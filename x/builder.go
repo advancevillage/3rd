@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-func WithKV(key string, value interface{}) Option {
+func WithKV(key string, value any) Option {
 	return func(b Builder) {
 		b.write(strings.TrimSpace(key), value)
 	}
@@ -14,8 +14,8 @@ func WithKV(key string, value interface{}) Option {
 
 type Builder interface {
 	Value(key string) (any, bool)
-	Build() map[string]interface{}
-	write(key string, value interface{})
+	Build() map[string]any
+	write(key string, value any)
 }
 
 type Option func(Builder)
@@ -34,13 +34,13 @@ func NewBuilder(opts ...Option) Builder {
 	return b
 }
 
-func (o *builder) write(key string, value interface{}) {
+func (o *builder) write(key string, value any) {
 	o.m.Store(key, value)
 }
 
-func (o *builder) Build() map[string]interface{} {
-	m := make(map[string]interface{})
-	o.m.Range(func(key, value interface{}) bool {
+func (o *builder) Build() map[string]any {
+	m := make(map[string]any)
+	o.m.Range(func(key, value any) bool {
 		m[fmt.Sprint(key)] = value
 		o.m.Delete(key)
 		return true

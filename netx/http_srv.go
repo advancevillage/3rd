@@ -78,7 +78,7 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		n  = len(f)
 		fs = make([]gin.HandlerFunc, 0, n)
 	)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		var (
 			idx = i
 			ff  = f[idx]

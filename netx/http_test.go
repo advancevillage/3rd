@@ -66,11 +66,9 @@ func Test_http(t *testing.T) {
 					name := query.Get("name") // 获取 URL 参数
 
 					reply := x.NewBuilder(x.WithKV("name", name)).Build()
-					body, err := json.Marshal(reply)
-					assert.Nil(t, err)
 					time.Sleep(500 * time.Millisecond)
 					logger.Infow(ctx, "http-get", "path", r.URL.Path, "name", name)
-					return newHttpResponse(body, r.Header, http.StatusOK), nil
+					return NewStatusOkHttpResponse(reply, r.Header), nil
 				},
 			},
 		},
@@ -92,7 +90,18 @@ func Test_http(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, http.StatusOK, r.StatusCode())
 			assert.Equal(t, "application/json", r.Header().Get("Content-Type"))
-			assert.Equal(t, `{"name":"pyro"}`, string(r.Body()))
+
+			type httpReply struct {
+				Code    int            `json:"code"`
+				Message string         `json:"message"`
+				Data    map[string]any `json:"data"`
+			}
+
+			reply := &httpReply{}
+			err = json.Unmarshal(r.Body(), reply)
+			logger.Infow(ctx, "http-reply", "reply", reply)
+			assert.Nil(t, err)
+			assert.Equal(t, x.NewBuilder(x.WithKV("name", "pyro")).Build(), reply.Data)
 		}
 		t.Run(n, f)
 	}
