@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kelindar/bitmap"
@@ -39,6 +41,33 @@ type TxCos struct {
 	c  *cos.Client
 	ak string
 	sk string
+}
+
+// cos://ak:sk@bucket/region
+func NewCosClient(ctx context.Context, dsn string) (S3, error) {
+	ak, sk, bucket, region, err := ParseCosUrl(dsn)
+	if err != nil {
+		return nil, err
+	}
+	return NewCosS3(ctx, bucket, region, ak, sk)
+}
+
+func ParseCosUrl(dsn string) (ak, sk, bkt, rgn string, err error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return ak, sk, bkt, rgn, err
+	}
+	if u.Scheme != "cos" {
+		return ak, sk, bkt, rgn, errors.New("cos: invalid scheme")
+	}
+	var ok bool
+	ak = u.User.Username()
+	sk, ok = u.User.Password()
+	bkt, rgn = u.Host, strings.TrimPrefix(u.Path, "/")
+	if !ok {
+		return ak, sk, bkt, rgn, errors.New("cos: invalid sk")
+	}
+	return ak, sk, bkt, rgn, nil
 }
 
 func NewCosS3(ctx context.Context, bucket string, region string, ak string, sk string) (S3, error) {

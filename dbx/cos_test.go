@@ -19,12 +19,12 @@ func Test_S3(t *testing.T) {
 	var data = map[string]struct {
 		bucket string
 		region string
-		ext    map[string]interface{}
+		ext    map[string]any
 	}{
 		"case1": {
 			bucket: "xmagic-1259635961",
 			region: "ap-shanghai",
-			ext: map[string]interface{}{
+			ext: map[string]any{
 				"name":  "test/" + mathx.RandStr(5) + ".txt",
 				"total": 6,
 				"parts": map[int]string{
@@ -40,7 +40,7 @@ func Test_S3(t *testing.T) {
 		"case2": {
 			bucket: "xmagic-1259635961",
 			region: "ap-shanghai",
-			ext: map[string]interface{}{
+			ext: map[string]any{
 				"name":  "test/" + mathx.RandStr(5) + ".txt",
 				"total": 1,
 				"parts": map[int]string{
@@ -130,6 +130,35 @@ func Test_S3(t *testing.T) {
 				return
 			}
 			assert.Equal(t, false, exist)
+		}
+		t.Run(n, f)
+	}
+}
+
+func Test_ParseCosUrl(t *testing.T) {
+	var data = map[string]struct {
+		dsn string
+		ak  string
+		sk  string
+		bkt string
+		rgn string
+	}{
+		"case1": {
+			dsn: "cos://1122:3344@xmagic-1259635961/ap-shanghai",
+			ak:  "1122",
+			sk:  "3344",
+			bkt: "xmagic-1259635961",
+			rgn: "ap-shanghai",
+		},
+	}
+	for n, v := range data {
+		f := func(t *testing.T) {
+			ak, sk, bkt, rgn, err := dbx.ParseCosUrl(v.dsn)
+			assert.Nil(t, err)
+			assert.Equal(t, v.ak, ak)
+			assert.Equal(t, v.sk, sk)
+			assert.Equal(t, v.bkt, bkt)
+			assert.Equal(t, v.rgn, rgn)
 		}
 		t.Run(n, f)
 	}
