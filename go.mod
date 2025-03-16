@@ -14,6 +14,8 @@ require (
 	github.com/romanyx/polluter v1.2.2
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1115
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.0.1115
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.60
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.33.0
