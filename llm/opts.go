@@ -1,5 +1,7 @@
 package llm
 
+import "github.com/openai/openai-go"
+
 type LLMOption interface {
 	apply(*llmOption)
 }
@@ -12,13 +14,13 @@ func WitChatGPTSecret(sk string) LLMOption {
 
 func WithO3MiniModel() LLMOption {
 	return newFuncLLMOption(func(o *llmOption) {
-		o.model = "o3-mini"
+		o.model = openai.ChatModelO3Mini
 	})
 }
 
 func With4OModel() LLMOption {
 	return newFuncLLMOption(func(o *llmOption) {
-		o.model = "gpt-4o"
+		o.model = openai.ChatModelGPT4o
 	})
 }
 
@@ -28,7 +30,7 @@ type llmOption struct {
 }
 
 var defaultLLMOptions = llmOption{
-	model: "gpt-4o-mini",
+	model: openai.ChatModelGPT4oMini,
 }
 
 type funcLLMOption struct {
