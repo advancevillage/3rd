@@ -16,6 +16,8 @@ type LLM interface {
 
 var _ LLM = &chatGPT{}
 
+// 官方文档
+// https://pkg.go.dev/github.com/openai/openai-go#section-readme
 type chatGPT struct {
 	opts   llmOption
 	logger logx.ILogger
