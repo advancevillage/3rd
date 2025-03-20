@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,45 @@ func Test_should(t *testing.T) {
 				Body: io.NopCloser(strings.NewReader(v.input)),
 			}
 			err := ShouldBind(r, act)
+			assert.Nil(t, err)
+			assert.Equal(t, v.exp, act)
+		}
+		t.Run(n, f)
+	}
+}
+
+func Test_should_form(t *testing.T) {
+	type Account struct {
+		Name  string  `form:"name"`
+		Age   int     `form:"age"`
+		Score float32 `form:"score"`
+	}
+
+	var data = map[string]struct {
+		input url.Values
+		exp   *Account
+	}{
+		"case-1": {
+			input: url.Values{
+				"name":  []string{"puyu"},
+				"age":   []string{"99"},
+				"score": []string{"98.5"},
+			},
+			exp: &Account{
+				Name:  "puyu",
+				Age:   99,
+				Score: 98.5,
+			},
+		},
+	}
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			act := &Account{}
+			r := &http.Request{
+				Form: v.input,
+			}
+			err := ShouldBindForm(r, act)
 			assert.Nil(t, err)
 			assert.Equal(t, v.exp, act)
 		}
