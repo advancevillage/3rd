@@ -34,7 +34,7 @@ func Test_completion(t *testing.T) {
 				x.WithKV("properties", x.NewBuilder(
 					x.WithKV("prompt", x.NewBuilder(
 						x.WithKV("type", "string"),
-					)),
+					).Build()),
 					x.WithKV("style", x.NewBuilder(
 						x.WithKV("type", "string"),
 						x.WithKV("enum", []string{
@@ -47,8 +47,8 @@ func Test_completion(t *testing.T) {
 							"gold",
 							"ancient_bronze",
 						}),
-					)),
-				)),
+					).Build()),
+				).Build()),
 				x.WithKV("required", []string{
 					"prompt",
 					"style",
