@@ -37,7 +37,7 @@ func newChatGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ch
 
 	// 2. chatGPT客户端
 	client := openai.NewClient(option.WithAPIKey(opts.sk))
-	logger.Infow(ctx, "success to crate chatgpt client", "opts", opts)
+	logger.Infow(ctx, "success to crate chatgpt client", "sk", opts.sk, "model", opts.model)
 
 	// 3. 返回
 	return &chatGPT{
