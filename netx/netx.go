@@ -34,3 +34,7 @@ func ShouldBind(r *http.Request, obj any) error {
 func ShoudBindQuery(r *http.Request, obj any) error {
 	return binding.Query.Bind(r, obj)
 }
+
+func ShouldBindForm(r *http.Request, obj any) error {
+	return binding.Form.Bind(r, obj)
+}

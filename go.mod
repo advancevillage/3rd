@@ -10,10 +10,14 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/kelindar/bitmap v1.5.2
+	github.com/openai/openai-go v0.1.0-alpha.62
+	github.com/pquerna/otp v1.4.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/romanyx/polluter v1.2.2
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1115
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.0.1115
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.60
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.33.0
@@ -25,6 +29,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -58,6 +63,10 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/romanyx/jwalk v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
