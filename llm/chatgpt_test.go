@@ -34,6 +34,8 @@ func Test_completion(t *testing.T) {
 				x.WithKV("properties", x.NewBuilder(
 					x.WithKV("prompt", x.NewBuilder(
 						x.WithKV("type", "string"),
+						x.WithKV("maxLength", 1000),
+						x.WithKV("description", "英文输出"),
 					).Build()),
 					x.WithKV("style", x.NewBuilder(
 						x.WithKV("type", "string"),
