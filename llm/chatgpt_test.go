@@ -27,7 +27,7 @@ func Test_completion(t *testing.T) {
 		expect any
 	}{
 		"case1": {
-			role:  "你是一名提示词专家，请从用户输入中提取意图和关键特征，并给出适合tripo的提示词。",
+			role:  "你是一名提示词专家，请从用户输入中提取意图和关键特征，并给出适合tripo的提示词, 请使用英语输出。",
 			query: "请帮我生成一个可爱的卡通缅因猫",
 			schema: x.NewBuilder(
 				x.WithKV("type", "object"),
