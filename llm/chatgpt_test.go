@@ -53,6 +53,7 @@ func Test_completion(t *testing.T) {
 					"prompt",
 					"style",
 				}),
+				x.WithKV("additionalProperties", false),
 			),
 			expect: &struct {
 				Prompt string `json:"prompt"`
