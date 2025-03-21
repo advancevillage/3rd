@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/advancevillage/3rd/llm"
@@ -19,6 +20,11 @@ func Test_completion(t *testing.T) {
 
 	cli, err := llm.NewChatGPT(ctx, logger, llm.WitChatGPTSecret(os.Getenv("CHATGPT_KEY")))
 	assert.Nil(t, err)
+
+	type ExpectPrompt struct {
+		Prompt string `json:"prompt"`
+		Style  string `json:"style"`
+	}
 
 	var data = map[string]struct {
 		role   string
@@ -56,10 +62,7 @@ func Test_completion(t *testing.T) {
 				}),
 				x.WithKV("additionalProperties", false),
 			),
-			expect: &struct {
-				Prompt string `json:"prompt"`
-				Style  string `json:"style"`
-			}{},
+			expect: &ExpectPrompt{},
 		},
 	}
 	for n, v := range data {
@@ -67,6 +70,17 @@ func Test_completion(t *testing.T) {
 			err = cli.Completion(ctx, v.role, v.query, v.schema, v.expect)
 			assert.Nil(t, err)
 			t.Log(v.expect)
+			assert.Equal(t, true, len(v.expect.(*ExpectPrompt).Prompt) > 0)
+			assert.Equal(t, true, slices.Contains([]string{
+				"person:person2cartoon",
+				"object:clay",
+				"object:steampunk",
+				"animal:venom",
+				"object:barbie",
+				"object:christmas",
+				"gold",
+				"ancient_bronze",
+			}, v.expect.(*ExpectPrompt).Style))
 		}
 		t.Run(n, f)
 	}
