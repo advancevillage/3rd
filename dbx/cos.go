@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -216,4 +218,15 @@ func (mp *multiprtUploader) complete(ctx context.Context, name, uploadId string,
 		return errors.New("cos: complete multipart upload failed")
 	}
 	return nil
+}
+
+func (mp *multiprtUploader) String() string {
+	u := url.Values{}
+	u.Add("id", mp.uploadId)
+	u.Add("name", mp.name)
+	u.Add("total", strconv.Itoa(mp.totalPart))
+	for i := range mp.parts.Parts {
+		u.Add(fmt.Sprintf("part.%d", mp.parts.Parts[i].PartNumber), mp.parts.Parts[i].ETag)
+	}
+	return u.Encode()
 }
