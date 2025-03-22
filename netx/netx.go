@@ -2,6 +2,7 @@ package netx
 
 import (
 	"context"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,4 +38,18 @@ func ShoudBindQuery(r *http.Request, obj any) error {
 
 func ShouldBindForm(r *http.Request, obj any) error {
 	return binding.Form.Bind(r, obj)
+}
+
+func ShoudBindFile(r *http.Request, name string) (*multipart.FileHeader, error) {
+	if r.MultipartForm == nil {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			return nil, err
+		}
+	}
+	f, fh, err := r.FormFile(name)
+	if err != nil {
+		return nil, err
+	}
+	f.Close()
+	return fh, err
 }
