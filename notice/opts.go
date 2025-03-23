@@ -24,7 +24,7 @@ func WithSmsApp(appId, signName, tmplId string) NoticeOption {
 
 type noticeOption struct {
 	ak            string // 腾讯云短信密钥
-	sk            string //腾讯云短信密钥
+	sk            string // 腾讯云短信密钥
 	region        string // 腾讯云短信密钥
 	timeout       int    // 腾讯云短信超时时间
 	endpoint      string // 腾讯云短信请求地址

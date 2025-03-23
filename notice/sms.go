@@ -24,6 +24,10 @@ type txsms struct {
 	client *sms.Client
 }
 
+func NewTxSms(ctx context.Context, logger logx.ILogger, opt ...NoticeOption) (SMS, error) {
+	return newTxSms(ctx, logger, opt...)
+}
+
 func newTxSms(ctx context.Context, logger logx.ILogger, opt ...NoticeOption) (*txsms, error) {
 	// 1. 配置
 	opts := defaultNoticeOptions
