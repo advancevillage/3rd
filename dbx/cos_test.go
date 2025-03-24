@@ -171,12 +171,6 @@ func Test_S3_Resumer(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
-
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
-
 	var (
 		ak = os.Getenv("COS_AK")
 		sk = os.Getenv("COS_SK")
@@ -203,7 +197,6 @@ func Test_S3_Resumer(t *testing.T) {
 			},
 		},
 	}
-
 	for n, v := range data {
 		f := func(t *testing.T) {
 			name, ok := v.ext["name"].(string)
@@ -339,7 +332,7 @@ func (c *s3locker) Upload(ctx context.Context, name string, total int, index int
 }
 
 func (c *s3locker) tryLock(ctx context.Context, key string, val string) error {
-	t := time.NewTicker(time.Millisecond * 50)
+	t := time.NewTicker(time.Millisecond * 200)
 	defer t.Stop()
 	n := 0
 
