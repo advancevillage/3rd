@@ -107,3 +107,14 @@ jobs:
 
     - name: x
       run: go test -v -count=1 -cover ./x/
+
+    - name: notice
+      run: go test -v -count=1 -cover ./notice/
+      env:
+        SMS_AK: ${{ vars.SMS_AK }}
+        SMS_SK: ${{ vars.SMS_SK }}
+        SMS_RGN: ${{ vars.SMS_RGN }}
+        SMS_SIGN: ${{ vars.SMS_SIGN }}
+        SMS_PHONE: ${{ vars.SMS_PHONE }}
+        SMS_TMP_ID: ${{ vars.SMS_TMP_ID }}
+        SMS_APP_ID: ${{ vars.SMS_APP_ID }}

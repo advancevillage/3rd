@@ -2,6 +2,7 @@ package notice_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -24,12 +25,10 @@ func Test_tx_sms(t *testing.T) {
 		appId = os.Getenv("SMS_APP_ID")
 		phone = os.Getenv("SMS_PHONE")
 	)
-
-	ntc, err := notice.NewTxSms(ctx, logger,
-		notice.WithSmsSecret(ak, sk, rgn),
-		notice.WithSmsApp(appId, sign, tmpId),
-	)
+	dsn := fmt.Sprintf("sms://%s:%s@%s?sign=%s&app=%s&tmpl=%s", ak, sk, rgn, sign, appId, tmpId)
+	t.Log(dsn)
+	ntc, err := notice.NewSmsClient(ctx, logger, dsn)
 	assert.Nil(t, err)
-	err = ntc.Send(ctx, phone, mathx.RandNum(6), "1")
+	err = ntc.Send(ctx, phone, mathx.RandNum(6), "T1")
 	assert.Nil(t, err)
 }
