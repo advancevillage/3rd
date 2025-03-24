@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,7 @@ type Downloader interface {
 
 type Uploader interface {
 	MultiUpload(ctx context.Context, name string, totalPart int) (MultiPartUploader, error)
+	ResumeUpload(ctx context.Context, snapshot string) (MultiPartUploader, error)
 }
 
 var _ S3 = (*TxCos)(nil)
@@ -124,6 +127,10 @@ func (t *TxCos) MultiUpload(ctx context.Context, name string, totalPart int) (Mu
 	return newMultipartUploader(ctx, t.c, name, totalPart)
 }
 
+func (t *TxCos) ResumeUpload(ctx context.Context, snapshot string) (MultiPartUploader, error) {
+	return newMultipartResumer(ctx, t.c, snapshot)
+}
+
 func (t *TxCos) getPresignedUrl(ctx context.Context, httpMethod string, name string) (string, error) {
 	url, err := t.c.Object.GetPresignedURL(ctx, httpMethod, name, t.ak, t.sk, time.Hour, nil)
 	if err != nil {
@@ -137,6 +144,10 @@ type MultiPartUploader interface {
 	Id(ctx context.Context) string
 	// 分组大小1M~5G
 	Write(ctx context.Context, partNumber int, body []byte) error
+	// 上传进度
+	Progress() float64
+	// 上传快照
+	String() string
 }
 
 var _ MultiPartUploader = (*multiprtUploader)(nil)
@@ -148,6 +159,46 @@ type multiprtUploader struct {
 	uploadId  string
 	totalPart int
 	bits      bitmap.Bitmap
+}
+
+func newMultipartResumer(ctx context.Context, c *cos.Client, dsn string) (*multiprtUploader, error) {
+	// 1. 解析协议
+	u, err := url.ParseQuery(dsn)
+	if err != nil {
+		return nil, err
+	}
+	// 2. 获取上传id
+	var (
+		id   = u.Get("id")
+		name = u.Get("name")
+	)
+	total, err := strconv.Atoi(u.Get("total"))
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. 初始化
+	mp := &multiprtUploader{c: c, name: name, totalPart: total, parts: &cos.CompleteMultipartUploadOptions{}, uploadId: id}
+
+	// 4. 已上传分片
+	for k := range u {
+		if !strings.HasPrefix(k, "part.") {
+			continue
+		}
+		part, err := strconv.Atoi(k[5:])
+		if err != nil {
+			return nil, err
+		}
+		if part < 1 || part > total {
+			continue
+		}
+		mp.parts.Parts = append(mp.parts.Parts, cos.Object{
+			PartNumber: part,
+			ETag:       u.Get(k),
+		})
+		mp.bits.Set(uint32(part - 1))
+	}
+	return mp, nil
 }
 
 func newMultipartUploader(ctx context.Context, c *cos.Client, name string, totalPart int) (*multiprtUploader, error) {
@@ -216,4 +267,19 @@ func (mp *multiprtUploader) complete(ctx context.Context, name, uploadId string,
 		return errors.New("cos: complete multipart upload failed")
 	}
 	return nil
+}
+
+func (mp *multiprtUploader) String() string {
+	u := url.Values{}
+	u.Add("id", mp.uploadId)
+	u.Add("name", mp.name)
+	u.Add("total", strconv.Itoa(mp.totalPart))
+	for i := range mp.parts.Parts {
+		u.Add(fmt.Sprintf("part.%d", mp.parts.Parts[i].PartNumber), mp.parts.Parts[i].ETag)
+	}
+	return u.Encode()
+}
+
+func (mp *multiprtUploader) Progress() float64 {
+	return float64(mp.bits.Count()) / float64(mp.totalPart)
 }

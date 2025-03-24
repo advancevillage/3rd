@@ -3,6 +3,8 @@ package notice
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/advancevillage/3rd/logx"
@@ -22,6 +24,33 @@ type txsms struct {
 	opts   noticeOption
 	logger logx.ILogger
 	client *sms.Client
+}
+
+// sms://ak:sk@region?sign=xx&app=xx&tmpl=xx
+func NewSmsClient(ctx context.Context, logger logx.ILogger, dsn string) (SMS, error) {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "sms" {
+		return nil, fmt.Errorf("invalid scheme: %s", u.Scheme)
+	}
+	ak := u.User.Username()
+	sk, ok := u.User.Password()
+	if !ok || len(ak) <= 0 || len(sk) <= 0 {
+		return nil, fmt.Errorf("invalid ak or sk")
+	}
+	var (
+		app    = u.Query().Get("app")
+		tmpl   = u.Query().Get("tmpl")
+		sign   = u.Query().Get("sign")
+		region = u.Host
+	)
+	return newTxSms(ctx, logger, WithSmsSecret(ak, sk, region), WithSmsApp(app, sign, tmpl))
+}
+
+func NewTxSms(ctx context.Context, logger logx.ILogger, opt ...NoticeOption) (SMS, error) {
+	return newTxSms(ctx, logger, opt...)
 }
 
 func newTxSms(ctx context.Context, logger logx.ILogger, opt ...NoticeOption) (*txsms, error) {
@@ -82,7 +111,8 @@ func (c *txsms) Send(ctx context.Context, phone string, args ...string) error {
 	// 6. 发送
 	reply, err := c.client.SendSms(req)
 	if _, ok := err.(*errors.TencentCloudSDKError); ok {
-		return nil
+		c.logger.Errorw(ctx, "failed to send sms by sdk", "err", err, "phone", phone)
+		return err
 	}
 	if err != nil {
 		c.logger.Errorw(ctx, "failed to send sms", "err", err, "phone", phone)
