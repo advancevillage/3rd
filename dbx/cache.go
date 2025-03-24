@@ -115,7 +115,9 @@ func (c *redisLocker) Lock(ctx context.Context, key string, val string, ttl time
 		c.logger.Errorw(ctx, "redis lock failed", "err", err, "key", key, "val", val)
 		return false, err
 	}
-	c.logger.Infow(ctx, "redis lock success", "key", key, "val", val, "ttl", ttl)
+	if ok {
+		c.logger.Infow(ctx, "redis lock success", "key", key, "val", val, "ttl", ttl)
+	}
 	return ok, nil
 }
 
