@@ -64,12 +64,14 @@ func newCodeHttpResponse(code int, message string, err error) HttpResponse {
 var _ HttpResponse = (*emptyHttpResponse)(nil)
 
 type emptyHttpResponse struct {
-	hdr http.Header
+	hdr  http.Header
+	body []byte
 }
 
 func newEmptyHttpResponse() *emptyHttpResponse {
 	return &emptyHttpResponse{
-		hdr: make(http.Header),
+		hdr:  make(http.Header),
+		body: []byte("{}"),
 	}
 }
 
@@ -90,7 +92,7 @@ func NewContextResponse(opt ...x.Option) HttpResponse {
 }
 
 func (c *emptyHttpResponse) Body() []byte {
-	return []byte{}
+	return c.body
 }
 
 func (c *emptyHttpResponse) Header() http.Header {
@@ -99,6 +101,10 @@ func (c *emptyHttpResponse) Header() http.Header {
 
 func (c *emptyHttpResponse) StatusCode() int {
 	return http.StatusOK
+}
+
+func NewBodyResponse(body []byte) HttpResponse {
+	return newHttpResponse(body, http.Header{}, http.StatusOK)
 }
 
 var _ HttpResponse = (*httpResponse)(nil)
