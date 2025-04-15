@@ -274,6 +274,7 @@ func (mp *multiprtUploader) String() string {
 	u.Add("id", mp.uploadId)
 	u.Add("name", mp.name)
 	u.Add("total", strconv.Itoa(mp.totalPart))
+	u.Add("progress", strconv.FormatFloat(mp.Progress(), 'f', 2, 64))
 	for i := range mp.parts.Parts {
 		u.Add(fmt.Sprintf("part.%d", mp.parts.Parts[i].PartNumber), mp.parts.Parts[i].ETag)
 	}
