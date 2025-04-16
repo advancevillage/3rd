@@ -184,7 +184,7 @@ func Test_S3_Resumer(t *testing.T) {
 			bucket: "xmagic-1259635961",
 			region: "ap-shanghai",
 			ext: map[string]any{
-				"name":  "test/" + mathx.RandStr(5) + ".txt",
+				"name":  "TEST/" + mathx.RandStr(5) + ".txt",
 				"total": 6,
 				"parts": map[int]string{
 					0: mathx.RandStr(1 << 20),
