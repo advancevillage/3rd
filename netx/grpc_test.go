@@ -9,16 +9,13 @@ import (
 	"github.com/advancevillage/3rd/mathx"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
+	status "google.golang.org/grpc/status"
 )
 
 func Test_grpc(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
-
 	logger, err := logx.NewLogger("debug")
-	if err != nil {
-		t.Fatal(err)
-		return
-	}
+	assert.Nil(t, err)
 
 	var data = map[string]struct {
 		host string
@@ -58,6 +55,13 @@ func Test_grpc(t *testing.T) {
 			loggerCtx := metadata.NewOutgoingContext(sctx, md)
 
 			stream, err := healthor.BidiPing(loggerCtx)
+			if err != nil {
+				st, ok := status.FromError(err)
+				if ok {
+					t.Logf("gRPC Status Code: %v\n", st.Code())
+					t.Logf("gRPC Status Message: %v\n", st.Message())
+				}
+			}
 			assert.Nil(t, err)
 
 			go func() {
