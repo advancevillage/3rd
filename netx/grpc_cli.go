@@ -34,7 +34,10 @@ func newGrpcCli(ctx context.Context, logger logx.ILogger, opt ...ClientOption) (
 	}
 
 	// 2. 连接拨号
-	c.conn, err = grpc.NewClient(fmt.Sprintf("%s:%d", c.opts.host, c.opts.port), grpc.WithTransportCredentials(creds))
+	c.conn, err = grpc.NewClient(fmt.Sprintf("%s:%d", c.opts.host, c.opts.port),
+		grpc.WithTransportCredentials(creds),
+		grpc.WithAuthority(c.opts.domain),
+	)
 	if err != nil {
 		c.logger.Errorw(ctx, "grpc dial failed", "err", err, "host", c.opts.host, "port", c.opts.port)
 		return nil, err
