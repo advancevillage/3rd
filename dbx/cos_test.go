@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,22 @@ func Test_S3(t *testing.T) {
 				},
 			},
 		},
+		"case3": {
+			bucket: "xmagic-1259635961",
+			region: "accelerate",
+			ext: map[string]any{
+				"name":  "test/" + mathx.RandStr(5) + ".txt",
+				"total": 6,
+				"parts": map[int]string{
+					0: mathx.RandStr(1 << 20),
+					1: mathx.RandStr(1 << 20),
+					2: mathx.RandStr(1 << 20),
+					3: mathx.RandStr(1 << 20),
+					4: mathx.RandStr(1 << 20),
+					5: mathx.RandStr(1 << 11),
+				},
+			},
+		},
 	}
 
 	for n, v := range data {
@@ -66,6 +83,7 @@ func Test_S3(t *testing.T) {
 				t.Fatal("param name is not valid")
 				return
 			}
+			name = strings.ToUpper(name)
 			total, ok := v.ext["total"].(int)
 			if !ok || total <= 0 {
 				t.Fatal("param total is not valid")
@@ -152,6 +170,13 @@ func Test_ParseCosUrl(t *testing.T) {
 			sk:  "3344",
 			bkt: "xmagic-1259635961",
 			rgn: "ap-shanghai",
+		},
+		"case2": {
+			dsn: "cos://1122:3344@xmagic-1259635961/accelerate",
+			ak:  "1122",
+			sk:  "3344",
+			bkt: "xmagic-1259635961",
+			rgn: "accelerate",
 		},
 	}
 	for n, v := range data {
