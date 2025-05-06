@@ -207,7 +207,7 @@ func Test_S3_Resumer(t *testing.T) {
 	}{
 		"case1": {
 			bucket: "xmagic-1259635961",
-			region: "ap-shanghai",
+			region: "accelerate",
 			ext: map[string]any{
 				"name":  "TEST/" + mathx.RandStr(5) + ".txt",
 				"total": 6,
