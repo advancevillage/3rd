@@ -73,7 +73,7 @@ var defaultClientOptions = clientOptions{
 	host:    "127.0.0.1",
 	port:    13147,
 	crt:     "cert.pem",
-	domain:  "api.sunhe.org",
+	domain:  "api.softpart.cn",
 	timeout: 3,
 }
 
