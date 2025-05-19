@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	X_Request_Latency = "X-Request-Latency"
-	X_Request_Arrival = "X-Request-Arrival"
-	X_Request_Server  = "X-Request-Server"
+	X_Request_Latency = "X-3rd-Request-Latency"
+	X_Request_Arrival = "X-3rd-Request-Arrival"
+	X_Request_Server  = "X-3rd-Request-Server"
 )
 
 const (
