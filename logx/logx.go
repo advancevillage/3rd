@@ -11,7 +11,9 @@ import (
 )
 
 const (
-	TraceId        = "x-request-id"
+	UriId          = "x-3rd-uri"
+	TraceId        = "x-3rd-trace"
+	MethodId       = "x-3rd-method"
 	logTmFmtWithMS = "2006-01-02 15:04:05.000"
 )
 
@@ -84,11 +86,23 @@ func (l *logger) Errorw(ctx context.Context, msg string, keysAndValues ...interf
 }
 
 func (l *logger) withTraceId(ctx context.Context) *zap.Logger {
-	//1. traceId
-	var trace, ok = ctx.Value(TraceId).(string)
-	if !ok {
-		trace = ""
+	// 1. 定义默认字段
+	fields := []zap.Field{}
+
+	// 2. trace
+	var val, ok = ctx.Value(TraceId).(string)
+	if ok && len(val) > 0 {
+		fields = append(fields, zap.String(TraceId, val))
 	}
-	//3. fields
-	return l.z.With(zap.String(TraceId, trace))
+	// 3. uri
+	val, ok = ctx.Value(UriId).(string)
+	if ok && len(val) > 0 {
+		fields = append(fields, zap.String(UriId, val))
+	}
+	// 4. method
+	val, ok = ctx.Value(MethodId).(string)
+	if ok && len(val) > 0 {
+		fields = append(fields, zap.String(MethodId, val))
+	}
+	return l.z.With(fields...)
 }

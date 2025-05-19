@@ -141,7 +141,9 @@ func (s *httpSrv) withTraceMiddleware() gin.HandlerFunc {
 		if len(trace) <= 0 {
 			trace = mathx.UUID()
 		}
+		rctx.Add(logx.UriId, c.Request.RequestURI)
 		rctx.Add(logx.TraceId, trace)
+		rctx.Add(logx.MethodId, c.Request.Method)
 		c.Set(rEQUEXT_CTX, rctx.Encode())
 		c.Header(logx.TraceId, fmt.Sprint(trace))
 		c.Next()
