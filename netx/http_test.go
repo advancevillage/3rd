@@ -112,14 +112,15 @@ func Test_http(t *testing.T) {
 
 func Test_should(t *testing.T) {
 	type Account struct {
-		Name  string  `json:"name"`
-		Age   int     `json:"age"`
-		Score float32 `json:"score"`
+		Name  string  `json:"name"      form:"name"`
+		Age   int     `json:"age"       form:"age"`
+		Score float32 `json:"score"     form:"score"`
 	}
 
 	var data = map[string]struct {
 		input string
 		exp   *Account
+		ct    string
 	}{
 		"case-1": {
 			input: `{"name":"puyu","age":99,"score":98.5}`,
@@ -128,6 +129,16 @@ func Test_should(t *testing.T) {
 				Age:   99,
 				Score: 98.5,
 			},
+			ct: "application/json",
+		},
+		"case-2": {
+			input: `name=puyu&age=99&score=98.5`,
+			exp: &Account{
+				Name:  "puyu",
+				Age:   99,
+				Score: 98.5,
+			},
+			ct: "application/x-www-form-urlencoded",
 		},
 	}
 
@@ -135,8 +146,11 @@ func Test_should(t *testing.T) {
 		f := func(t *testing.T) {
 			act := &Account{}
 			r := &http.Request{
-				Body: io.NopCloser(strings.NewReader(v.input)),
+				Method: http.MethodPost,
+				Body:   io.NopCloser(strings.NewReader(v.input)),
+				Header: http.Header{},
 			}
+			r.Header.Add("Content-Type", v.ct)
 			err := ShouldBind(r, act)
 			assert.Nil(t, err)
 			assert.Equal(t, v.exp, act)

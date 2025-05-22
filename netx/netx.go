@@ -29,7 +29,7 @@ func waitQuitSignal(cancel context.CancelFunc) {
 }
 
 func ShouldBind(r *http.Request, obj any) error {
-	return binding.JSON.Bind(r, obj)
+	return binding.Default(r.Method, r.Header.Get("Content-Type")).Bind(r, obj)
 }
 
 func ShoudBindQuery(r *http.Request, obj any) error {
