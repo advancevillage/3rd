@@ -47,7 +47,7 @@ func newHttpSrv(ctx context.Context, logger logx.ILogger, opt ...ServerOption) (
 	s.srv = gin.New()
 
 	// 4. 全局中间件
-	s.srv.Use(s.withArrivalMiddleware(), s.withLatencyMiddleware(), s.withTraceMiddleware(), s.withNameMiddleware(), s.withFormMiddleware())
+	s.srv.Use(s.withArrivalMiddleware(), s.withLatencyMiddleware(), s.withTraceMiddleware(), s.withNameMiddleware())
 
 	// 5. 注册路由
 	for _, r := range opts.rs {
@@ -167,18 +167,6 @@ func (s *httpSrv) withArrivalMiddleware() gin.HandlerFunc {
 func (s *httpSrv) withNameMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header(X_Request_Server, s.opts.name)
-		c.Next()
-	}
-}
-
-func (s *httpSrv) withFormMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if len(c.Request.Form) <= 0 {
-			c.Request.Form = url.Values{}
-		}
-		if len(c.Request.PostForm) <= 0 {
-			c.Request.PostForm = url.Values{}
-		}
 		c.Next()
 	}
 }
