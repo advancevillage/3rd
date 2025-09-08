@@ -9,6 +9,7 @@ import (
 	"github.com/advancevillage/3rd/logx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 var _ Server = (*grpcSrv)(nil)
@@ -43,8 +44,23 @@ func newGrpcSrv(ctx context.Context, logger logx.ILogger, opt ...ServerOption) (
 	}
 
 	// 4. 构建服务
+	kaep := keepalive.EnforcementPolicy{
+		MinTime:             5 * time.Second, // 客户端 ping 的最小间隔
+		PermitWithoutStream: true,            // 允许空闲时心跳
+	}
+
+	kasp := keepalive.ServerParameters{
+		MaxConnectionIdle:     2 * time.Minute,  // 空闲多久断开
+		MaxConnectionAge:      5 * time.Minute,  // 连接存活最长时间
+		MaxConnectionAgeGrace: 1 * time.Minute,  // 超时后宽限期
+		Time:                  15 * time.Second, // 发送 ping 的间隔
+		Timeout:               5 * time.Second,  // ping 等待响应超时时间
+	}
+
 	s.srv = grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.KeepaliveParams(kasp),
+		grpc.KeepaliveEnforcementPolicy(kaep),
 	)
 
 	// 5. 注册服务
