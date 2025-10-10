@@ -168,7 +168,7 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -215,7 +215,7 @@ func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf [
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodPost, uri, bytes.NewReader(buf))
 	if err != nil {
@@ -258,7 +258,7 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 		hdr      = headers.Build()
 	)
 	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 创建请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -333,7 +333,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 		return nil, err
 	}
 	//4. 创建HTTP客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
+	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//5. 构建请求
 	request, err = http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -366,4 +366,13 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 	}
 
 	return newHttpResponse(buf, response.Header, response.StatusCode), nil
+}
+
+func (c *httpCli) proxy(ctx context.Context) *http.Transport {
+	proxy, err := url.Parse(c.opts.proxy)
+	if err != nil {
+		c.logger.Errorw(ctx, "parse proxy url error", "error", err, "proxy", c.opts.proxy)
+		return nil
+	}
+	return &http.Transport{Proxy: http.ProxyURL(proxy)}
 }

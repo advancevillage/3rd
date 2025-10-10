@@ -59,13 +59,20 @@ func WithClientCredential(crt, domain string) ClientOption {
 	})
 }
 
+func WithClientProxy(proxy string) ClientOption {
+	return newFuncClientOption(func(o *clientOptions) {
+		o.proxy = proxy
+	})
+}
+
 type clientOptions struct {
 	hdr     map[string]interface{} // 请求头
 	host    string                 // 服务地址
 	port    int                    // 端口
 	crt     string                 // 证书 文件
 	domain  string                 // 域名
-	timeout int
+	timeout int                    // 超时时间 秒
+	proxy   string                 // 代理地址
 }
 
 var defaultClientOptions = clientOptions{
