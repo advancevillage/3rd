@@ -99,18 +99,18 @@ func (c *chatGPT) complete(ctx context.Context, role any, query any, schema any,
 }
 
 func (c *chatGPT) buildClient(ctx context.Context) *http.Client {
-	// 1. 构建代理
+	// 1. 自定义httpClient
+	client := &http.Client{}
+	// 2. 构建代理
 	proxy, err := url.Parse(c.opts.proxy)
 	if err != nil {
 		c.logger.Errorw(ctx, "parse proxy url error", "error", err, "proxy", c.opts.proxy)
-		return nil
+		return client
 	}
 	if proxy.Scheme != "http" {
-		return nil
+		return client
 	}
-	return &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxy),
-		},
-	}
+	client.Transport = &http.Transport{Proxy: http.ProxyURL(proxy)}
+	// 3. 返回
+	return client
 }
