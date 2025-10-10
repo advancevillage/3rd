@@ -159,7 +159,7 @@ func newHttpClient(ctx context.Context, logger logx.ILogger, opt ...ClientOption
 
 func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error) {
 	var (
-		client   *http.Client
+		client   = c.buildClient(ctx)
 		request  *http.Request
 		response *http.Response
 		query    url.Values
@@ -167,8 +167,6 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 		q        = params.Build()
 		hdr      = headers.Build()
 	)
-	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -207,15 +205,14 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 }
 
 func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error) {
+	//1. 创建http客户端
 	var (
-		client   *http.Client
+		client   = c.buildClient(ctx)
 		request  *http.Request
 		response *http.Response
 		err      error
 		hdr      = headers.Build()
 	)
-	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 构造请求
 	request, err = http.NewRequest(http.MethodPost, uri, bytes.NewReader(buf))
 	if err != nil {
@@ -248,8 +245,9 @@ func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf [
 }
 
 func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error) {
+	//1. 创建http客户端
 	var (
-		client   *http.Client
+		client   = c.buildClient(ctx)
 		request  *http.Request
 		response *http.Response
 		form     = url.Values{}
@@ -257,8 +255,6 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 		q        = params.Build()
 		hdr      = headers.Build()
 	)
-	//1. 创建http客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//2. 创建请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -297,8 +293,9 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 }
 
 func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, headers x.Builder, field string, filename string, fieldReader io.Reader) (HttpResponse, error) {
+	//1. 创建HTTP客户端
 	var (
-		client   *http.Client
+		client   = c.buildClient(ctx)
 		request  *http.Request
 		response *http.Response
 		body     = &bytes.Buffer{}
@@ -309,7 +306,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 	//2. 分片
 	writer := multipart.NewWriter(body)
 
-	//2.1 文件上传
+	//3. 文件上传
 	if len(field) > 0 {
 		part, err := writer.CreateFormFile(field, filepath.Base(filename))
 		if err != nil {
@@ -321,7 +318,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 		}
 	}
 
-	//3. 设置参数
+	//4. 设置参数
 	for k, v := range q {
 		err = writer.WriteField(k, fmt.Sprint(v))
 		if err != nil {
@@ -332,8 +329,6 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 	if err != nil {
 		return nil, err
 	}
-	//4. 创建HTTP客户端
-	client = &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout), Transport: c.proxy(ctx)}
 	//5. 构建请求
 	request, err = http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -374,5 +369,17 @@ func (c *httpCli) proxy(ctx context.Context) *http.Transport {
 		c.logger.Errorw(ctx, "parse proxy url error", "error", err, "proxy", c.opts.proxy)
 		return nil
 	}
+	if proxy.Scheme != "http" {
+		return nil
+	}
 	return &http.Transport{Proxy: http.ProxyURL(proxy)}
+}
+
+func (c *httpCli) buildClient(ctx context.Context) *http.Client {
+	client := &http.Client{Timeout: time.Second * time.Duration(c.opts.timeout)}
+	proxy := c.proxy(ctx)
+	if proxy != nil {
+		client.Transport = proxy
+	}
+	return client
 }

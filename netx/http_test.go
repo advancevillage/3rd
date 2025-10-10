@@ -81,6 +81,7 @@ func Test_http(t *testing.T) {
 	s, err := NewHttpServer(ctx, logger, opts...)
 	assert.Nil(t, err)
 	go s.Start()
+	time.Sleep(time.Second * 2)
 
 	for n, v := range data {
 		f := func(t *testing.T) {
