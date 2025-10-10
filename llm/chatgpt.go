@@ -3,6 +3,8 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/url"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
@@ -36,15 +38,14 @@ func newChatGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ch
 	}
 
 	// 2. chatGPT客户端
-	client := openai.NewClient(option.WithAPIKey(opts.sk))
-	logger.Infow(ctx, "success to crate chatgpt client", "sk", opts.sk, "model", opts.model)
-
-	// 3. 返回
-	return &chatGPT{
+	c := &chatGPT{
 		opts:   opts,
 		logger: logger,
-		client: client,
-	}, nil
+	}
+	c.client = openai.NewClient(option.WithAPIKey(opts.sk), option.WithHTTPClient(c.buildClient(ctx)))
+	logger.Infow(ctx, "success to crate chatgpt client", "sk", opts.sk, "model", opts.model)
+
+	return c, nil
 }
 
 // 使用ChatGPT生成一次性回复
@@ -95,4 +96,21 @@ func (c *chatGPT) complete(ctx context.Context, role any, query any, schema any,
 
 	c.logger.Infow(ctx, "success to create chatgpt intent", "reply", resp)
 	return nil
+}
+
+func (c *chatGPT) buildClient(ctx context.Context) *http.Client {
+	// 1. 构建代理
+	proxy, err := url.Parse(c.opts.proxy)
+	if err != nil {
+		c.logger.Errorw(ctx, "parse proxy url error", "error", err, "proxy", c.opts.proxy)
+		return nil
+	}
+	if proxy.Scheme != "http" {
+		return nil
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxy),
+		},
+	}
 }
