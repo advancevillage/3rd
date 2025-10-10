@@ -86,7 +86,7 @@ func Test_http(t *testing.T) {
 		f := func(t *testing.T) {
 			c, err := NewHttpClient(ctx, logger, WithClientTimeout(3600))
 			assert.Nil(t, err)
-			r, err := c.Get(ctx, fmt.Sprintf("http://t.sunhe.org:%d%s", port, v.path), x.NewBuilder(x.WithKV("name", "pyro")), x.NewBuilder())
+			r, err := c.Get(ctx, fmt.Sprintf("http://%s:%d%s", host, port, v.path), x.NewBuilder(x.WithKV("name", "pyro")), x.NewBuilder())
 			assert.Nil(t, err)
 			assert.Equal(t, http.StatusOK, r.StatusCode())
 			assert.Equal(t, "application/json", r.Header().Get("Content-Type"))
