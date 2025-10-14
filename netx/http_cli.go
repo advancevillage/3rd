@@ -256,7 +256,7 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 		hdr      = headers.Build()
 	)
 	//2. 创建请求
-	request, err = http.NewRequest(http.MethodGet, uri, nil)
+	request, err = http.NewRequest(http.MethodPost, uri, nil)
 	if err != nil {
 		return nil, err
 	}
