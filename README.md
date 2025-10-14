@@ -52,7 +52,7 @@ certbot --version
 
 2. 获取证书
 ```
-certbot certonly --manual --preferred-challenges dns -d *.sunhe.org -d sunhe.org --server https://acme-v02.api.letsencrypt.org/directory     
+certbot certonly --manual --preferred-challenges dns -d *.softpart.cn -d softpart.cn --server https://acme-v02.api.letsencrypt.org/directory     
 
 可能问题:
 q. SSL: CERTIFICATE_VERIFY_FAILED]

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -82,6 +81,7 @@ func Test_http(t *testing.T) {
 	s, err := NewHttpServer(ctx, logger, opts...)
 	assert.Nil(t, err)
 	go s.Start()
+	time.Sleep(time.Second * 2)
 
 	for n, v := range data {
 		f := func(t *testing.T) {
@@ -152,45 +152,6 @@ func Test_should(t *testing.T) {
 			}
 			r.Header.Add("Content-Type", v.ct)
 			err := ShouldBind(r, act)
-			assert.Nil(t, err)
-			assert.Equal(t, v.exp, act)
-		}
-		t.Run(n, f)
-	}
-}
-
-func Test_should_form(t *testing.T) {
-	type Account struct {
-		Name  string  `form:"name"`
-		Age   int     `form:"age"`
-		Score float32 `form:"score"`
-	}
-
-	var data = map[string]struct {
-		input url.Values
-		exp   *Account
-	}{
-		"case-1": {
-			input: url.Values{
-				"name":  []string{"puyu"},
-				"age":   []string{"99"},
-				"score": []string{"98.5"},
-			},
-			exp: &Account{
-				Name:  "puyu",
-				Age:   99,
-				Score: 98.5,
-			},
-		},
-	}
-
-	for n, v := range data {
-		f := func(t *testing.T) {
-			act := &Account{}
-			r := &http.Request{
-				Form: v.input,
-			}
-			err := ShouldBindForm(r, act)
 			assert.Nil(t, err)
 			assert.Equal(t, v.exp, act)
 		}

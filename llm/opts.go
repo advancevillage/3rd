@@ -24,8 +24,15 @@ func With4OModel() LLMOption {
 	})
 }
 
+func WithChatGPTProxy(proxy string) LLMOption {
+	return newFuncLLMOption(func(o *llmOption) {
+		o.proxy = proxy
+	})
+}
+
 type llmOption struct {
 	sk    string
+	proxy string
 	model string
 }
 
