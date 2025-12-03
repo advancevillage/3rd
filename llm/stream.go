@@ -6,35 +6,47 @@ import (
 	"github.com/advancevillage/3rd/logx"
 )
 
-// HunYuan事件结构
-type HunYuanEvent struct {
-	Choices []struct {
-		Index int `json:"Index"`
-		Delta struct {
-			Role             string `json:"Role"`
-			Content          string `json:"Content"`
-			ReasoningContent string `json:"ReasoningContent"`
-			FinishReason     string `json:"FinishReason"`
-		} `json:"Delta"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"PromptTokens"`
-		CompletionTokens int `json:"CompletionTokens"`
-		TotalTokens      int `json:"TotalTokens"`
-	}
+type StreamHandler interface {
+	OnStart(ctx context.Context)
+	OnChunk(ctx context.Context, chunk string)
+	OnEnd(ctx context.Context)
 }
 
+var _ StreamHandler = &emptyStreamHandler{}
+
+type emptyStreamHandler struct{}
+
+func (emptyStreamHandler) OnStart(ctx context.Context)               {}
+func (emptyStreamHandler) OnChunk(ctx context.Context, chunk string) {}
+func (emptyStreamHandler) OnEnd(ctx context.Context)                 {}
+
 // 缓存流事件处理
-type bufferEvent struct {
+var _ StreamHandler = &bufferStreamHandler{}
+
+type bufferStreamHandler struct {
 	opts llmOption
 	buf  string
 }
 
-func (b *bufferEvent) Process(ctx context.Context, chunk string) {
+func (h *bufferStreamHandler) OnStart(ctx context.Context) {
+	if len(h.buf) <= 0 {
+		h.opts.handler.OnStart(ctx)
+	}
+}
+
+func (h *bufferStreamHandler) OnEnd(ctx context.Context) {
+	if len(h.buf) > 0 {
+		h.opts.handler.OnChunk(ctx, h.buf)
+		h.buf = ""
+	}
+	h.opts.handler.OnEnd(ctx)
+}
+
+func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 	// 1. 拼接上下文
-	b.buf += chunk
+	h.buf += chunk
 	var (
-		runes    = []rune(b.buf)
+		runes    = []rune(h.buf)
 		offset   = -1
 		exitLoop = false
 	)
@@ -46,22 +58,23 @@ func (b *bufferEvent) Process(ctx context.Context, chunk string) {
 		case '.', '!', '?', ';':
 			offset = i + 1
 		case '\n': // 换行符
+			runes[i] = ' '
 			offset = i + 1
 			exitLoop = true
 		}
 	}
+	// 3. 触发事件
 	if offset >= 0 {
-		b.buf = string(runes[offset:])
-		b.opts.sf(ctx, string(runes[:offset]))
+		h.buf = string(runes[offset:])
+		h.opts.handler.OnChunk(ctx, string(runes[:offset]))
 	}
 }
 
-func NewBufferEvent(ctx context.Context, logger logx.ILogger, opt ...LLMOption) StreamFunc {
+func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, opt ...LLMOption) StreamHandler {
 	// 1. 初始化参数
 	opts := defaultLLMOptions
 	for _, o := range opt {
 		o.apply(&opts)
 	}
-	be := &bufferEvent{opts: opts}
-	return be.Process
+	return &bufferStreamHandler{opts: opts}
 }

@@ -1,13 +1,5 @@
 package llm
 
-import (
-	"context"
-
-	"github.com/openai/openai-go/v3"
-)
-
-type StreamFunc func(ctx context.Context, chunk string)
-
 type LLMOption interface {
 	apply(*llmOption)
 }
@@ -15,18 +7,6 @@ type LLMOption interface {
 func WitChatGPTSecret(sk string) LLMOption {
 	return newFuncLLMOption(func(o *llmOption) {
 		o.sk = sk
-	})
-}
-
-func WithO3MiniModel() LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
-		o.model = openai.ChatModelO3Mini
-	})
-}
-
-func With4OModel() LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
-		o.model = openai.ChatModelGPT4o
 	})
 }
 
@@ -49,24 +29,23 @@ func WithSecret(ak string, sk string) LLMOption {
 	})
 }
 
-func WithStreamFunc(sf StreamFunc) LLMOption {
+func WithStreamHandler(handler StreamHandler) LLMOption {
 	return newFuncLLMOption(func(o *llmOption) {
-		o.sf = sf
+		o.handler = handler
 	})
 }
 
 type llmOption struct {
-	sk    string
-	ak1   string
-	sk1   string
-	sf    StreamFunc
-	proxy string
-	model string
+	sk      string
+	ak1     string
+	sk1     string
+	proxy   string
+	model   string
+	handler StreamHandler
 }
 
 var defaultLLMOptions = llmOption{
-	sf:    func(ctx context.Context, chunk string) {},
-	model: openai.ChatModelGPT4oMini,
+	handler: &emptyStreamHandler{},
 }
 
 type funcLLMOption struct {

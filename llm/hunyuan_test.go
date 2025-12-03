@@ -12,16 +12,36 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var _ llm.StreamHandler = &testStreamHandler{}
+
+type testStreamHandler struct {
+	t *testing.T
+}
+
+func (t *testStreamHandler) OnStart(ctx context.Context) {
+	t.t.Log("stream started")
+}
+
+func (t *testStreamHandler) OnEnd(ctx context.Context) {
+	t.t.Log("stream ended")
+}
+
+func (t *testStreamHandler) OnChunk(ctx context.Context, chunk string) {
+	t.t.Log(chunk)
+}
+
 func Test_hunyuan(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	sf := func(ctx context.Context, chunk string) {
-		t.Log(chunk)
-	}
-
-	cli, err := llm.NewHunYuan(ctx, logger, llm.WithModel("hunyuan-turbos-latest"), llm.WitChatGPTSecret(os.Getenv("HUNYUAN_KEY")), llm.WithStreamFunc(llm.NewBufferEvent(ctx, logger, llm.WithStreamFunc(sf))))
+	cli, err := llm.NewHunYuan(ctx, logger,
+		llm.WithModel("hunyuan-turbos-latest"),
+		llm.WitChatGPTSecret(os.Getenv("HUNYUAN_KEY")),
+		llm.WithSecret(os.Getenv("HUNYUAN_AK"), os.Getenv("HUNYUAN_SK")),
+		//llm.WithStreamHandler(&testStreamHandler{t: t}),
+		llm.WithStreamHandler(llm.NewBufferStreamHandler(ctx, logger, llm.WithStreamHandler(&testStreamHandler{t: t}))),
+	)
 	assert.Nil(t, err)
 
 	var data = map[string]struct {
@@ -93,18 +113,16 @@ func Test_hunyuan(t *testing.T) {
   - 格式:   PNG   
 负面提示: -无纹理, -无布料效果, -无阴影, -无噪点, -无渐变
 
-
-输出最终模版：（800字以内）
+输出最终模版：（800字以内）(纯文本格式)
 模版类型：...(模型帮忙补全且一定存在) 
-提示词:
-	目标主题：...(模型帮忙补全)
-	设计风格：...
-	视觉元素：(优先级由高到低):
-	  P1: ....
-	  ........
-	技术参数:
-	  ......
-	负面提示: -无纹理, -无布料效果, -无阴影, -无噪点, -无渐变
+目标主题：...(模型帮忙补全)
+设计风格：...
+视觉元素：(优先级由高到低):
+  P1: ....
+  ........
+技术参数:
+  ......
+负面提示: -无纹理, -无布料效果, -无阴影, -无噪点, -无渐变
 				`),
 			},
 		},

@@ -16,6 +16,24 @@ import (
 
 var _ LLM = &hunYuan{}
 
+// HunYuan事件结构
+type hunYuanEvent struct {
+	Choices []struct {
+		Index        int    `json:"Index"`
+		FinishReason string `json:"FinishReason"`
+		Delta        struct {
+			Role             string `json:"Role"`
+			Content          string `json:"Content"`
+			ReasoningContent string `json:"ReasoningContent"`
+		} `json:"Delta"`
+	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"PromptTokens"`
+		CompletionTokens int `json:"CompletionTokens"`
+		TotalTokens      int `json:"TotalTokens"`
+	}
+}
+
 // 官方文档
 // https://cloud.tencent.com/document/product/1729/111007
 type hunYuan struct {
@@ -121,7 +139,8 @@ func (s *hunYuan) stream(ctx context.Context, msg []Message) error {
 	}
 
 	// 3. SSE返回
-	var chunk = &HunYuanEvent{}
+	var chunk = &hunYuanEvent{}
+	var first = true
 	for evt := range reply.Events {
 		err := json.Unmarshal(evt.Data, chunk)
 		if err != nil {
@@ -132,12 +151,20 @@ func (s *hunYuan) stream(ctx context.Context, msg []Message) error {
 			s.logger.Infow(ctx, "hunYuan stream event no choices", "data", string(evt.Data))
 			continue
 		}
-		if len(chunk.Choices[0].Delta.FinishReason) > 0 {
-			s.opts.sf(ctx, "STOP")
-		} else {
-			s.opts.sf(ctx, chunk.Choices[0].Delta.Content)
+		//s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
+		switch {
+		case first:
+			s.opts.handler.OnStart(ctx)
+			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
+			first = false
+
+		case len(chunk.Choices[0].FinishReason) > 0:
+			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
+			s.opts.handler.OnEnd(ctx)
+
+		default:
+			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
 		}
-		//s.logger.Infow(ctx, "hunYuan stream chunk total tokens", "tokens", chunk.Usage.TotalTokens)
 	}
 	return nil
 }
