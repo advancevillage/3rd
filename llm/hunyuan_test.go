@@ -37,7 +37,6 @@ func Test_hunyuan(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
-
 	var data = map[string]struct {
 		msg []llm.Message
 	}{
