@@ -31,7 +31,7 @@ type llmOption struct {
 }
 
 var defaultLLMOptions = llmOption{
-	model: "4o-mini",
+	model: "gpt-5-mini",
 }
 
 func WithModel(model string) LLMOption {
