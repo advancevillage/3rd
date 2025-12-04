@@ -1,5 +1,11 @@
 package llm
 
+const (
+	roleUser   = "user"
+	roleSystem = "system"
+	roleAssist = "assistant"
+)
+
 type Option[T any] interface {
 	apply(*T)
 }
@@ -34,7 +40,7 @@ func WithModel(model string) LLMOption {
 	})
 }
 
-func WitChatGPTSecret(sk string) LLMOption {
+func WithChatGPTSecret(sk string) LLMOption {
 	return newFuncOption(func(o *llmOption) {
 		o.sk = sk
 	})
@@ -105,7 +111,7 @@ type message struct {
 // user — 用户的真实需求（普通优先级）
 func WithUserMessage(content string) Message {
 	return newFuncOption(func(m *message) {
-		m.role = "user"
+		m.role = roleUser
 		m.content = content
 	})
 }
@@ -113,15 +119,15 @@ func WithUserMessage(content string) Message {
 // system — 角色设定、全局规则（最高级别）
 func WithSystemMessage(content string) Message {
 	return newFuncOption(func(m *message) {
-		m.role = "system"
+		m.role = roleSystem
 		m.content = content
 	})
 }
 
 // assistant — 模型输出
-func WithassistantMessage(content string) Message {
+func WithAssistantMessage(content string) Message {
 	return newFuncOption(func(m *message) {
-		m.role = "assistant"
+		m.role = roleAssist
 		m.content = content
 	})
 }

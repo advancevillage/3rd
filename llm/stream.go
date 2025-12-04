@@ -24,12 +24,13 @@ func (emptyStreamHandler) OnEnd(ctx context.Context)                 {}
 var _ StreamHandler = &bufferStreamHandler{}
 
 type bufferStreamHandler struct {
-	opts llmStreamOption
-	buf  string
+	buf    string
+	opts   llmStreamOption
+	logger logx.ILogger
 }
 
 func (h *bufferStreamHandler) OnStart(ctx context.Context) {
-	if len(h.buf) <= 0 {
+	if len(h.buf) == 0 {
 		h.opts.handler.OnStart(ctx)
 	}
 }
@@ -46,27 +47,28 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 	// 1. 拼接上下文
 	h.buf += chunk
 	var (
-		runes    = []rune(h.buf)
-		offset   = -1
-		exitLoop = false
+		runes = []rune(h.buf)
+		start = 0
 	)
 	// 2. 处理分隔符
-	for i := 0; i < len(runes) && !exitLoop; i++ {
+	for i := range runes {
 		switch runes[i] {
-		case '。', '！', '？', '；':
-			offset = i + 1
-		case '.', '!', '?', ';':
-			offset = i + 1
+		case '。', '！', '？', '；', '.', '!', '?', ';':
+			// Emit chunk up to and including separator
+			h.opts.handler.OnChunk(ctx, string(runes[start:i+1]))
+			start = i + 1
 		case '\n': // 换行符
 			runes[i] = ' '
-			offset = i + 1
-			exitLoop = true
+			h.opts.handler.OnChunk(ctx, string(runes[start:i+1]))
+			start = i + 1
 		}
 	}
-	// 3. 触发事件
-	if offset >= 0 {
-		h.buf = string(runes[offset:])
-		h.opts.handler.OnChunk(ctx, string(runes[:offset]))
+
+	// 3. 更新缓冲区
+	if start < len(runes) {
+		h.buf = string(runes[start:])
+	} else {
+		h.buf = ""
 	}
 }
 
@@ -76,5 +78,5 @@ func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, opt ...LLM
 	for _, o := range opt {
 		o.apply(&opts)
 	}
-	return &bufferStreamHandler{opts: opts}
+	return &bufferStreamHandler{opts: opts, logger: logger}
 }

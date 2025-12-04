@@ -44,7 +44,7 @@ func newChatGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ch
 	}
 	client := openai.NewClient(option.WithAPIKey(opts.sk), option.WithHTTPClient(c.buildClient(ctx)))
 	c.client = &client
-	logger.Infow(ctx, "success to crate chatgpt client", "sk", opts.sk, "model", opts.model)
+	logger.Infow(ctx, "success to create chatgpt client", "sk", opts.sk, "model", opts.model)
 	return c, nil
 }
 
@@ -55,11 +55,11 @@ func (c *chatGPT) Completion(ctx context.Context, msg []Message, schema x.Builde
 		m := &message{}
 		msg[i].apply(m)
 		switch m.role {
-		case "user":
+		case roleUser:
 			chats = append(chats, openai.UserMessage(m.content))
-		case "assistant":
+		case roleAssist:
 			chats = append(chats, openai.AssistantMessage(m.content))
-		case "system":
+		case roleSystem:
 			chats = append(chats, openai.SystemMessage(m.content))
 		}
 	}

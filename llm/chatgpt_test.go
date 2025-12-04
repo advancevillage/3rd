@@ -18,7 +18,7 @@ func Test_chatgpt(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	cli, err := llm.NewChatGPT(ctx, logger, llm.WitChatGPTSecret(os.Getenv("CHATGPT_KEY")))
+	cli, err := llm.NewChatGPT(ctx, logger, llm.WithChatGPTSecret(os.Getenv("CHATGPT_KEY")))
 	assert.Nil(t, err)
 
 	type ExpectPrompt struct {
