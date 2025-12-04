@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 
 	"github.com/advancevillage/3rd/logx"
-	"github.com/advancevillage/3rd/x"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/regions"
 	hunyuan "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/hunyuan/v20230901"
 )
 
-var _ LLM = &hunYuan{}
+type LLMStream interface {
+	Completion(ctx context.Context, msg []Message) error
+}
+
+var _ LLMStream = &hunYuan{}
 
 // HunYuan事件结构
 type hunYuanEvent struct {
@@ -37,19 +37,18 @@ type hunYuanEvent struct {
 // 官方文档
 // https://cloud.tencent.com/document/product/1729/111007
 type hunYuan struct {
-	opts   llmOption
+	opts   llmStreamOption
 	logger logx.ILogger
-	client *openai.Client
 	hyc    *hunyuan.Client
 }
 
-func NewHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (LLM, error) {
+func NewHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMStreamOption) (LLMStream, error) {
 	return newHunYuan(ctx, logger, opt...)
 }
 
-func newHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*hunYuan, error) {
+func newHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMStreamOption) (*hunYuan, error) {
 	// 1. 初始化参数
-	opts := defaultLLMOptions
+	opts := defaultLLMStreamOptions
 	for _, o := range opt {
 		o.apply(&opts)
 	}
@@ -59,15 +58,12 @@ func newHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*hu
 		opts:   opts,
 		logger: logger,
 	}
-	client := openai.NewClient(option.WithAPIKey(opts.sk), option.WithBaseURL("https://api.hunYuan.cloud.tencent.com/v1/"))
-	c.client = &client
-	logger.Infow(ctx, "success to crate huanyuan client", "sk", opts.sk, "model", opts.model)
-
 	// 3. HunYuan SDK
-	credential := common.NewCredential(opts.ak1, opts.sk1)
+	credential := common.NewCredential(opts.ak, opts.sk)
 	cpf := profile.NewClientProfile()
-	cpf.HttpProfile.ReqTimeout = 400 // 流式接口耗时较长
-	hyc, err := hunyuan.NewClient(credential, regions.Guangzhou, cpf)
+	// 流式接口耗时较长
+	cpf.HttpProfile.ReqTimeout = opts.timeout
+	hyc, err := hunyuan.NewClient(credential, opts.region, cpf)
 	if err != nil {
 		logger.Errorw(ctx, "failed to create hunYuan client", "err", err)
 		return nil, err
@@ -76,46 +72,8 @@ func newHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*hu
 	return c, nil
 }
 
-func (c *hunYuan) Completion(ctx context.Context, msg []Message, schema x.Builder, resp any) error {
-	// 1. 构建消息列表
-	// 2. 多轮对话
-	//return c.complete(ctx, chats, schema.Build(), resp)
+func (c *hunYuan) Completion(ctx context.Context, msg []Message) error {
 	return c.stream(ctx, msg)
-}
-
-func (c *hunYuan) complete(ctx context.Context, chats []openai.ChatCompletionMessageParamUnion, schema any, resp any) error {
-	// 1. 结构化
-	reply, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:    c.opts.model,
-		Messages: chats,
-		N:        openai.Int(1),
-		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
-				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:        "schema",
-					Description: openai.String("The schema of the response"),
-					Schema:      schema,
-					Strict:      openai.Bool(true),
-				},
-			},
-		},
-	})
-	if err != nil {
-		c.logger.Errorw(ctx, "failed to create hunYuan intent", "err", err)
-		return err
-	}
-	for i := range reply.Choices {
-		c.logger.Infow(ctx, "hunYuan intent reply", "content", reply.Choices[i].Message.Content)
-		data := []byte(reply.Choices[i].Message.Content)
-		err := json.Unmarshal(data, resp)
-		if err != nil {
-			c.logger.Warnw(ctx, "failed to unmarshal hunYuan intent", "err", err)
-			continue
-		}
-		break
-	}
-	c.logger.Infow(ctx, "success to create hunYuan intent", "reply", resp)
-	return nil
 }
 
 func (s *hunYuan) stream(ctx context.Context, msg []Message) error {

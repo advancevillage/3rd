@@ -65,6 +65,8 @@ jobs:
       run: go test -v -count=1 -cover ./llm/
       env:
         CHATGPT_KEY: ${{ vars.CHATGPT_KEY }}
+        HUNYUAN_AK: ${{ vars.HUNYUAN_AK }}
+        HUNYUAN_SK: ${{ vars.HUNYUAN_SK }}
 
     - name: mathx
       run: go test -v -count=1 -cover ./mathx/

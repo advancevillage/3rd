@@ -24,7 +24,7 @@ func (emptyStreamHandler) OnEnd(ctx context.Context)                 {}
 var _ StreamHandler = &bufferStreamHandler{}
 
 type bufferStreamHandler struct {
-	opts llmOption
+	opts llmStreamOption
 	buf  string
 }
 
@@ -70,9 +70,9 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 	}
 }
 
-func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, opt ...LLMOption) StreamHandler {
+func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, opt ...LLMStreamOption) StreamHandler {
 	// 1. 初始化参数
-	opts := defaultLLMOptions
+	opts := defaultLLMStreamOptions
 	for _, o := range opt {
 		o.apply(&opts)
 	}

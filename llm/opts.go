@@ -1,75 +1,110 @@
 package llm
 
-type LLMOption interface {
-	apply(*llmOption)
+type Option[T any] interface {
+	apply(*T)
 }
 
-func WitChatGPTSecret(sk string) LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
-		o.sk = sk
-	})
+type funcOption[T any] struct {
+	f func(*T)
+}
+
+func (o funcOption[T]) apply(do *T) {
+	o.f(do)
+}
+
+func newFuncOption[T any](f func(*T)) *funcOption[T] {
+	return &funcOption[T]{f: f}
+}
+
+type LLMOption = Option[llmOption]
+
+type llmOption struct {
+	sk    string
+	proxy string
+	model string
+}
+
+var defaultLLMOptions = llmOption{
+	model: "4o-mini",
 }
 
 func WithModel(model string) LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
+	return newFuncOption(func(o *llmOption) {
 		o.model = model
 	})
 }
 
+func WitChatGPTSecret(sk string) LLMOption {
+	return newFuncOption(func(o *llmOption) {
+		o.sk = sk
+	})
+}
+
 func WithChatGPTProxy(proxy string) LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
+	return newFuncOption(func(o *llmOption) {
 		o.proxy = proxy
 	})
 }
 
-func WithSecret(ak string, sk string) LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
-		o.ak1 = ak
-		o.sk1 = sk
+type LLMStreamOption = Option[llmStreamOption]
+
+type llmStreamOption struct {
+	ak      string
+	sk      string
+	model   string
+	region  string
+	handler StreamHandler
+	timeout int
+}
+
+var defaultLLMStreamOptions = llmStreamOption{
+	region:  "ap-guangzhou",
+	handler: &emptyStreamHandler{},
+	timeout: 600,
+}
+
+func WithStreamSecret(ak string, sk string) LLMStreamOption {
+	return newFuncOption(func(o *llmStreamOption) {
+		o.ak = ak
+		o.sk = sk
 	})
 }
 
-func WithStreamHandler(handler StreamHandler) LLMOption {
-	return newFuncLLMOption(func(o *llmOption) {
+func WithStreamModel(model string) LLMStreamOption {
+	return newFuncOption(func(o *llmStreamOption) {
+		o.model = model
+	})
+}
+
+func WithStreamHandler(handler StreamHandler) LLMStreamOption {
+	return newFuncOption(func(o *llmStreamOption) {
 		o.handler = handler
 	})
 }
 
-type llmOption struct {
-	sk      string
-	ak1     string
-	sk1     string
-	proxy   string
-	model   string
-	handler StreamHandler
+func WithStreamTimeout(timeout int) LLMStreamOption {
+	return newFuncOption(func(o *llmStreamOption) {
+		o.timeout = timeout
+	})
 }
 
-var defaultLLMOptions = llmOption{
-	handler: &emptyStreamHandler{},
-}
-
-type funcLLMOption struct {
-	f func(*llmOption)
-}
-
-func (fdo *funcLLMOption) apply(do *llmOption) {
-	fdo.f(do)
-}
-
-func newFuncLLMOption(f func(*llmOption)) *funcLLMOption {
-	return &funcLLMOption{
-		f: f,
-	}
+func WithStreamRegion(region string) LLMStreamOption {
+	return newFuncOption(func(o *llmStreamOption) {
+		o.region = region
+	})
 }
 
 // 消息优先级: system > user > assistant(历史)
-type Message interface {
-	apply(*message)
+type Message = Option[message]
+
+type message struct {
+	role    string
+	content string
 }
 
 // user — 用户的真实需求（普通优先级）
 func WithUserMessage(content string) Message {
-	return newFuncMessage(func(m *message) {
+	return newFuncOption(func(m *message) {
 		m.role = "user"
 		m.content = content
 	})
@@ -77,7 +112,7 @@ func WithUserMessage(content string) Message {
 
 // system — 角色设定、全局规则（最高级别）
 func WithSystemMessage(content string) Message {
-	return newFuncMessage(func(m *message) {
+	return newFuncOption(func(m *message) {
 		m.role = "system"
 		m.content = content
 	})
@@ -85,27 +120,8 @@ func WithSystemMessage(content string) Message {
 
 // assistant — 模型输出
 func WithassistantMessage(content string) Message {
-	return newFuncMessage(func(m *message) {
+	return newFuncOption(func(m *message) {
 		m.role = "assistant"
 		m.content = content
 	})
-}
-
-type message struct {
-	role    string
-	content string
-}
-
-type funcMessage struct {
-	f func(*message)
-}
-
-func (fdo *funcMessage) apply(do *message) {
-	fdo.f(do)
-}
-
-func newFuncMessage(f func(*message)) *funcMessage {
-	return &funcMessage{
-		f: f,
-	}
 }

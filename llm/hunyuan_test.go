@@ -8,7 +8,6 @@ import (
 	"github.com/advancevillage/3rd/llm"
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/mathx"
-	"github.com/advancevillage/3rd/x"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,13 +15,17 @@ var _ llm.StreamHandler = &testStreamHandler{}
 
 type testStreamHandler struct {
 	t *testing.T
+	s int
+	e int
 }
 
 func (t *testStreamHandler) OnStart(ctx context.Context) {
 	t.t.Log("stream started")
+	t.s += 1
 }
 
 func (t *testStreamHandler) OnEnd(ctx context.Context) {
+	t.e += 1
 	t.t.Log("stream ended")
 }
 
@@ -35,39 +38,10 @@ func Test_hunyuan(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	cli, err := llm.NewHunYuan(ctx, logger,
-		llm.WithModel("hunyuan-turbos-latest"),
-		llm.WitChatGPTSecret(os.Getenv("HUNYUAN_KEY")),
-		llm.WithSecret(os.Getenv("HUNYUAN_AK"), os.Getenv("HUNYUAN_SK")),
-		//llm.WithStreamHandler(&testStreamHandler{t: t}),
-		llm.WithStreamHandler(llm.NewBufferStreamHandler(ctx, logger, llm.WithStreamHandler(&testStreamHandler{t: t}))),
-	)
-	assert.Nil(t, err)
-
 	var data = map[string]struct {
-		msg    []llm.Message
-		schema x.Builder
-		expect any
+		msg []llm.Message
 	}{
 		"case1": {
-			expect: map[string]any{},
-			schema: x.NewBuilder(
-				x.WithKV("type", "object"),
-				x.WithKV("properties", x.NewBuilder(
-					x.WithKV("prompt", x.NewBuilder(
-						x.WithKV("type", "string"),
-					).Build()),
-					x.WithKV("template", x.NewBuilder(
-						x.WithKV("type", "string"),
-					).Build()),
-				)),
-				x.WithKV("required", []string{
-					"prompt",
-					"template",
-				}),
-				x.WithKV("additionalProperties", false),
-			),
-
 			msg: []llm.Message{
 				llm.WithSystemMessage("你是一名平面设计专家，突出创意，与众不同。同时兼顾生产制造的限制。"),
 				llm.WithUserMessage(`
@@ -129,10 +103,20 @@ func Test_hunyuan(t *testing.T) {
 	}
 
 	for n, v := range data {
+		h := &testStreamHandler{t: t}
+		cli, err := llm.NewHunYuan(ctx, logger,
+			llm.WithStreamModel("hunyuan-turbos-latest"),
+			llm.WithStreamSecret(os.Getenv("HUNYUAN_AK"), os.Getenv("HUNYUAN_SK")),
+			//llm.WithStreamHandler(&testStreamHandler{t: t}),
+			llm.WithStreamHandler(llm.NewBufferStreamHandler(ctx, logger, llm.WithStreamHandler(h))),
+		)
+		assert.Nil(t, err)
+
 		f := func(t *testing.T) {
-			err = cli.Completion(ctx, v.msg, v.schema, v.expect)
+			err = cli.Completion(ctx, v.msg)
 			assert.Nil(t, err)
-			t.Log(v.expect)
+			assert.Equal(t, 1, h.s)
+			assert.Equal(t, 1, h.e)
 		}
 		t.Run(n, f)
 	}
