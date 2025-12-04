@@ -97,9 +97,9 @@ func (s *hunYuan) stream(ctx context.Context, msg []Message) error {
 	}
 
 	// 3. SSE返回
-	var chunk = &hunYuanEvent{}
 	var first = true
 	for evt := range reply.Events {
+		chunk := &hunYuanEvent{}
 		err := json.Unmarshal(evt.Data, chunk)
 		if err != nil {
 			s.logger.Errorw(ctx, "failed to unmarshal hunYuan stream event", "err", err, "data", string(evt.Data))
