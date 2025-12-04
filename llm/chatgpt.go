@@ -8,12 +8,12 @@ import (
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 type LLM interface {
-	Completion(ctx context.Context, role string, query string, schema x.Builder, resp any) error
+	Completion(ctx context.Context, msg []Message, schema x.Builder, resp any) error
 }
 
 var _ LLM = &chatGPT{}
@@ -42,48 +42,51 @@ func newChatGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ch
 		opts:   opts,
 		logger: logger,
 	}
-	c.client = openai.NewClient(option.WithAPIKey(opts.sk), option.WithHTTPClient(c.buildClient(ctx)))
-	logger.Infow(ctx, "success to crate chatgpt client", "sk", opts.sk, "model", opts.model)
-
+	client := openai.NewClient(option.WithAPIKey(opts.sk), option.WithHTTPClient(c.buildClient(ctx)))
+	c.client = &client
+	logger.Infow(ctx, "success to create chatgpt client", "sk", opts.sk, "model", opts.model)
 	return c, nil
 }
 
-// 使用ChatGPT生成一次性回复
-func (c *chatGPT) Completion(ctx context.Context, role string, query string, schema x.Builder, resp any) error {
-	return c.complete(ctx, role, query, schema.Build(), resp)
+func (c *chatGPT) Completion(ctx context.Context, msg []Message, schema x.Builder, resp any) error {
+	// 1. 构建消息列表
+	chats := make([]openai.ChatCompletionMessageParamUnion, 0, len(msg))
+	for i := range msg {
+		m := &message{}
+		msg[i].apply(m)
+		switch m.role {
+		case roleUser:
+			chats = append(chats, openai.UserMessage(m.content))
+		case roleAssist:
+			chats = append(chats, openai.AssistantMessage(m.content))
+		case roleSystem:
+			chats = append(chats, openai.SystemMessage(m.content))
+		}
+	}
+	// 2. 多轮对话
+	return c.complete(ctx, chats, schema.Build(), resp)
 }
 
-func (c *chatGPT) complete(ctx context.Context, role any, query any, schema any, resp any) error {
+func (c *chatGPT) complete(ctx context.Context, chats []openai.ChatCompletionMessageParamUnion, schema any, resp any) error {
 	// 1. 结构化
 	reply, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: openai.F(c.opts.model),
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.ChatCompletionMessageParam{
-				Role:    openai.F(openai.ChatCompletionMessageParamRoleUser),
-				Content: openai.F(query),
-			},
-			openai.ChatCompletionMessageParam{
-				Role:    openai.F(openai.ChatCompletionMessageParamRoleSystem),
-				Content: openai.F(role),
-			},
-		}),
-		ResponseFormat: openai.F[openai.ChatCompletionNewParamsResponseFormatUnion](
-			openai.ResponseFormatJSONSchemaParam{
-				Type: openai.F(openai.ResponseFormatJSONSchemaTypeJSONSchema),
-				JSONSchema: openai.F(openai.ResponseFormatJSONSchemaJSONSchemaParam{
-					Name:        openai.F("schema"),
-					Description: openai.F("The schema of the response"),
-					Schema:      openai.F(schema),
+		Model:    c.opts.model,
+		Messages: chats,
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
+				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        "schema",
+					Description: openai.String("The schema of the response"),
+					Schema:      schema,
 					Strict:      openai.Bool(true),
-				}),
+				},
 			},
-		),
+		},
 	})
 	if err != nil {
-		c.logger.Errorw(ctx, "failed to create chatgpt intent", "err", err, "query", query)
+		c.logger.Errorw(ctx, "failed to create chatgpt intent", "err", err)
 		return err
 	}
-
 	for i := range reply.Choices {
 		data := []byte(reply.Choices[i].Message.Content)
 		err := json.Unmarshal(data, resp)
@@ -93,7 +96,6 @@ func (c *chatGPT) complete(ctx context.Context, role any, query any, schema any,
 		}
 		break
 	}
-
 	c.logger.Infow(ctx, "success to create chatgpt intent", "reply", resp)
 	return nil
 }

@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_completion(t *testing.T) {
+func Test_chatgpt(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	cli, err := llm.NewChatGPT(ctx, logger, llm.WitChatGPTSecret(os.Getenv("CHATGPT_KEY")))
+	cli, err := llm.NewChatGPT(ctx, logger, llm.WithChatGPTSecret(os.Getenv("CHATGPT_KEY")))
 	assert.Nil(t, err)
 
 	type ExpectPrompt struct {
@@ -67,7 +67,7 @@ func Test_completion(t *testing.T) {
 	}
 	for n, v := range data {
 		f := func(t *testing.T) {
-			err = cli.Completion(ctx, v.role, v.query, v.schema, v.expect)
+			err = cli.Completion(ctx, []llm.Message{llm.WithSystemMessage(v.role), llm.WithUserMessage(v.query)}, v.schema, v.expect)
 			assert.Nil(t, err)
 			t.Log(v.expect)
 			assert.Equal(t, true, len(v.expect.(*ExpectPrompt).Prompt) > 0)
