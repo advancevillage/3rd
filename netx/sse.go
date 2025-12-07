@@ -1,25 +1,107 @@
 package netx
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
+	"github.com/advancevillage/3rd/logx"
 	"github.com/gin-gonic/gin"
 )
 
-type sseSrv struct {
+type SSEvent interface {
+	Data() string
+	Event() string
 }
 
-// https://cloud.tencent.com/developer/article/2532395
-func (s *sseSrv) write(ctx *gin.Context, r *http.Request) (HttpResponse, error) {
-	// 1. 透传数据，上游处理
-	data := ""
+type SSEventHandler func(ctx context.Context, r *http.Request) <-chan SSEvent
 
-	ctx.SSEvent("message", "hello world")
+type SSEventOption = Option[sseOptions]
 
-	// 2. 返回协议数据
+func WithSSEventHandler(handler SSEventHandler) SSEventOption {
+	return newFuncOption(func(o *sseOptions) {
+		o.handler = handler
+	})
+
+}
+
+type sseOptions struct {
+	handler SSEventHandler
+}
+
+var defaultSSEOptions = sseOptions{}
+
+type sseSrv struct {
+	opts   sseOptions
+	logger logx.ILogger
+}
+
+func NewSSESrv(ctx context.Context, logger logx.ILogger, opt ...SSEventOption) HttpRegister {
+	// 1. 设置配置
+	opts := defaultSSEOptions
+	for _, o := range opt {
+		o.apply(&opts)
+	}
+	// 2. 创建服务
+	s := &sseSrv{
+		opts:   opts,
+		logger: logger,
+	}
+	// 3. 返回Http注册路由
+	return s.stream
+}
+
+func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, error) {
+	// 1. 定义数据
 	h := http.Header{}
 	h.Add("Content-Type", "text/event-stream")
 	h.Add("Cache-Control", "no-cache")
 	h.Add("Connection", "keep-alive")
-	return newHttpResponse([]byte(data+"\n\n"), h, http.StatusOK), nil
+
+	// 1. 透传数据，上游处理
+	writer := ctx.Value("httpResponseWriter").(gin.ResponseWriter)
+	writer.Header().Add("Content-Type", "text/event-stream")
+	writer.Header().Add("Cache-Control", "no-cache")
+	writer.Header().Add("Connection", "keep-alive")
+
+	// 2. 起始消息
+	writer.Write(s.pack(0, "open", "welcome"))
+	writer.Flush()
+
+	// 3. 创建通道用于接收关闭通知
+	var (
+		id           = 1
+		events       = s.opts.handler(ctx, r)
+		clientClosed = writer.CloseNotify()
+	)
+
+	// 4. 循环发送数
+	for {
+		select {
+		case <-clientClosed:
+			s.logger.Infow(ctx, "sse client closed", "id", id)
+			goto exitLoop
+
+		case evt, ok := <-events:
+			if ok {
+				writer.Write(s.pack(id, evt.Event(), evt.Data()))
+			} else {
+				s.logger.Infow(ctx, "sse event channel closed", "id", id)
+				goto exitLoop
+			}
+		}
+		writer.Flush()
+		id += 1
+	}
+
+	// 5. 关闭连接
+exitLoop:
+	return newHttpResponse(s.pack(id, "close", "bye"), h, http.StatusOK), nil
+}
+
+func (s *sseSrv) pack(id int, event string, data string) []byte {
+	p := fmt.Sprintf("id: %d\n", id)
+	p += fmt.Sprintf("event: %s\n", event)
+	p += fmt.Sprintf("data: %s\n\n", data)
+	return []byte(p)
 }

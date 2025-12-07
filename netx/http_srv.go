@@ -86,6 +86,8 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		hf := func(c *gin.Context) {
 			// 1. 设置上下文
 			var ctx = s.createRequestContext(c.Request.Context(), c)
+			// 1.1 注入ResponseWriter
+			ctx = context.WithValue(ctx, "ResponseWriter", c.Writer)
 			var r, err = ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
