@@ -110,8 +110,8 @@ exitLoop:
 }
 
 func (s *sseSrv) pack(id int, event string, data string) []byte {
-	p := fmt.Sprintf("id: %d\n", id)
-	p += fmt.Sprintf("event: %s\n", event)
-	p += fmt.Sprintf("data: %s\n\n", data)
+	p := fmt.Sprintf("id:%d\n", id)
+	p += fmt.Sprintf("event:%s\n", event)
+	p += fmt.Sprintf("data:%s\n\n", data)
 	return []byte(p)
 }
