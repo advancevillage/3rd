@@ -112,7 +112,7 @@ func Test_sse(t *testing.T) {
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
-	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(time.Second*15))
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(time.Second*12))
 	go waitQuitSignal(cancel)
 	ctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
 

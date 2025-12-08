@@ -76,8 +76,15 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 		writer.Header().Add(k, v[0])
 	}
 
+	replyFunc := func(evtId int, event string, data string) HttpResponse {
+		return newHttpResponse(s.pack(evtId, event, data), h, http.StatusOK)
+	}
+
 	// 2. 起始消息
-	writer.Write(s.pack(0, "open", "welcome"))
+	n, err := writer.Write(s.pack(0, "open", "welcome"))
+	if err != nil {
+		return replyFunc(0, "error", fmt.Sprintf("n=%d err=%v", n, err)), nil
+	}
 	writer.Flush()
 
 	// 3. 创建通道用于接收关闭通知
@@ -95,9 +102,9 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 
 		case evt, ok := <-events:
 			if ok {
-				n, err := writer.Write(s.pack(id, evt.Event(), evt.Data()))
+				n, err = writer.Write(s.pack(id, evt.Event(), evt.Data()))
 				if err != nil {
-					return newHttpResponse(s.pack(id, "error", fmt.Sprintf("id=%d n=%d err=%s", id, n, err.Error())), h, http.StatusOK), nil
+					return replyFunc(id, "error", fmt.Sprintf("n=%d err=%v", n, err)), nil
 				}
 			} else {
 				goto exitLoop
@@ -109,7 +116,7 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 
 	// 5. 关闭连接
 exitLoop:
-	return newHttpResponse(s.pack(id, "close", "bye"), h, http.StatusOK), nil
+	return replyFunc(id, "close", "bye"), nil
 }
 
 func (s *sseSrv) pack(id int, event string, data string) []byte {
