@@ -55,6 +55,7 @@ func NewSSESrv(ctx context.Context, logger logx.ILogger, opt ...SSEventOption) H
 		opts:   opts,
 		logger: logger,
 	}
+	logger.Infow(ctx, "sse: server created", "handler", opts.handler)
 	// 3. 返回Http注册路由
 	return s.stream
 }
@@ -71,9 +72,9 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 	if !ok {
 		return newHttpResponse([]byte("sse: no response writer"), h, http.StatusInternalServerError), nil
 	}
-	writer.Header().Add("Content-Type", "text/event-stream")
-	writer.Header().Add("Cache-Control", "no-cache")
-	writer.Header().Add("Connection", "keep-alive")
+	for k, v := range h {
+		writer.Header().Add(k, v[0])
+	}
 
 	// 2. 起始消息
 	writer.Write(s.pack(0, "open", "welcome"))
@@ -81,21 +82,23 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 
 	// 3. 创建通道用于接收关闭通知
 	var (
-		id           = 1
-		events       = s.opts.handler(ctx, r)
-		clientClosed = writer.CloseNotify()
+		id     = 1
+		events = s.opts.handler(ctx, r)
 	)
 
-	// 4. 循环发送数
+	// 4. 循环发送数据
 	for {
 		select {
-		case <-clientClosed:
+		case <-ctx.Done():
 			s.logger.Infow(ctx, "sse: client closed", "id", id)
 			goto exitLoop
 
 		case evt, ok := <-events:
 			if ok {
-				writer.Write(s.pack(id, evt.Event(), evt.Data()))
+				n, err := writer.Write(s.pack(id, evt.Event(), evt.Data()))
+				if err != nil {
+					return newHttpResponse(s.pack(id, "error", fmt.Sprintf("id=%d n=%d err=%s", id, n, err.Error())), h, http.StatusOK), nil
+				}
 			} else {
 				goto exitLoop
 			}

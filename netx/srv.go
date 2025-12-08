@@ -28,38 +28,36 @@ func NewHttpServer(ctx context.Context, logger logx.ILogger, opt ...ServerOption
 	return newHttpSrv(ctx, logger, opt...)
 }
 
-type ServerOption interface {
-	apply(*serverOptions)
-}
+type ServerOption = Option[serverOptions]
 
 func WithServerAddr(host string, port int) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
+	return newFuncOption(func(o *serverOptions) {
 		o.host = host
 		o.port = port
 	})
 }
 
 func WithServerName(name string) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
+	return newFuncOption(func(o *serverOptions) {
 		o.name = name
 	})
 }
 
 func WithServerCredential(crt, key string) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
+	return newFuncOption(func(o *serverOptions) {
 		o.crt = crt
 		o.key = key
 	})
 }
 
 func WithGrpcService(f GrpcRegister) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
+	return newFuncOption(func(o *serverOptions) {
 		o.ss = append(o.ss, f)
 	})
 }
 
 func WithHttpService(method, path string, f ...HttpRegister) ServerOption {
-	return newFuncServerOption(func(o *serverOptions) {
+	return newFuncOption(func(o *serverOptions) {
 		o.rs = append(o.rs, httpRouter{method, path, f})
 	})
 }
@@ -82,20 +80,6 @@ var defaultServerOptions = serverOptions{
 	key:  "privkey.pem",
 	ss:   make([]GrpcRegister, 0, 1),
 	rs:   make([]httpRouter, 0, 1),
-}
-
-type funcServerOption struct {
-	f func(*serverOptions)
-}
-
-func (fdo *funcServerOption) apply(do *serverOptions) {
-	fdo.f(do)
-}
-
-func newFuncServerOption(f func(*serverOptions)) *funcServerOption {
-	return &funcServerOption{
-		f: f,
-	}
 }
 
 var _ HealthorServer = (*healthorService)(nil)

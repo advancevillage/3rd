@@ -28,15 +28,15 @@ func (t *testSSEHandler) OnChunk(ctx context.Context, r *http.Request) <-chan SS
 	ch := make(chan SSEvent)
 	go func() {
 		c := 0
-		t := time.NewTicker(time.Second)
-		defer t.Stop()
+		tr := time.NewTicker(time.Second)
+		defer tr.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				close(ch)
 				return
-			case <-t.C:
+			case <-tr.C:
 				c += 1
 				ch <- &testSSEvent{data: time.Now().Format("2006-01-02 15:04:05"), event: "message"}
 			}
