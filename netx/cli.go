@@ -28,39 +28,37 @@ type HttpResponse interface {
 	StatusCode() int
 }
 
-type ClientOption interface {
-	apply(*clientOptions)
-}
+type ClientOption = Option[clientOptions]
 
 func WithClientAddr(host string, port int) ClientOption {
-	return newFuncClientOption(func(o *clientOptions) {
+	return newFuncOption(func(o *clientOptions) {
 		o.host = host
 		o.port = port
 	})
 }
 
 func WithClientTimeout(timeout int) ClientOption {
-	return newFuncClientOption(func(o *clientOptions) {
+	return newFuncOption(func(o *clientOptions) {
 		o.timeout = timeout
 	})
 }
 
 func WithClientHeader(hdr ...x.Option) ClientOption {
-	return newFuncClientOption(func(o *clientOptions) {
+	return newFuncOption(func(o *clientOptions) {
 		b := x.NewBuilder(hdr...)
 		o.hdr = b.Build()
 	})
 }
 
 func WithClientCredential(crt, domain string) ClientOption {
-	return newFuncClientOption(func(o *clientOptions) {
+	return newFuncOption(func(o *clientOptions) {
 		o.crt = crt
 		o.domain = domain
 	})
 }
 
 func WithClientProxy(proxy string) ClientOption {
-	return newFuncClientOption(func(o *clientOptions) {
+	return newFuncOption(func(o *clientOptions) {
 		o.proxy = proxy
 	})
 }
@@ -82,18 +80,4 @@ var defaultClientOptions = clientOptions{
 	crt:     "cert.pem",
 	domain:  "api.softpart.cn",
 	timeout: 3,
-}
-
-type funcClientOption struct {
-	f func(*clientOptions)
-}
-
-func (fdo *funcClientOption) apply(do *clientOptions) {
-	fdo.f(do)
-}
-
-func newFuncClientOption(f func(*clientOptions)) *funcClientOption {
-	return &funcClientOption{
-		f: f,
-	}
 }
