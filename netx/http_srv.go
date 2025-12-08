@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ctxKeyResponseWriter struct{}
+
 type httpRouter struct {
 	method string
 	path   string
@@ -86,8 +88,6 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		hf := func(c *gin.Context) {
 			// 1. 设置上下文
 			var ctx = s.createRequestContext(c.Request.Context(), c)
-			// 1.1 注入ResponseWriter
-			ctx = context.WithValue(ctx, "ResponseWriter", c.Writer)
 			var r, err = ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
@@ -174,6 +174,9 @@ func (s *httpSrv) withNameMiddleware() gin.HandlerFunc {
 }
 
 func (s *httpSrv) createRequestContext(ctx context.Context, c *gin.Context) context.Context {
+	// 1. 注入ResponseWriter
+	ctx = context.WithValue(ctx, ctxKeyResponseWriter{}, c.Writer)
+	// 2. 注入请求链上线文
 	kv, err := url.ParseQuery(c.GetString(rEQUEXT_CTX))
 	if err != nil {
 		return ctx

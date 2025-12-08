@@ -67,7 +67,10 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 	h.Add("Connection", "keep-alive")
 
 	// 1. 透传数据，上游处理
-	writer := ctx.Value("httpResponseWriter").(gin.ResponseWriter)
+	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
+	if !ok {
+		return newHttpResponse([]byte("sse: no response writer"), h, http.StatusInternalServerError), nil
+	}
 	writer.Header().Add("Content-Type", "text/event-stream")
 	writer.Header().Add("Cache-Control", "no-cache")
 	writer.Header().Add("Connection", "keep-alive")
@@ -87,14 +90,13 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 	for {
 		select {
 		case <-clientClosed:
-			s.logger.Infow(ctx, "sse client closed", "id", id)
+			s.logger.Infow(ctx, "sse: client closed", "id", id)
 			goto exitLoop
 
 		case evt, ok := <-events:
 			if ok {
 				writer.Write(s.pack(id, evt.Event(), evt.Data()))
 			} else {
-				s.logger.Infow(ctx, "sse event channel closed", "id", id)
 				goto exitLoop
 			}
 		}
