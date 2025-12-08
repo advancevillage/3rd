@@ -29,7 +29,15 @@ type sseOptions struct {
 	handler SSEventHandler
 }
 
-var defaultSSEOptions = sseOptions{}
+var defaultSSEOptions = sseOptions{
+	handler: emptySSEventHandler,
+}
+
+var emptySSEventHandler = func(ctx context.Context, r *http.Request) <-chan SSEvent {
+	events := make(chan SSEvent)
+	close(events)
+	return events
+}
 
 type sseSrv struct {
 	opts   sseOptions
