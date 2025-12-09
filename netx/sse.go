@@ -57,9 +57,11 @@ var defaultSSEOptions = sseOptions{
 }
 
 var emptySSEventHandler = func(ctx context.Context, r *http.Request) <-chan SSEvent {
-	events := make(chan SSEvent)
-	close(events)
-	return events
+	ch := make(chan SSEvent, 1)
+	go func() {
+		close(ch)
+	}()
+	return ch
 }
 
 type sseSrv struct {
@@ -78,7 +80,7 @@ func NewSSESrv(ctx context.Context, logger logx.ILogger, opt ...SSEventOption) H
 		opts:   opts,
 		logger: logger,
 	}
-	logger.Infow(ctx, "sse: server created", "handler", opts.handler)
+	logger.Infow(ctx, "sse: server created", "handler", opts.handler != nil)
 	// 3. 返回Http注册路由
 	return s.stream
 }
