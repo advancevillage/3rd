@@ -38,7 +38,7 @@ func (t *testSSEHandler) OnChunk(ctx context.Context, r *http.Request) <-chan SS
 				return
 			case <-tr.C:
 				c += 1
-				ch <- &testSSEvent{data: time.Now().Format("2006-01-02 15:04:05"), event: "message"}
+				ch <- NewSSEvent(mathx.RandStr(10), time.Now().Format("2006-01-02 15:04:05"))
 			}
 			if c >= 10 {
 				close(ch)
@@ -49,29 +49,13 @@ func (t *testSSEHandler) OnChunk(ctx context.Context, r *http.Request) <-chan SS
 	return ch
 }
 
-var _ SSEvent = (*testSSEvent)(nil)
-
-type testSSEvent struct {
-	id    string
-	data  string
-	event string
-}
-
-func (t *testSSEvent) Data() string {
-	return t.data
-}
-
-func (t *testSSEvent) Event() string {
-	return t.event
-}
-
 type testSSEParser struct {
 	id    string
 	event string
 	data  strings.Builder
 }
 
-func (p *testSSEParser) ParseLine(raw string) (*testSSEvent, bool) {
+func (p *testSSEParser) ParseLine(raw string) (*sseEvent, bool) {
 	line := strings.TrimSpace(raw)
 
 	switch {
@@ -81,7 +65,7 @@ func (p *testSSEParser) ParseLine(raw string) (*testSSEvent, bool) {
 
 	// 空行：一个事件结束
 	case len(line) == 0 && p.data.Len() > 0:
-		evt := &testSSEvent{
+		evt := &sseEvent{
 			id:    p.id,
 			event: p.event,
 			data:  p.data.String(),

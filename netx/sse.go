@@ -14,6 +14,29 @@ type SSEvent interface {
 	Event() string
 }
 
+var _ SSEvent = (*sseEvent)(nil)
+
+type sseEvent struct {
+	id    string
+	data  string
+	event string
+}
+
+func NewSSEvent(event string, data string) SSEvent {
+	return &sseEvent{
+		data:  data,
+		event: event,
+	}
+}
+
+func (c *sseEvent) Data() string {
+	return c.data
+}
+
+func (c *sseEvent) Event() string {
+	return c.event
+}
+
 type SSEventHandler func(ctx context.Context, r *http.Request) <-chan SSEvent
 
 type SSEventOption = Option[sseOptions]
