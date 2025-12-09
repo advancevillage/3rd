@@ -132,6 +132,7 @@ func Test_sse(t *testing.T) {
 			req, err := http.NewRequest("GET", fmt.Sprintf("http://%s:%d%s?name=pyro", host, port, v.path), nil)
 			assert.Nil(t, err)
 			req.Header.Set("Accept", "text/event-stream")
+			req.WithContext(ctx)
 
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(t, err)
