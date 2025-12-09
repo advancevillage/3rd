@@ -105,12 +105,11 @@ func Test_hunyuan(t *testing.T) {
 			llm.WithStreamModel("hunyuan-turbos-latest"),
 			llm.WithStreamSecret(os.Getenv("HUNYUAN_AK"), os.Getenv("HUNYUAN_SK")),
 			//llm.WithStreamHandler(&testStreamHandler{t: t}),
-			llm.WithStreamHandler(llm.NewBufferStreamHandler(ctx, logger, llm.WithStreamHandler(h))),
 		)
 		assert.Nil(t, err)
 
 		f := func(t *testing.T) {
-			err = cli.Completion(ctx, v.msg)
+			err = cli.Completion(ctx, llm.NewBufferStreamHandler(ctx, logger, h), v.msg)
 			assert.Nil(t, err)
 			assert.Equal(t, 1, h.s)
 			assert.Equal(t, 1, h.e)

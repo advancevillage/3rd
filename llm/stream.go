@@ -24,23 +24,23 @@ func (emptyStreamHandler) OnEnd(ctx context.Context)                 {}
 var _ StreamHandler = &bufferStreamHandler{}
 
 type bufferStreamHandler struct {
-	buf    string
-	opts   llmStreamOption
-	logger logx.ILogger
+	buf     string
+	logger  logx.ILogger
+	handler StreamHandler
 }
 
 func (h *bufferStreamHandler) OnStart(ctx context.Context) {
 	if len(h.buf) == 0 {
-		h.opts.handler.OnStart(ctx)
+		h.handler.OnStart(ctx)
 	}
 }
 
 func (h *bufferStreamHandler) OnEnd(ctx context.Context) {
 	if len(h.buf) > 0 {
-		h.opts.handler.OnChunk(ctx, h.buf)
+		h.handler.OnChunk(ctx, h.buf)
 		h.buf = ""
 	}
-	h.opts.handler.OnEnd(ctx)
+	h.handler.OnEnd(ctx)
 }
 
 func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
@@ -55,11 +55,11 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 		switch runes[i] {
 		case '。', '！', '？', '；', '.', '!', '?', ';':
 			// Emit chunk up to and including separator
-			h.opts.handler.OnChunk(ctx, string(runes[start:i+1]))
+			h.handler.OnChunk(ctx, string(runes[start:i+1]))
 			start = i + 1
 		case '\n': // 换行符
 			runes[i] = ' '
-			h.opts.handler.OnChunk(ctx, string(runes[start:i+1]))
+			h.handler.OnChunk(ctx, string(runes[start:i+1]))
 			start = i + 1
 		}
 	}
@@ -72,11 +72,7 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 	}
 }
 
-func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, opt ...LLMStreamOption) StreamHandler {
-	// 1. 初始化参数
-	opts := defaultLLMStreamOptions
-	for _, o := range opt {
-		o.apply(&opts)
-	}
-	return &bufferStreamHandler{opts: opts, logger: logger}
+func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, handler StreamHandler) StreamHandler {
+	logger.Infow(ctx, "buffer stream handler created", "handler", handler)
+	return &bufferStreamHandler{handler: handler, logger: logger}
 }
