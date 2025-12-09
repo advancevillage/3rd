@@ -3,6 +3,7 @@ package netx
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,9 +22,17 @@ type testSSEHandler struct {
 }
 
 func (t *testSSEHandler) OnChunk(ctx context.Context, r *http.Request) <-chan SSEvent {
-	query := r.URL.Query()
-	name := query.Get("name")
-	assert.Equal(t.t, "pyro", name)
+	buf, err := io.ReadAll(r.Body)
+	assert.Nil(t.t, err)
+	defer r.Body.Close()
+
+	reply := make(map[string]any)
+	err = json.Unmarshal(buf, &reply)
+	assert.Nil(t.t, err)
+
+	name, ok := reply["name"]
+	assert.Equal(t.t, true, ok)
+	assert.Equal(t.t, "pyro", fmt.Sprint(name))
 
 	ch := make(chan SSEvent)
 	go func() {
@@ -112,7 +121,7 @@ func Test_sse(t *testing.T) {
 		fs     []HttpRegister
 	}{
 		"case-sse": {
-			method: http.MethodGet,
+			method: http.MethodPost,
 			path:   "/sse",
 			fs:     []HttpRegister{},
 		},
@@ -129,9 +138,10 @@ func Test_sse(t *testing.T) {
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			req, err := http.NewRequest("GET", fmt.Sprintf("http://%s:%d%s?name=pyro", host, port, v.path), nil)
+			jsonStr := `{"name":"pyro","id":123}`
+			req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s:%d%s?name=pyro", host, port, v.path), strings.NewReader(jsonStr))
 			assert.Nil(t, err)
-			req.Header.Set("Accept", "text/event-stream")
+			req.Header.Set("Content-Type", "application/json")
 			req.WithContext(ctx)
 
 			resp, err := http.DefaultClient.Do(req)
