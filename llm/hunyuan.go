@@ -11,7 +11,7 @@ import (
 )
 
 type LLMStream interface {
-	Completion(ctx context.Context, msg []Message) error
+	Completion(ctx context.Context, handler StreamHandler, msg []Message) error
 }
 
 var _ LLMStream = &hunYuan{}
@@ -72,11 +72,11 @@ func newHunYuan(ctx context.Context, logger logx.ILogger, opt ...LLMStreamOption
 	return c, nil
 }
 
-func (c *hunYuan) Completion(ctx context.Context, msg []Message) error {
-	return c.stream(ctx, msg)
+func (c *hunYuan) Completion(ctx context.Context, handler StreamHandler, msg []Message) error {
+	return c.stream(ctx, handler, msg)
 }
 
-func (s *hunYuan) stream(ctx context.Context, msg []Message) error {
+func (s *hunYuan) stream(ctx context.Context, handler StreamHandler, msg []Message) error {
 	// 1. 构建混元模型请求
 	req := hunyuan.NewChatCompletionsRequest()
 	for i := range msg {
@@ -112,16 +112,16 @@ func (s *hunYuan) stream(ctx context.Context, msg []Message) error {
 		//s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
 		switch {
 		case first:
-			s.opts.handler.OnStart(ctx)
-			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
+			handler.OnStart(ctx)
+			handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
 			first = false
 
 		case len(chunk.Choices[0].FinishReason) > 0:
-			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
-			s.opts.handler.OnEnd(ctx)
+			handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
+			handler.OnEnd(ctx)
 
 		default:
-			s.opts.handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
+			handler.OnChunk(ctx, chunk.Choices[0].Delta.Content)
 		}
 	}
 	return nil
