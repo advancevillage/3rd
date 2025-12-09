@@ -105,18 +105,18 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 		return newHttpResponse(s.pack(evtId, event, data), h, http.StatusOK)
 	}
 
-	// 2. 起始消息
+	// 2. 处理数据请求
+	var (
+		id     = 1
+		events = s.opts.handler(ctx, r)
+	)
+
+	// 3. 起始消息
 	n, err := writer.Write(s.pack(0, "open", "welcome"))
 	if err != nil {
 		return replyFunc(0, "error", fmt.Sprintf("n=%d err=%v", n, err)), nil
 	}
 	writer.Flush()
-
-	// 3. 创建通道用于接收关闭通知
-	var (
-		id     = 1
-		events = s.opts.handler(ctx, r)
-	)
 
 	// 4. 循环发送数据
 	for {
