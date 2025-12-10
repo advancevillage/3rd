@@ -99,17 +99,20 @@ func (s *hunYuan) stream(ctx context.Context, handler StreamHandler, msg []Messa
 	// 3. SSE返回
 	var first = true
 	for evt := range reply.Events {
+		if len(evt.Data) == 0 {
+			continue
+		}
 		chunk := &hunYuanEvent{}
 		err := json.Unmarshal(evt.Data, chunk)
+		//s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
 		if err != nil {
-			s.logger.Errorw(ctx, "failed to unmarshal hunYuan stream event", "err", err, "data", string(evt.Data))
+			s.logger.Errorw(ctx, "failed to unmarshal hunyuan stream event", "err", err, "data", string(evt.Data))
 			continue
 		}
 		if len(chunk.Choices) <= 0 {
 			s.logger.Infow(ctx, "hunYuan stream event no choices", "data", string(evt.Data))
 			continue
 		}
-		//s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
 		switch {
 		case first:
 			handler.OnStart(ctx)
