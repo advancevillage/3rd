@@ -99,6 +99,9 @@ func (s *hunYuan) stream(ctx context.Context, handler StreamHandler, msg []Messa
 	// 3. SSE返回
 	var first = true
 	for evt := range reply.Events {
+		if len(evt.Data) == 0 {
+			continue
+		}
 		chunk := &hunYuanEvent{}
 		err := json.Unmarshal(evt.Data, chunk)
 		s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
