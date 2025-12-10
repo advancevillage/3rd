@@ -1,8 +1,10 @@
 package netx
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/advancevillage/3rd/logx"
@@ -27,6 +29,14 @@ func NewSSEvent(event string, data string) SSEvent {
 		data:  data,
 		event: event,
 	}
+}
+
+func NewMessageSSEvent(data string) SSEvent {
+	return NewSSEvent("message", data)
+}
+
+func NewErrorSSEvent(data string) SSEvent {
+	return NewSSEvent("error", data)
 }
 
 func (c *sseEvent) Data() string {
@@ -105,20 +115,30 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 		return newHttpResponse(s.pack(evtId, event, data), h, http.StatusOK)
 	}
 
-	// 2. 处理数据请求
-	var (
-		id     = 1
-		events = s.opts.handler(ctx, r)
-	)
+	// 2. 读取请求体
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return replyFunc(0, "error", fmt.Sprintf("err=%v", err)), nil
+	}
+	r.Body.Close()
 
-	// 3. 起始消息
+	// 3. 起始消息(会将r.Body数据清空)
 	n, err := writer.Write(s.pack(0, "open", "welcome"))
 	if err != nil {
 		return replyFunc(0, "error", fmt.Sprintf("n=%d err=%v", n, err)), nil
 	}
 	writer.Flush()
 
-	// 4. 循环发送数据
+	// 4. 重建body
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	// 5. 处理数据请求
+	var (
+		id     = 1
+		events = s.opts.handler(ctx, r)
+	)
+
+	// 6. 循环发送数据
 	for {
 		select {
 		case <-ctx.Done():
@@ -139,7 +159,7 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 		id += 1
 	}
 
-	// 5. 关闭连接
+	// 7. 关闭连接
 exitLoop:
 	return replyFunc(id, "close", "bye"), nil
 }
