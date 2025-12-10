@@ -104,7 +104,7 @@ func (s *hunYuan) stream(ctx context.Context, handler StreamHandler, msg []Messa
 		}
 		chunk := &hunYuanEvent{}
 		err := json.Unmarshal(evt.Data, chunk)
-		s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
+		//s.logger.Infow(ctx, "stream event", "chunk", string(evt.Data))
 		if err != nil {
 			s.logger.Errorw(ctx, "failed to unmarshal hunyuan stream event", "err", err, "data", string(evt.Data))
 			continue
