@@ -73,6 +73,5 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 }
 
 func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, handler StreamHandler) StreamHandler {
-	logger.Infow(ctx, "buffer stream handler created", "handler", handler)
 	return &bufferStreamHandler{handler: handler, logger: logger}
 }
