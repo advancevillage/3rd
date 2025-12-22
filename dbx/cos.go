@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -237,7 +239,11 @@ func (mp *multiprtUploader) Id(ctx context.Context) string {
 }
 
 func (mp *multiprtUploader) initiate(ctx context.Context, name string) (string, error) {
-	r, reply, err := mp.c.Object.InitiateMultipartUpload(ctx, name, nil)
+	r, reply, err := mp.c.Object.InitiateMultipartUpload(ctx, name, &cos.InitiateMultipartUploadOptions{
+		ObjectPutHeaderOptions: &cos.ObjectPutHeaderOptions{
+			ContentType: mime.TypeByExtension(filepath.Ext(name)),
+		},
+	})
 	if err != nil {
 		return "", err
 	}
