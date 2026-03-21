@@ -222,6 +222,7 @@ func Test_proxy(t *testing.T) {
 			for {
 				line, err := reader.ReadString('\n')
 				t.Log(line)
+				assert.Equal(t, true, len(line) > 0)
 				if errors.Is(err, io.EOF) {
 					break
 				} else {
