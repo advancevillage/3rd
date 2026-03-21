@@ -24,7 +24,7 @@ type httpRouter struct {
 
 type httpSrv struct {
 	opts   serverOptions
-	logger logx.ILogger //日志
+	logger logx.ILogger // 日志
 
 	srv     *gin.Engine        // https server
 	rctx    context.Context    // root context
@@ -87,8 +87,8 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		)
 		hf := func(c *gin.Context) {
 			// 1. 设置上下文
-			var ctx = s.createRequestContext(c.Request.Context(), c)
-			var r, err = ff(ctx, c.Request)
+			ctx := s.createRequestContext(c.Request.Context(), c)
+			r, err := ff(ctx, c.Request)
 			// 2. 系统错误
 			if err != nil {
 				c.Abort()
@@ -131,7 +131,11 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		}
 		fs = append(fs, hf)
 	}
-	s.srv.Handle(method, path, fs...)
+	if method == "Any" || method == "ANY" {
+		s.srv.Any(path, fs...)
+	} else {
+		s.srv.Handle(method, path, fs...)
+	}
 }
 
 func (s *httpSrv) withTraceMiddleware() gin.HandlerFunc {
