@@ -82,7 +82,7 @@ func (s *grpcSrv) Start() {
 
 func (s *grpcSrv) start() {
 	// 1. 监听端口
-	var listener, err = net.Listen("tcp", fmt.Sprintf("%s:%d", s.opts.host, s.opts.port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.opts.host, s.opts.port))
 	if err != nil {
 		s.logger.Errorw(s.rctx, "listen failed", "err", err, "host", s.opts.host, "port", s.opts.port)
 		return

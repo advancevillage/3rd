@@ -55,15 +55,22 @@ func WithSSEventHandler(handler SSEventHandler) SSEventOption {
 	return newFuncOption(func(o *sseOptions) {
 		o.handler = handler
 	})
+}
 
+func WithSSEventProxyMode() SSEventOption {
+	return newFuncOption(func(o *sseOptions) {
+		o.proxy = true
+	})
 }
 
 type sseOptions struct {
 	handler SSEventHandler
+	proxy   bool
 }
 
 var defaultSSEOptions = sseOptions{
 	handler: emptySSEventHandler,
+	proxy:   false,
 }
 
 var emptySSEventHandler = func(ctx context.Context, r *http.Request) <-chan SSEvent {
@@ -92,7 +99,11 @@ func NewSSESrv(ctx context.Context, logger logx.ILogger, opt ...SSEventOption) H
 	}
 	logger.Infow(ctx, "sse: server created", "handler", opts.handler != nil)
 	// 3. 返回Http注册路由
-	return s.stream
+	if opts.proxy {
+		return s.proxy // 中转透传模式
+	} else {
+		return s.stream // 标准SSE模式
+	}
 }
 
 func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, error) {
@@ -101,6 +112,7 @@ func (s *sseSrv) stream(ctx context.Context, r *http.Request) (HttpResponse, err
 	h.Add("Content-Type", "text/event-stream")
 	h.Add("Cache-Control", "no-cache")
 	h.Add("Connection", "keep-alive")
+	h.Add("Transfer-Encoding", "chunked")
 
 	// 1. 透传数据，上游处理
 	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
@@ -169,4 +181,48 @@ func (s *sseSrv) pack(id int, event string, data string) []byte {
 	p += fmt.Sprintf("event:%s\n", event)
 	p += fmt.Sprintf("data:%s\n\n", data)
 	return []byte(p)
+}
+
+func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, error) {
+	h := http.Header{}
+	h.Add("Content-Type", "text/event-stream")
+	h.Add("Cache-Control", "no-cache")
+	h.Add("Connection", "keep-alive")
+	h.Add("Transfer-Encoding", "chunked")
+
+	replyFunc := func(body []byte, status int) HttpResponse {
+		return newHttpResponse(body, h, status)
+	}
+
+	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
+	if !ok {
+		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
+	}
+	for k, v := range h {
+		writer.Header().Add(k, v[0])
+	}
+
+	events := s.opts.handler(ctx, r)
+
+	for {
+		select {
+		case <-ctx.Done():
+			goto exitLoop
+
+		case evt, ok := <-events:
+			if ok {
+				n, err := writer.Write([]byte(evt.Data()))
+				if err != nil {
+					s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
+					goto exitLoop
+				}
+			} else {
+				goto exitLoop
+			}
+		}
+		writer.Flush()
+	}
+
+exitLoop:
+	return replyFunc([]byte{}, http.StatusOK), nil
 }

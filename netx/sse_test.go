@@ -115,7 +115,7 @@ func Test_sse(t *testing.T) {
 	opts := []ServerOption{WithServerAddr(host, port)}
 	handler := &testSSEHandler{t: t}
 
-	var data = map[string]struct {
+	data := map[string]struct {
 		method string
 		path   string
 		fs     []HttpRegister
@@ -162,6 +162,71 @@ func Test_sse(t *testing.T) {
 					assert.Equal(t, evt.id, fmt.Sprint(c))
 					c += 1
 					t.Logf("SSE event: id=%s event=%s data=%s", evt.id, evt.event, evt.data)
+				}
+			}
+		}
+		t.Run(n, f)
+	}
+
+	<-ctx.Done()
+}
+
+func Test_proxy(t *testing.T) {
+	logger, err := logx.NewLogger("debug")
+	assert.Nil(t, err)
+
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(time.Second*12))
+	go waitQuitSignal(cancel)
+	ctx = context.WithValue(ctx, logx.TraceId, mathx.UUID())
+
+	host := "127.0.0.1"
+	port := 1997
+
+	opts := []ServerOption{WithServerAddr(host, port)}
+	handler := &testSSEHandler{t: t}
+
+	data := map[string]struct {
+		method string
+		path   string
+		fs     []HttpRegister
+	}{
+		"case-sse": {
+			method: http.MethodPost,
+			path:   "/sse",
+			fs:     []HttpRegister{},
+		},
+	}
+
+	for _, v := range data {
+		opts = append(opts, WithHttpService(v.method, v.path, append(v.fs, NewSSESrv(ctx, logger, WithSSEventHandler(handler.OnChunk), WithSSEventProxyMode()))...))
+	}
+
+	s, err := NewHttpServer(ctx, logger, opts...)
+	assert.Nil(t, err)
+	go s.Start()
+	time.Sleep(time.Second * 2)
+
+	for n, v := range data {
+		f := func(t *testing.T) {
+			jsonStr := `{"name":"pyro","id":123}`
+			req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s:%d%s?name=pyro", host, port, v.path), strings.NewReader(jsonStr))
+			assert.Nil(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			req.WithContext(ctx)
+
+			resp, err := http.DefaultClient.Do(req)
+			assert.Nil(t, err)
+			defer resp.Body.Close()
+
+			reader := bufio.NewReader(resp.Body)
+			for {
+				line, err := reader.ReadString('\n')
+				t.Log(line)
+				assert.Equal(t, true, len(line) > 0)
+				if errors.Is(err, io.EOF) {
+					break
+				} else {
+					assert.Nil(t, err)
 				}
 			}
 		}
