@@ -189,6 +189,7 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 	h.Add("Cache-Control", "no-cache")
 	h.Add("Connection", "keep-alive")
 	h.Add("Transfer-Encoding", "chunked")
+	h.Add("X-Accel-Buffering", "no") // ✅ 防止 Nginx 缓冲
 
 	replyFunc := func(body []byte, status int) HttpResponse {
 		return newHttpResponse(body, h, status)
@@ -198,29 +199,33 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 	if !ok {
 		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
 	}
+
+	// ✅ 先设置 Header，再做任何其他操作
 	for k, v := range h {
-		writer.Header().Add(k, v[0])
+		writer.Header().Set(k, v[0])
 	}
+	writer.WriteHeader(http.StatusOK) // ✅ 显式写状态码
+	writer.Flush()                    // ✅ 立即 flush header
 
 	events := s.opts.handler(ctx, r)
 
 	for {
 		select {
 		case <-ctx.Done():
+			s.logger.Infow(ctx, "sse: client closed")
 			goto exitLoop
 
 		case evt, ok := <-events:
-			if ok {
-				n, err := writer.Write([]byte(evt.Data()))
-				if err != nil {
-					s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
-					goto exitLoop
-				}
-			} else {
+			if !ok {
 				goto exitLoop
 			}
+			n, err := writer.Write([]byte(evt.Data()))
+			if err != nil {
+				s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
+				goto exitLoop
+			}
+			writer.Flush() // ✅ 每次写完立即 flush
 		}
-		writer.Flush()
 	}
 
 exitLoop:
