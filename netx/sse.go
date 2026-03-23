@@ -13,6 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	ErrorSSEventType   = "error"
+	HeaderSSEventType  = "header"
+	MessageSSEventType = "message"
+)
+
 type SSEvent interface {
 	Data() string
 	Event() string
@@ -33,12 +39,16 @@ func NewSSEvent(event string, data string) SSEvent {
 	}
 }
 
+func NewHeaderSSEvent(data string) SSEvent {
+	return NewSSEvent(HeaderSSEventType, data)
+}
+
 func NewMessageSSEvent(data string) SSEvent {
-	return NewSSEvent("message", data)
+	return NewSSEvent(MessageSSEventType, data)
 }
 
 func NewErrorSSEvent(data string) SSEvent {
-	return NewSSEvent("error", data)
+	return NewSSEvent(ErrorSSEventType, data)
 }
 
 func (c *sseEvent) Data() string {
@@ -216,7 +226,7 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 			}
 
 			switch {
-			case firstChunk && evt.Event() == "header":
+			case firstChunk && evt.Event() == HeaderSSEventType:
 				q, err := url.ParseQuery(evt.Data())
 				if err != nil || len(q) == 0 {
 					q = h
