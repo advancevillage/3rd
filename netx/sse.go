@@ -200,12 +200,21 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
 	}
 
-	// ✅ 先设置 Header，再做任何其他操作
+	// 先设置 Header，再做任何其他操作
 	for k, v := range h {
 		writer.Header().Set(k, v[0])
 	}
-	writer.WriteHeader(http.StatusOK) // ✅ 显式写状态码
-	writer.Flush()                    // ✅ 立即 flush header
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return replyFunc([]byte("error reading body"), http.StatusInternalServerError), nil
+	}
+	r.Body.Close()
+
+	writer.WriteHeader(http.StatusOK)
+	writer.Flush()
+
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	events := s.opts.handler(ctx, r)
 
