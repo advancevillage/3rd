@@ -198,6 +198,12 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 	events := s.opts.handler(ctx, r)
 	firstChunk := true
 
+	h := url.Values{}
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -212,17 +218,20 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 			switch {
 			case firstChunk && evt.Event() == "header":
 				q, err := url.ParseQuery(evt.Data())
-				if err != nil {
-					writer.Header().Set("Content-Type", "text/event-stream")
-					writer.Header().Set("Cache-Control", "no-cache")
-					writer.Header().Set("Connection", "keep-alive")
-					writer.Header().Set("X-Accel-Buffering", "no")
-				} else {
-					for k, v := range q {
-						writer.Header().Set(k, strings.Join(v, ","))
-					}
+				if err != nil || len(q) == 0 {
+					q = h
+				}
+				for k, v := range q {
+					writer.Header().Set(k, strings.Join(v, ","))
 				}
 				writer.WriteHeader(http.StatusOK)
+
+			case firstChunk:
+				for k, v := range h {
+					writer.Header().Set(k, strings.Join(v, ","))
+				}
+				writer.WriteHeader(http.StatusOK)
+				fallthrough
 
 			default:
 				n, err := writer.WriteString(evt.Data())
