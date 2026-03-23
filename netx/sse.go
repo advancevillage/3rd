@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/gin-gonic/gin"
@@ -184,15 +186,8 @@ func (s *sseSrv) pack(id int, event string, data string) []byte {
 }
 
 func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, error) {
-	h := http.Header{}
-	h.Add("Content-Type", "text/event-stream")
-	h.Add("Cache-Control", "no-cache")
-	h.Add("Connection", "keep-alive")
-	h.Add("Transfer-Encoding", "chunked")
-	h.Add("X-Accel-Buffering", "no") // ✅ 防止 Nginx 缓冲
-
 	replyFunc := func(body []byte, status int) HttpResponse {
-		return newHttpResponse(body, h, status)
+		return newHttpResponse(body, http.Header{}, status)
 	}
 
 	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
@@ -200,23 +195,8 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
 	}
 
-	// 先设置 Header，再做任何其他操作
-	for k, v := range h {
-		writer.Header().Set(k, v[0])
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return replyFunc([]byte("error reading body"), http.StatusInternalServerError), nil
-	}
-	r.Body.Close()
-
-	writer.WriteHeader(http.StatusOK)
-	writer.Flush()
-
-	r.Body = io.NopCloser(bytes.NewBuffer(body))
-
 	events := s.opts.handler(ctx, r)
+	firstChunk := true
 
 	for {
 		select {
@@ -228,12 +208,32 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 			if !ok {
 				goto exitLoop
 			}
-			n, err := writer.Write([]byte(evt.Data()))
-			if err != nil {
-				s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
-				goto exitLoop
+
+			switch {
+			case firstChunk && evt.Event() == "header":
+				q, err := url.ParseQuery(evt.Data())
+				if err != nil {
+					writer.Header().Set("Content-Type", "text/event-stream")
+					writer.Header().Set("Cache-Control", "no-cache")
+					writer.Header().Set("Connection", "keep-alive")
+					writer.Header().Set("X-Accel-Buffering", "no")
+				} else {
+					for k, v := range q {
+						writer.Header().Set(k, strings.Join(v, ","))
+					}
+				}
+				writer.WriteHeader(http.StatusOK)
+
+			default:
+				n, err := writer.WriteString(evt.Data())
+				if err != nil {
+					s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
+					goto exitLoop
+				}
 			}
-			writer.Flush() // ✅ 每次写完立即 flush
+
+			firstChunk = false
+			writer.Flush()
 		}
 	}
 
