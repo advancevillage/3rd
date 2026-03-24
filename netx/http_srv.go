@@ -131,7 +131,7 @@ func (s *httpSrv) route(method, path string, f ...HttpRegister) {
 		}
 		fs = append(fs, hf)
 	}
-	if method == "Any" || method == "ANY" {
+	if strings.ToUpper(method) == "ANY" {
 		s.srv.Any(path, fs...)
 	} else {
 		s.srv.Handle(method, path, fs...)

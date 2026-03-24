@@ -23,6 +23,10 @@ func NewTooManyRequestsHttpResponse(err error) HttpResponse {
 	return newCodeHttpResponse(http.StatusTooManyRequests, "too many requests", err)
 }
 
+func NewPaymentRequiredHttpResponse(err error) HttpResponse {
+	return newCodeHttpResponse(http.StatusPaymentRequired, "payment required", err)
+}
+
 func NewBadRequestHttpResponse(err error) HttpResponse {
 	return newCodeHttpResponse(http.StatusBadRequest, "bad request", err)
 }
@@ -167,18 +171,18 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 		q        = params.Build()
 		hdr      = headers.Build()
 	)
-	//2. 构造请求
+	// 2. 构造请求
 	request, err = http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-	//3. 设置请求参数
+	// 3. 设置请求参数
 	query = request.URL.Query()
 	for k, v := range q {
 		query.Add(k, fmt.Sprint(v))
 	}
 	request.URL.RawQuery = query.Encode()
-	//4. 设置请求头 headers > config.Configure.Header
+	// 4. 设置请求头 headers > config.Configure.Header
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
@@ -189,14 +193,14 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
-	//5. 发送HTTP请求
+	// 5. 发送HTTP请求
 	response, err = client.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	//6. 请求结束后关闭连接
+	// 6. 请求结束后关闭连接
 	defer response.Body.Close()
-	//7. 读书响应数据
+	// 7. 读书响应数据
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -205,7 +209,7 @@ func (c *httpCli) Get(ctx context.Context, uri string, params x.Builder, headers
 }
 
 func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf []byte) (HttpResponse, error) {
-	//1. 创建http客户端
+	// 1. 创建http客户端
 	var (
 		client   = c.buildClient(ctx)
 		request  *http.Request
@@ -213,12 +217,12 @@ func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf [
 		err      error
 		hdr      = headers.Build()
 	)
-	//2. 构造请求
+	// 2. 构造请求
 	request, err = http.NewRequest(http.MethodPost, uri, bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
-	//3. 设置请求头 headers > config.Configure.Header
+	// 3. 设置请求头 headers > config.Configure.Header
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
@@ -229,14 +233,14 @@ func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf [
 			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
-	//4. 发送HTTP请求
+	// 4. 发送HTTP请求
 	response, err = client.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	//5. 请求结束后关闭连接
+	// 5. 请求结束后关闭连接
 	defer response.Body.Close()
-	//6. 读书响应数据
+	// 6. 读书响应数据
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -245,7 +249,7 @@ func (c *httpCli) Post(ctx context.Context, uri string, headers x.Builder, buf [
 }
 
 func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, headers x.Builder) (HttpResponse, error) {
-	//1. 创建http客户端
+	// 1. 创建http客户端
 	var (
 		client   = c.buildClient(ctx)
 		request  *http.Request
@@ -255,17 +259,17 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 		q        = params.Build()
 		hdr      = headers.Build()
 	)
-	//2. 创建请求
+	// 2. 创建请求
 	request, err = http.NewRequest(http.MethodPost, uri, nil)
 	if err != nil {
 		return nil, err
 	}
 	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	//3. 设置From
+	// 3. 设置From
 	for k, v := range q {
 		form.Add(k, fmt.Sprint(v))
 	}
-	//4. 设置请求头 headers > config.Configure.Header
+	// 4. 设置请求头 headers > config.Configure.Header
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
 	}
@@ -276,14 +280,14 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
-	//5. 发送HTTP请求
+	// 5. 发送HTTP请求
 	response, err = client.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	//6. 请求结束后关闭连接
+	// 6. 请求结束后关闭连接
 	defer response.Body.Close()
-	//7. 读书响应数据
+	// 7. 读书响应数据
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
@@ -293,7 +297,7 @@ func (c *httpCli) PostForm(ctx context.Context, uri string, params x.Builder, he
 }
 
 func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, headers x.Builder, field string, filename string, fieldReader io.Reader) (HttpResponse, error) {
-	//1. 创建HTTP客户端
+	// 1. 创建HTTP客户端
 	var (
 		client   = c.buildClient(ctx)
 		request  *http.Request
@@ -303,10 +307,10 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 		q        = params.Build()
 		hdr      = headers.Build()
 	)
-	//2. 分片
+	// 2. 分片
 	writer := multipart.NewWriter(body)
 
-	//3. 文件上传
+	// 3. 文件上传
 	if len(field) > 0 {
 		part, err := writer.CreateFormFile(field, filepath.Base(filename))
 		if err != nil {
@@ -318,7 +322,7 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 		}
 	}
 
-	//4. 设置参数
+	// 4. 设置参数
 	for k, v := range q {
 		err = writer.WriteField(k, fmt.Sprint(v))
 		if err != nil {
@@ -329,12 +333,12 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 	if err != nil {
 		return nil, err
 	}
-	//5. 构建请求
+	// 5. 构建请求
 	request, err = http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
 		return nil, err
 	}
-	//6. 设置请求头
+	// 6. 设置请求头
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	for k, v := range hdr {
 		request.Header.Add(k, fmt.Sprint(v))
@@ -346,15 +350,15 @@ func (c *httpCli) Upload(ctx context.Context, uri string, params x.Builder, head
 			request.Header.Add(k, fmt.Sprint(v))
 		}
 	}
-	//7. 发送请求
+	// 7. 发送请求
 	response, err = client.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	//8. 关闭连接
+	// 8. 关闭连接
 	defer response.Body.Close()
 
-	//9. 响应
+	// 9. 响应
 	buf, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
