@@ -6,9 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	ErrorSSEventType   = "error"
+	HeaderSSEventType  = "header"
+	MessageSSEventType = "message"
 )
 
 type SSEvent interface {
@@ -31,12 +39,16 @@ func NewSSEvent(event string, data string) SSEvent {
 	}
 }
 
+func NewHeaderSSEvent(data string) SSEvent {
+	return NewSSEvent(HeaderSSEventType, data)
+}
+
 func NewMessageSSEvent(data string) SSEvent {
-	return NewSSEvent("message", data)
+	return NewSSEvent(MessageSSEventType, data)
 }
 
 func NewErrorSSEvent(data string) SSEvent {
-	return NewSSEvent("error", data)
+	return NewSSEvent(ErrorSSEventType, data)
 }
 
 func (c *sseEvent) Data() string {
@@ -184,43 +196,64 @@ func (s *sseSrv) pack(id int, event string, data string) []byte {
 }
 
 func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, error) {
-	h := http.Header{}
-	h.Add("Content-Type", "text/event-stream")
-	h.Add("Cache-Control", "no-cache")
-	h.Add("Connection", "keep-alive")
-	h.Add("Transfer-Encoding", "chunked")
-
 	replyFunc := func(body []byte, status int) HttpResponse {
-		return newHttpResponse(body, h, status)
+		return newHttpResponse(body, http.Header{}, status)
 	}
 
 	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
 	if !ok {
 		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
 	}
-	for k, v := range h {
-		writer.Header().Add(k, v[0])
-	}
 
 	events := s.opts.handler(ctx, r)
+	firstChunk := true
+
+	h := url.Values{}
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set("X-Accel-Buffering", "no")
 
 	for {
 		select {
 		case <-ctx.Done():
+			s.logger.Infow(ctx, "sse: client closed")
 			goto exitLoop
 
 		case evt, ok := <-events:
-			if ok {
-				n, err := writer.Write([]byte(evt.Data()))
+			if !ok {
+				goto exitLoop
+			}
+
+			switch {
+			case firstChunk && evt.Event() == HeaderSSEventType:
+				q, err := url.ParseQuery(evt.Data())
+				if err != nil || len(q) == 0 {
+					q = h
+				}
+				for k, v := range q {
+					writer.Header().Set(k, strings.Join(v, ","))
+				}
+				writer.WriteHeader(http.StatusOK)
+
+			case firstChunk:
+				for k, v := range h {
+					writer.Header().Set(k, strings.Join(v, ","))
+				}
+				writer.WriteHeader(http.StatusOK)
+				fallthrough
+
+			default:
+				n, err := writer.WriteString(evt.Data())
 				if err != nil {
 					s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
 					goto exitLoop
 				}
-			} else {
-				goto exitLoop
 			}
+
+			firstChunk = false
+			writer.Flush()
 		}
-		writer.Flush()
 	}
 
 exitLoop:
