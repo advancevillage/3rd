@@ -189,6 +189,9 @@ func (s *httpSrv) createRequestContext(ctx context.Context, c *gin.Context) cont
 		if len(v) <= 0 {
 			continue
 		}
+		if strings.ToLower(k) == rEQUEXT_STREAM {
+			ctx = context.WithValue(ctx, ctxKeySSEStream{}, strings.Join(v, ";") == "true")
+		}
 		ctx = context.WithValue(ctx, k, strings.Join(v, ";"))
 	}
 	return ctx
