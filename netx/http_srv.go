@@ -190,8 +190,19 @@ func (s *httpSrv) createRequestContext(ctx context.Context, c *gin.Context) cont
 			continue
 		}
 		ctx = context.WithValue(ctx, k, strings.Join(v, ";"))
+		ctx = s.specialRequestContext(ctx, k, v...)
 	}
 	return ctx
+}
+
+func (s *httpSrv) specialRequestContext(ctx context.Context, k string, v ...string) context.Context {
+	switch k {
+	case "sseStream":
+		return context.WithValue(ctx, ctxKeySSEStream{}, strings.Join(v, ".") == "true")
+
+	default:
+		return ctx
+	}
 }
 
 func (s *httpSrv) updateRequestContext(c *gin.Context, k string, v string) {

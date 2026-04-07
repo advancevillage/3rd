@@ -195,24 +195,34 @@ func (s *sseSrv) pack(id int, event string, data string) []byte {
 	return []byte(p)
 }
 
-func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, error) {
-	replyFunc := func(body []byte, status int) HttpResponse {
-		return newHttpResponse(body, http.Header{}, status)
-	}
+type ctxKeySSEStream struct{}
 
+func WithSSEStream(ctx context.Context, stream bool) context.Context {
+	return context.WithValue(ctx, ctxKeySSEStream{}, stream)
+}
+
+func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, error) {
+	stream, ok := ctx.Value(ctxKeySSEStream{}).(bool)
+	if stream && ok {
+		return s.proxyStream(ctx, r)
+	}
+	return s.proxyDirect(ctx, r)
+}
+
+func (s *sseSrv) proxyStream(ctx context.Context, r *http.Request) (HttpResponse, error) {
 	writer, ok := ctx.Value(ctxKeyResponseWriter{}).(gin.ResponseWriter)
 	if !ok {
-		return replyFunc([]byte("sse: no response writer"), http.StatusInternalServerError), nil
+		return newHttpResponse([]byte("sse: no response writer"), http.Header{}, http.StatusInternalServerError), nil
 	}
+
+	defaultHeaders := http.Header{}
+	defaultHeaders.Set("Content-Type", "text/event-stream")
+	defaultHeaders.Set("Cache-Control", "no-cache")
+	defaultHeaders.Set("Connection", "keep-alive")
+	defaultHeaders.Set("X-Accel-Buffering", "no")
 
 	events := s.opts.handler(ctx, r)
 	firstChunk := true
-
-	h := url.Values{}
-	h.Set("Content-Type", "text/event-stream")
-	h.Set("Cache-Control", "no-cache")
-	h.Set("Connection", "keep-alive")
-	h.Set("X-Accel-Buffering", "no")
 
 	for {
 		select {
@@ -225,37 +235,90 @@ func (s *sseSrv) proxy(ctx context.Context, r *http.Request) (HttpResponse, erro
 				goto exitLoop
 			}
 
-			switch {
-			case firstChunk && evt.Event() == HeaderSSEventType:
-				q, err := url.ParseQuery(evt.Data())
-				if err != nil || len(q) == 0 {
-					q = h
+			// header 事件只更新待写 headers，不立即发送
+			if evt.Event() == HeaderSSEventType {
+				h := s.parseHeaderEvent(ctx, evt.Data())
+				if len(h) > 0 {
+					defaultHeaders = h
 				}
-				for k, v := range q {
-					writer.Header().Set(k, strings.Join(v, ","))
-				}
-				writer.WriteHeader(http.StatusOK)
-
-			case firstChunk:
-				for k, v := range h {
-					writer.Header().Set(k, strings.Join(v, ","))
-				}
-				writer.WriteHeader(http.StatusOK)
-				fallthrough
-
-			default:
-				n, err := writer.WriteString(evt.Data())
-				if err != nil {
-					s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
-					goto exitLoop
-				}
+				continue
 			}
 
-			firstChunk = false
+			// 首包：确保 response headers 在任何数据写入前发出
+			if firstChunk {
+				firstChunk = false
+				for k, v := range defaultHeaders {
+					writer.Header().Set(k, strings.Join(v, ","))
+				}
+				if evt.Event() == ErrorSSEventType {
+					writer.WriteHeader(http.StatusInternalServerError)
+				} else {
+					writer.WriteHeader(http.StatusOK)
+				}
+				writer.Flush()
+			}
+
+			if evt.Event() == ErrorSSEventType {
+				goto exitLoop
+			}
+
+			n, err := writer.WriteString(evt.Data())
+			if err != nil {
+				s.logger.Errorw(ctx, "sse: write error", "n", n, "err", err)
+				goto exitLoop
+			}
 			writer.Flush()
 		}
 	}
 
 exitLoop:
-	return replyFunc([]byte{}, http.StatusOK), nil
+	return newHttpResponse([]byte{}, http.Header{}, http.StatusOK), nil
+}
+
+func (s *sseSrv) proxyDirect(ctx context.Context, r *http.Request) (HttpResponse, error) {
+	var buf bytes.Buffer
+	events := s.opts.handler(ctx, r)
+	h := http.Header{}
+	statusCode := http.StatusOK
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.Infow(ctx, "sse: client closed")
+			goto exitLoop
+
+		case evt, ok := <-events:
+			if !ok {
+				goto exitLoop
+			}
+
+			switch evt.Event() {
+			case HeaderSSEventType:
+				h = s.parseHeaderEvent(ctx, evt.Data())
+
+			case ErrorSSEventType:
+				statusCode = http.StatusInternalServerError
+				goto exitLoop
+
+			default:
+				buf.WriteString(evt.Data())
+			}
+		}
+	}
+
+exitLoop:
+	return newHttpResponse(buf.Bytes(), h, statusCode), nil
+}
+
+func (s *sseSrv) parseHeaderEvent(ctx context.Context, raw string) http.Header {
+	q, err := url.ParseQuery(raw)
+	if err != nil {
+		s.logger.Errorw(ctx, "sse: parse header event error", "raw", raw, "err", err)
+		return http.Header{}
+	}
+	h := http.Header{}
+	for k, v := range q {
+		h.Set(k, strings.Join(v, ","))
+	}
+	return h
 }
