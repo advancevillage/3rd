@@ -18,8 +18,7 @@ const (
 )
 
 const (
-	rEQUEXT_CTX    = "Inner-Request-Ctx"
-	rEQUEXT_STREAM = "stream"
+	rEQUEXT_CTX = "Inner-Request-Ctx"
 )
 
 func waitQuitSignal(cancel context.CancelFunc) {
