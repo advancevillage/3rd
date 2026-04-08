@@ -123,7 +123,8 @@ func Test_tools_list(t *testing.T) {
 			"required": []string{"name"},
 		},
 	}, func(ctx context.Context, params map[string]any) ([]mcp.Content, error) {
-		return nil, nil
+		name, _ := params["name"].(string)
+		return []mcp.Content{mcp.TextContent(fmt.Sprintf("hello, %s", name))}, nil
 	})
 
 	err := s.Serve(ctx)
@@ -238,7 +239,7 @@ func Test_resources_list(t *testing.T) {
 		Description: "应用配置",
 		MimeType:    "application/json",
 	}, func(ctx context.Context) ([]mcp.Content, error) {
-		return nil, nil
+		return []mcp.Content{mcp.TextContent(`{"app":"test"}`)}, nil
 	})
 
 	err := s.Serve(ctx)

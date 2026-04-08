@@ -12,6 +12,10 @@ import (
 	"github.com/advancevillage/3rd/logx"
 )
 
+const (
+	maxScannerBufferSize = 1 << 20 // 1MB
+)
+
 var _ Server = (*server)(nil)
 
 type server struct {
@@ -69,7 +73,7 @@ func (s *server) RegisterResource(resource Resource, handler ResourceHandler) {
 // Serve 启动 MCP 服务，通过 stdio 传输处理 JSON-RPC 请求
 func (s *server) Serve(ctx context.Context) error {
 	scanner := bufio.NewScanner(s.opts.reader)
-	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
+	scanner.Buffer(make([]byte, 0, maxScannerBufferSize), maxScannerBufferSize)
 
 	for scanner.Scan() {
 		select {
