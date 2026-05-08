@@ -131,7 +131,7 @@ func (s *healthorService) SPing(req *PingRequest, stream Healthor_SPingServer) e
 		count = 2
 	)
 	for i := 0; i < count; i++ {
-		var now = time.Now().UnixNano() / 1e6
+		now := time.Now().UnixNano() / 1e6
 		err := stream.Send(&PingReply{T: now})
 		if err != nil {
 			s.logger.Errorw(ctx, "stream quit unexpectedly", "err", err, "count", i, "reply", now)

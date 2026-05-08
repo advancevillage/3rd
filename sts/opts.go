@@ -1,33 +1,35 @@
 package sts
 
-import "net/http"
+import (
+	"github.com/advancevillage/3rd/x"
+)
 
-type StsOption func(*stsOption)
+type StsOption = x.Options[stsOption]
 
 func WithStsSecret(ak, sk, region string) StsOption {
-	return func(o *stsOption) {
+	return x.NewFuncOptions(func(o *stsOption) {
 		o.ak = ak
 		o.sk = sk
 		o.region = region
-	}
+	})
 }
 
 func WithStsEndpoint(endpoint string) StsOption {
-	return func(o *stsOption) {
+	return x.NewFuncOptions(func(o *stsOption) {
 		o.endpoint = endpoint
-	}
+	})
 }
 
 func WithStsTimeout(timeout int) StsOption {
-	return func(o *stsOption) {
+	return x.NewFuncOptions(func(o *stsOption) {
 		o.timeout = timeout
-	}
+	})
 }
 
 func WithStsDuration(durationSec uint64) StsOption {
-	return func(o *stsOption) {
+	return x.NewFuncOptions(func(o *stsOption) {
 		o.defaultDurationSec = durationSec
-	}
+	})
 }
 
 type stsOption struct {
@@ -36,7 +38,6 @@ type stsOption struct {
 	region             string
 	endpoint           string
 	signMethod         string
-	requestMethod      string
 	timeout            int
 	defaultDurationSec uint64
 }
@@ -44,7 +45,6 @@ type stsOption struct {
 var defaultStsOption = stsOption{
 	endpoint:           "sts.tencentcloudapi.com",
 	signMethod:         "TC3-HMAC-SHA256",
-	requestMethod:      http.MethodPost,
 	timeout:            30,
-	defaultDurationSec: 1800,
+	defaultDurationSec: 120,
 }

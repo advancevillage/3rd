@@ -3,6 +3,7 @@ package sts
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 
@@ -65,7 +66,7 @@ func newTxSts(ctx context.Context, logger logx.ILogger, opt ...StsOption) (*txst
 	// 1. 配置
 	opts := defaultStsOption
 	for _, o := range opt {
-		o(&opts)
+		o.Apply(&opts)
 	}
 
 	// 2. 创建凭证
@@ -75,7 +76,7 @@ func newTxSts(ctx context.Context, logger logx.ILogger, opt ...StsOption) (*txst
 	cpf := profile.NewClientProfile()
 	cpf.SignMethod = opts.signMethod
 	cpf.HttpProfile.Endpoint = opts.endpoint
-	cpf.HttpProfile.ReqMethod = opts.requestMethod
+	cpf.HttpProfile.ReqMethod = http.MethodPost
 	cpf.HttpProfile.ReqTimeout = opts.timeout
 
 	// 4. 创建客户端

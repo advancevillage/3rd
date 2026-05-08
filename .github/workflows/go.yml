@@ -109,6 +109,11 @@ jobs:
     - name: x
       run: go test -v -count=1 -cover ./x/
 
+    - name: sts
+      run: go test -v -count=1 -cover ./sts/
+      env:
+        STS_DSN: sts://${{ vars.COS_AK }}:${{ vars.COS_SK }}@${{ vars.SMS_RGN }}
+
     - name: notice
       run: go test -v -count=1 -cover ./notice/
       env:
