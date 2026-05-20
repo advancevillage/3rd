@@ -42,7 +42,11 @@ func newChatGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ch
 		opts:   opts,
 		logger: logger,
 	}
-	client := openai.NewClient(option.WithAPIKey(opts.sk), option.WithHTTPClient(c.buildClient(ctx)))
+	client := openai.NewClient(
+		option.WithAPIKey(opts.sk),
+		option.WithHTTPClient(c.buildClient(ctx)),
+		option.WithBaseURL(opts.host),
+	)
 	c.client = &client
 	logger.Infow(ctx, "success to create chatgpt client", "sk", opts.sk, "model", opts.model)
 	return c, nil

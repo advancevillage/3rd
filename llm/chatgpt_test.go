@@ -26,7 +26,7 @@ func Test_chatgpt(t *testing.T) {
 		Style  string `json:"style"`
 	}
 
-	var data = map[string]struct {
+	data := map[string]struct {
 		role   string
 		query  string
 		schema x.Builder

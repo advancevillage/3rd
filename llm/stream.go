@@ -6,6 +6,10 @@ import (
 	"github.com/advancevillage/3rd/logx"
 )
 
+type LLMStream interface {
+	Completion(ctx context.Context, handler StreamHandler, msg []Message) error
+}
+
 type StreamHandler interface {
 	OnStart(ctx context.Context)
 	OnChunk(ctx context.Context, chunk string)
