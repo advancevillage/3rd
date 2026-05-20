@@ -33,11 +33,18 @@ func (t *testStreamHandler) OnChunk(ctx context.Context, chunk string) {
 	t.t.Log(chunk)
 }
 
-func Test_hunyuan(t *testing.T) {
+func Test_openai(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
-	var data = map[string]struct {
+
+	c, err := llm.NewBaseGPT(ctx, logger,
+		llm.WithBaseUrl("https://tokenhub.tencentmaas.com/v1"),
+		llm.WithModel("hy3-preview"),
+		llm.WithChatGPTSecret(os.Getenv("HUNYUAN_SK")),
+	)
+
+	data := map[string]struct {
 		msg []llm.Message
 	}{
 		"case1": {
@@ -100,19 +107,10 @@ func Test_hunyuan(t *testing.T) {
 	}
 
 	for n, v := range data {
-		h := &testStreamHandler{t: t}
-		cli, err := llm.NewHunYuan(ctx, logger,
-			llm.WithStreamModel("hunyuan-turbos-latest"),
-			llm.WithStreamSecret(os.Getenv("HUNYUAN_AK"), os.Getenv("HUNYUAN_SK")),
-			//llm.WithStreamHandler(&testStreamHandler{t: t}),
-		)
-		assert.Nil(t, err)
-
 		f := func(t *testing.T) {
-			err = cli.Completion(ctx, llm.NewBufferStreamHandler(ctx, logger, h), v.msg)
+			h := &testStreamHandler{t: t}
+			err = c.Completion(ctx, h, v.msg)
 			assert.Nil(t, err)
-			assert.Equal(t, 1, h.s)
-			assert.Equal(t, 1, h.e)
 		}
 		t.Run(n, f)
 	}

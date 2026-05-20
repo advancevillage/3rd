@@ -28,10 +28,18 @@ type llmOption struct {
 	sk    string
 	proxy string
 	model string
+	host  string
 }
 
 var defaultLLMOptions = llmOption{
+	host:  "https://api.openai.com/v1",
 	model: "gpt-5-mini",
+}
+
+func WithBaseUrl(host string) LLMOption {
+	return newFuncOption(func(o *llmOption) {
+		o.host = host
+	})
 }
 
 func WithModel(model string) LLMOption {
