@@ -61,9 +61,9 @@ func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
 			// Emit chunk up to and including separator
 			h.handler.OnChunk(ctx, string(runes[start:i+1]))
 			start = i + 1
-		case '\n': // 换行符
-			runes[i] = ' '
-			h.handler.OnChunk(ctx, string(runes[start:i+1]))
+		case '\n': // 换行符转义，避免破坏 SSE 协议帧
+			chunk := string(runes[start:i]) + `\n`
+			h.handler.OnChunk(ctx, chunk)
 			start = i + 1
 		}
 	}
