@@ -17,8 +17,8 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.2.1
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/hunyuan v1.2.1
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.0.1115
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sts v1.1.11
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.60
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.34.0
@@ -64,7 +64,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/romanyx/jwalk v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sts v1.1.11 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
