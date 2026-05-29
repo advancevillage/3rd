@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"strings"
 
 	"github.com/advancevillage/3rd/logx"
 )
@@ -48,32 +49,21 @@ func (h *bufferStreamHandler) OnEnd(ctx context.Context) {
 }
 
 func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {
-	// 1. 拼接上下文
 	h.buf += chunk
-	var (
-		runes = []rune(h.buf)
-		start = 0
-	)
-	// 2. 处理分隔符
-	for i := range runes {
-		switch runes[i] {
-		case '。', '！', '？', '；', '.', '!', '?', ';':
-			// Emit chunk up to and including separator
-			h.handler.OnChunk(ctx, string(runes[start:i+1]))
-			start = i + 1
-		case '\n': // 换行符转义，避免破坏 SSE 协议帧
-			chunk := string(runes[start:i]) + `\n`
-			h.handler.OnChunk(ctx, chunk)
-			start = i + 1
+	runes := []rune(h.buf)
+	lastSep := -1
+	for i, r := range runes {
+		switch r {
+		case '。', '！', '？', '；', '.', '!', '?', ';', '\n':
+			lastSep = i
 		}
 	}
-
-	// 3. 更新缓冲区
-	if start < len(runes) {
-		h.buf = string(runes[start:])
-	} else {
-		h.buf = ""
+	if lastSep < 0 {
+		return
 	}
+
+	h.handler.OnChunk(ctx, strings.ReplaceAll(string(runes[:lastSep+1]), "\n", `\n`))
+	h.buf = string(runes[lastSep+1:])
 }
 
 func NewBufferStreamHandler(ctx context.Context, logger logx.ILogger, handler StreamHandler) StreamHandler {
