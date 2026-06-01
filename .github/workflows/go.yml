@@ -117,7 +117,8 @@ jobs:
     - name: tti
       run: go test -v -count=1 -cover ./tti/
       env:
-        COS_DSN: cos://${{ vars.COS_AK }}:${{ vars.COS_SK }}@${{ vars.SMS_RGN }}
+        COS_AK: ${{ vars.COS_AK }}
+        COS_SK: ${{ vars.COS_SK }}
         TX_SK: ${{ vars.TX_SK }}
 
     - name: notice

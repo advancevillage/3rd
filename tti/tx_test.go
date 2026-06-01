@@ -18,7 +18,12 @@ func Test_tx_imagen(t *testing.T) {
 	ctx = context.WithValue(ctx, "accountId", "AC1905654379034595328")
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
-	s3, err := dbx.NewCosClient(ctx, os.Getenv("COS_DSN"))
+	var (
+		ak     = os.Getenv("COS_AK")
+		sk     = os.Getenv("COS_SK")
+		domain = os.Getenv("COS_DOMAIN")
+	)
+	s3, err := dbx.NewCosS3(ctx, "xmagic-1259635961", "accelerate", ak, sk, domain)
 	assert.Nil(t, err)
 
 	data := map[string]struct {
