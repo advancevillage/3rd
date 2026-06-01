@@ -68,7 +68,7 @@ func Test_tx_imagen(t *testing.T) {
 					assert.NotEmpty(t, uri)
 					t.Log(uri)
 
-					err = s3.Clean(ctx, name)
+					// err = s3.Clean(ctx, name)
 					assert.Nil(t, err)
 					return
 				}

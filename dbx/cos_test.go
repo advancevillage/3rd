@@ -17,10 +17,11 @@ import (
 
 func Test_S3(t *testing.T) {
 	var (
-		ak = os.Getenv("COS_AK")
-		sk = os.Getenv("COS_SK")
+		ak     = os.Getenv("COS_AK")
+		sk     = os.Getenv("COS_SK")
+		domain = os.Getenv("COS_DOMAIN")
 	)
-	var data = map[string]struct {
+	data := map[string]struct {
 		bucket string
 		region string
 		ext    map[string]any
@@ -72,7 +73,7 @@ func Test_S3(t *testing.T) {
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			c, err := dbx.NewCosS3(context.TODO(), v.bucket, v.region, ak, sk)
+			c, err := dbx.NewCosS3(context.TODO(), v.bucket, v.region, ak, sk, domain)
 			if err != nil {
 				t.Fatal(err)
 				return
@@ -157,12 +158,13 @@ func Test_S3(t *testing.T) {
 }
 
 func Test_ParseCosUrl(t *testing.T) {
-	var data = map[string]struct {
-		dsn string
-		ak  string
-		sk  string
-		bkt string
-		rgn string
+	data := map[string]struct {
+		dsn    string
+		ak     string
+		sk     string
+		bkt    string
+		rgn    string
+		domain string
 	}{
 		"case1": {
 			dsn: "cos://1122:3344@xmagic-1259635961/ap-shanghai",
@@ -178,15 +180,24 @@ func Test_ParseCosUrl(t *testing.T) {
 			bkt: "xmagic-1259635961",
 			rgn: "accelerate",
 		},
+		"case3": {
+			dsn:    "cos://1122:3344@xmagic-1259635961/accelerate?domain=img.softpart.cn",
+			ak:     "1122",
+			sk:     "3344",
+			bkt:    "xmagic-1259635961",
+			rgn:    "accelerate",
+			domain: "img.softpart.cn",
+		},
 	}
 	for n, v := range data {
 		f := func(t *testing.T) {
-			ak, sk, bkt, rgn, err := dbx.ParseCosUrl(v.dsn)
+			ak, sk, bkt, rgn, domain, err := dbx.ParseCosUrl(v.dsn)
 			assert.Nil(t, err)
 			assert.Equal(t, v.ak, ak)
 			assert.Equal(t, v.sk, sk)
 			assert.Equal(t, v.bkt, bkt)
 			assert.Equal(t, v.rgn, rgn)
+			assert.Equal(t, v.domain, domain)
 		}
 		t.Run(n, f)
 	}
@@ -197,10 +208,11 @@ func Test_S3_Resumer(t *testing.T) {
 	assert.Nil(t, err)
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	var (
-		ak = os.Getenv("COS_AK")
-		sk = os.Getenv("COS_SK")
+		ak     = os.Getenv("COS_AK")
+		sk     = os.Getenv("COS_SK")
+		domain = os.Getenv("COS_DOMAIN")
 	)
-	var data = map[string]struct {
+	data := map[string]struct {
 		bucket string
 		region string
 		ext    map[string]any
@@ -233,7 +245,7 @@ func Test_S3_Resumer(t *testing.T) {
 			assert.Equal(t, true, ok)
 
 			// 上传文件
-			up, err := newS3Locker(ctx, logger, v.bucket, v.region, ak, sk)
+			up, err := newS3Locker(ctx, logger, v.bucket, v.region, ak, sk, domain)
 			assert.Nil(t, err)
 
 			var (
@@ -256,7 +268,7 @@ func Test_S3_Resumer(t *testing.T) {
 				return
 			}
 
-			c, err := dbx.NewCosS3(ctx, v.bucket, v.region, ak, sk)
+			c, err := dbx.NewCosS3(ctx, v.bucket, v.region, ak, sk, domain)
 			assert.Nil(t, err)
 
 			// 存在性检查
@@ -290,8 +302,8 @@ type s3locker struct {
 	preifx string
 }
 
-func newS3Locker(ctx context.Context, logger logx.ILogger, bkt string, rgn string, ak string, sk string) (*s3locker, error) {
-	s3, err := dbx.NewCosS3(ctx, bkt, rgn, ak, sk)
+func newS3Locker(ctx context.Context, logger logx.ILogger, bkt string, rgn string, ak string, sk string, domain string) (*s3locker, error) {
+	s3, err := dbx.NewCosS3(ctx, bkt, rgn, ak, sk, domain)
 	if err != nil {
 		return nil, err
 	}

@@ -25,6 +25,14 @@ type AiGenerator interface {
 	Generate(ctx context.Context, promptOrUrl string, opts ...x.Option) (Descriptor, error)
 }
 
+// 进度曲线参数：sigmoid 中点 x0 秒、陡度 alpha
+//
+//	t=0  → ~5%   t=10 → ~18%   t=20 → 50%   t=30 → ~82%   t=40 → ~95%
+const (
+	progressAlpha = 0.15
+	progressX0    = 20
+)
+
 var _ Descriptor = (*descriptor)(nil)
 
 type descriptor struct {
@@ -53,7 +61,7 @@ func newDescriptor(ctx context.Context, logger logx.ILogger, s3 dbx.S3, ider mat
 		sid:      mathx.UUID(),
 		err:      nil,
 		opts:     opts,
-		name:     fmt.Sprintf("%s%d%s", strings.ToUpper(opts.prefix), ider.Generate(), opts.ext),
+		name:     fmt.Sprintf("%s%d%s", strings.ToLower(opts.prefix), ider.Generate(), opts.ext),
 		time:     time.Now(),
 		logger:   logger,
 		progress: 0,
@@ -70,7 +78,7 @@ func (c *descriptor) loop(ctx context.Context) {
 	sctx, cancel := context.WithTimeout(ctx, c.opts.timeout)
 	defer cancel()
 
-	t := time.NewTicker(time.Second)
+	t := time.NewTicker(time.Second * 2)
 	defer t.Stop()
 
 	for {
@@ -81,7 +89,7 @@ func (c *descriptor) loop(ctx context.Context) {
 			goto exitLoop
 
 		case <-t.C:
-			pg := mathx.SmoothShiftedSigmoid(float64(time.Since(c.time)/time.Second), 0.08, 60)
+			pg := mathx.SmoothShiftedSigmoid(float64(time.Since(c.time)/time.Second), progressAlpha, progressX0)
 			c.progress = int32(pg * 100)
 
 		case c.err = <-c.errCh:
@@ -94,7 +102,7 @@ func (c *descriptor) loop(ctx context.Context) {
 				c.err = err
 				goto exitLoop
 			}
-			err = upload(ctx, c.logger, c.s3, c.name, r.Body())
+			err = c.upload(ctx, r.Body())
 			if err != nil {
 				c.err = err
 				goto exitLoop
@@ -135,7 +143,7 @@ func (c *descriptor) Progress(ctx context.Context) (int32, error) {
 	if c.progress >= 100 || c.err != nil {
 		return c.progress, c.err
 	}
-	pg := mathx.SmoothShiftedSigmoid(float64(time.Since(c.time)/time.Second), 0.08, 60)
+	pg := mathx.SmoothShiftedSigmoid(float64(time.Since(c.time)/time.Second), progressAlpha, progressX0)
 	return int32(pg * 100), nil
 }
 
@@ -143,7 +151,7 @@ func (c *descriptor) Name(ctx context.Context) (string, error) {
 	return c.name, c.err
 }
 
-func upload(ctx context.Context, logger logx.ILogger, s3 dbx.S3, name string, body []byte) error {
+func (c *descriptor) upload(ctx context.Context, body []byte) error {
 	var (
 		n     = len(body)
 		part  = 0
@@ -153,11 +161,11 @@ func upload(ctx context.Context, logger logx.ILogger, s3 dbx.S3, name string, bo
 	if n%chunk > 0 {
 		total += 1
 	}
-	logger.Infow(ctx, "upload info", "name", name, "size", n, "total", total, "chunk", chunk)
+	c.logger.Infow(ctx, "upload info", "name", c.name, "size", n, "total", total, "chunk", chunk)
 
-	u, err := s3.MultiUpload(ctx, name, total)
+	u, err := c.s3.MultiUpload(ctx, c.name, total, dbx.WithContentDisposition("inline"))
 	if err != nil {
-		logger.Errorw(ctx, "upload failed", "name", name, "err", err)
+		c.logger.Errorw(ctx, "upload failed", "name", c.name, "err", err)
 		return err
 	}
 
@@ -187,24 +195,24 @@ func upload(ctx context.Context, logger logx.ILogger, s3 dbx.S3, name string, bo
 			for i := range 3 {
 				e = u.Write(ctx, pp, bb)
 				if e != nil {
-					logger.Infow(ctx, "upload retry", "name", name, "uploadId", u.Id(ctx), "part", pp, "total", total, "retry", i, "err", e.Error())
+					c.logger.Infow(ctx, "upload retry", "name", c.name, "uploadId", u.Id(ctx), "part", pp, "total", total, "retry", i, "err", e.Error())
 					time.Sleep(time.Millisecond * 50 * (1 << i))
 					continue
 				}
 				break
 			}
-			logger.Infow(ctx, "upload progress", "name", name, "uploadId", u.Id(ctx), "part", pp, "total", total, "size", len(bb))
+			c.logger.Infow(ctx, "upload progress", "name", c.name, "uploadId", u.Id(ctx), "part", pp, "total", total, "size", len(bb))
 			return e
 		})
 	}
 	if err = g.Wait(); err == nil {
 		return nil
 	}
-	logger.Errorw(ctx, "write failed", "name", name, "err", err)
+	c.logger.Errorw(ctx, "write failed", "name", c.name, "err", err)
 
-	err = s3.Clean(ctx, name)
+	err = c.s3.Clean(ctx, c.name)
 	if err != nil {
-		logger.Errorw(ctx, "clean failed", "name", name, "err", err)
+		c.logger.Errorw(ctx, "clean failed", "name", c.name, "err", err)
 		return err
 	}
 

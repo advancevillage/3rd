@@ -34,8 +34,30 @@ type Downloader interface {
 }
 
 type Uploader interface {
-	MultiUpload(ctx context.Context, name string, totalPart int) (MultiPartUploader, error)
+	MultiUpload(ctx context.Context, name string, totalPart int, opts ...MultiUploadOption) (MultiPartUploader, error)
 	ResumeUpload(ctx context.Context, snapshot string) (MultiPartUploader, error)
+}
+
+type MultiUploadOption interface {
+	apply(*multiUploadOption)
+}
+
+type multiUploadOption struct {
+	contentDisposition string
+}
+
+type funcMultiUploadOption struct {
+	f func(*multiUploadOption)
+}
+
+func (fo *funcMultiUploadOption) apply(o *multiUploadOption) {
+	fo.f(o)
+}
+
+func WithContentDisposition(s string) MultiUploadOption {
+	return &funcMultiUploadOption{f: func(o *multiUploadOption) {
+		o.contentDisposition = s
+	}}
 }
 
 var _ S3 = (*TxCos)(nil)
@@ -46,35 +68,44 @@ type TxCos struct {
 	sk string
 }
 
-// cos://ak:sk@bucket/region
+// cos://ak:sk@bucket/region[?domain=cdn.example.com]
 func NewCosClient(ctx context.Context, dsn string) (S3, error) {
-	ak, sk, bucket, region, err := ParseCosUrl(dsn)
+	ak, sk, bucket, region, domain, err := ParseCosUrl(dsn)
 	if err != nil {
 		return nil, err
 	}
-	return NewCosS3(ctx, bucket, region, ak, sk)
+	return NewCosS3(ctx, bucket, region, ak, sk, domain)
 }
 
-func ParseCosUrl(dsn string) (ak, sk, bkt, rgn string, err error) {
+func ParseCosUrl(dsn string) (ak, sk, bkt, rgn, domain string, err error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
-		return ak, sk, bkt, rgn, err
+		return ak, sk, bkt, rgn, domain, err
 	}
 	if u.Scheme != "cos" {
-		return ak, sk, bkt, rgn, errors.New("cos: invalid scheme")
+		return ak, sk, bkt, rgn, domain, errors.New("cos: invalid scheme")
 	}
 	var ok bool
 	ak = u.User.Username()
 	sk, ok = u.User.Password()
 	bkt, rgn = u.Host, strings.TrimPrefix(u.Path, "/")
+	domain = u.Query().Get("domain")
 	if !ok {
-		return ak, sk, bkt, rgn, errors.New("cos: invalid sk")
+		return ak, sk, bkt, rgn, domain, errors.New("cos: invalid sk")
 	}
-	return ak, sk, bkt, rgn, nil
+	return ak, sk, bkt, rgn, domain, nil
 }
 
-func NewCosS3(ctx context.Context, bucket string, region string, ak string, sk string) (S3, error) {
-	b, err := cos.NewBucketURL(bucket, region, true)
+func NewCosS3(ctx context.Context, bucket, region, ak, sk, domain string) (S3, error) {
+	var (
+		b   *url.URL
+		err error
+	)
+	if domain != "" {
+		b, err = url.Parse("https://" + domain)
+	} else {
+		b, err = cos.NewBucketURL(bucket, region, true)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +154,8 @@ func (t *TxCos) Clean(ctx context.Context, name string) error {
 	}
 }
 
-func (t *TxCos) MultiUpload(ctx context.Context, name string, totalPart int) (MultiPartUploader, error) {
-	return newMultipartUploader(ctx, t.c, name, totalPart)
+func (t *TxCos) MultiUpload(ctx context.Context, name string, totalPart int, opts ...MultiUploadOption) (MultiPartUploader, error) {
+	return newMultipartUploader(ctx, t.c, name, totalPart, opts...)
 }
 
 func (t *TxCos) ResumeUpload(ctx context.Context, snapshot string) (MultiPartUploader, error) {
@@ -159,6 +190,7 @@ type multiprtUploader struct {
 	uploadId  string
 	totalPart int
 	bits      bitmap.Bitmap
+	initOpt   *cos.InitiateMultipartUploadOptions
 }
 
 func newMultipartResumer(ctx context.Context, c *cos.Client, dsn string) (*multiprtUploader, error) {
@@ -201,9 +233,18 @@ func newMultipartResumer(ctx context.Context, c *cos.Client, dsn string) (*multi
 	return mp, nil
 }
 
-func newMultipartUploader(ctx context.Context, c *cos.Client, name string, totalPart int) (*multiprtUploader, error) {
+func newMultipartUploader(ctx context.Context, c *cos.Client, name string, totalPart int, opts ...MultiUploadOption) (*multiprtUploader, error) {
+	o := multiUploadOption{}
+	for _, op := range opts {
+		op.apply(&o)
+	}
+	initOpt := &cos.InitiateMultipartUploadOptions{
+		ObjectPutHeaderOptions: &cos.ObjectPutHeaderOptions{
+			ContentDisposition: o.contentDisposition,
+		},
+	}
 	var (
-		mp  = &multiprtUploader{c: c, name: name, totalPart: totalPart, parts: &cos.CompleteMultipartUploadOptions{}}
+		mp  = &multiprtUploader{c: c, name: name, totalPart: totalPart, parts: &cos.CompleteMultipartUploadOptions{}, initOpt: initOpt}
 		err error
 	)
 	mp.uploadId, err = mp.initiate(ctx, mp.name)
@@ -237,7 +278,7 @@ func (mp *multiprtUploader) Id(ctx context.Context) string {
 }
 
 func (mp *multiprtUploader) initiate(ctx context.Context, name string) (string, error) {
-	r, reply, err := mp.c.Object.InitiateMultipartUpload(ctx, name, nil)
+	r, reply, err := mp.c.Object.InitiateMultipartUpload(ctx, name, mp.initOpt)
 	if err != nil {
 		return "", err
 	}
