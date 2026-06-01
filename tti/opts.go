@@ -19,6 +19,18 @@ func WitGenerateSecret(sk string) GenerateOption {
 	})
 }
 
+func WithGenerateModel(model string) GenerateOption {
+	return newFuncGenerateOption(func(o *generateOption) {
+		o.model = model
+	})
+}
+
+func WithGenerateAspectRatio(ratio string) GenerateOption {
+	return newFuncGenerateOption(func(o *generateOption) {
+		o.aspectRatio = ratio
+	})
+}
+
 func WithGeneratePrefix(prefix string) GenerateOption {
 	return newFuncGenerateOption(func(o *generateOption) {
 		o.prefix = prefix
@@ -42,19 +54,22 @@ func emptyGenerateParser(ctx context.Context, reply netx.HttpResponse) (netx.Htt
 }
 
 type generateOption struct {
-	ext     string         // 扩展名
-	token   string         // 密钥
-	proxy   string         // 代理
-	prefix  string         // 前缀
-	parser  GenerateParser // 解析器
-	timeout time.Duration  // 超时时间
+	ext         string         // 扩展名
+	token       string         // 密钥
+	proxy       string         // 代理
+	model       string         // 模型
+	prefix      string         // 前缀
+	parser      GenerateParser // 解析器
+	timeout     time.Duration  // 超时时间
+	aspectRatio string         // 宽高比
 }
 
 var defaultGenerateOptions = generateOption{
-	ext:     ".png",
-	prefix:  "tti",
-	parser:  emptyGenerateParser,
-	timeout: time.Minute * 5,
+	ext:         ".png",
+	prefix:      "tti",
+	aspectRatio: "9:16",
+	parser:      emptyGenerateParser,
+	timeout:     time.Minute * 5,
 }
 
 type funcGenerateOption struct {

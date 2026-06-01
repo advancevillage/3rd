@@ -9,11 +9,11 @@ import (
 	"github.com/advancevillage/3rd/dbx"
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/mathx"
-	"github.com/advancevillage/xmagic/internal/tti"
+	"github.com/advancevillage/3rd/tti"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_stability(t *testing.T) {
+func Test_tx_imagen(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	ctx = context.WithValue(ctx, "accountId", "AC1905654379034595328")
 	logger, err := logx.NewLogger("debug")
@@ -21,17 +21,17 @@ func Test_stability(t *testing.T) {
 	s3, err := dbx.NewCosClient(ctx, os.Getenv("COS_DSN"))
 	assert.Nil(t, err)
 
-	var data = map[string]struct {
+	data := map[string]struct {
 		prompt string
 	}{
 		"case1": {
-			prompt: "A post-war cityscape with towering skyscrapers, partially damaged but under reconstruction. The buildings showcase a mix of futuristic and brutalist architecture, with scaffolding and cranes symbolizing recovery. Some structures have overgrown vegetation, while others feature large banners of peace. The atmosphere is melancholic yet hopeful, with warm sunlight breaking through scattered clouds, casting long shadows over the ruined yet resilient urban landscape.",
+			prompt: "一只在草地上奔跑的金毛犬，阳光明媚，背景是蓝天白云",
 		},
 	}
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			c, err := tti.NewStabilityClient(ctx, logger, s3, tti.WitGenerateSecret(os.Getenv("STABILITY_SK")))
+			c, err := tti.NewTxImageClient(ctx, logger, s3, tti.WitGenerateSecret(os.Getenv("TX_SK")), tti.WithGenerateModel("hy-image-v3.0"))
 			assert.NoError(t, err)
 
 			d, err := c.Generate(ctx, v.prompt)
