@@ -163,7 +163,7 @@ func (t *TxCos) ResumeUpload(ctx context.Context, snapshot string) (MultiPartUpl
 }
 
 func (t *TxCos) getPresignedUrl(ctx context.Context, httpMethod string, name string) (string, error) {
-	url, err := t.c.Object.GetPresignedURL(ctx, httpMethod, name, t.ak, t.sk, time.Hour, nil)
+	url, err := t.c.Object.GetPresignedURL(ctx, httpMethod, name, t.ak, t.sk, time.Hour*24*30, nil)
 	if err != nil {
 		return "", err
 	}
