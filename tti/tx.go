@@ -82,7 +82,7 @@ func newTxImageClient(ctx context.Context, logger logx.ILogger, s3 dbx.S3, opt .
 }
 
 func (c *imagen) Generate(ctx context.Context, prompt string, opts ...x.Option) (Descriptor, error) {
-	d, err := newDescriptor(ctx, c.logger, c.s3, c.ider, WithGeneratePrefix("hy"))
+	d, err := newDescriptor(ctx, c.logger, c.s3, c.ider, WithGeneratePrefix(c.opts.prefix))
 	if err != nil {
 		c.logger.Errorw(ctx, "imagen descriptor failed", "err", err)
 		return nil, err

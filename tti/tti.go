@@ -61,7 +61,7 @@ func newDescriptor(ctx context.Context, logger logx.ILogger, s3 dbx.S3, ider mat
 		sid:      mathx.UUID(),
 		err:      nil,
 		opts:     opts,
-		name:     fmt.Sprintf("%s%d%s", strings.ToLower(opts.prefix), ider.Generate(), opts.ext),
+		name:     fmt.Sprintf("%s/%d%s", strings.ToLower(opts.prefix), ider.Generate(), opts.ext),
 		time:     time.Now(),
 		logger:   logger,
 		progress: 0,
