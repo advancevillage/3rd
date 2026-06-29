@@ -39,9 +39,9 @@ func Test_openai(t *testing.T) {
 	assert.Nil(t, err)
 
 	c, err := llm.NewBaseGPT(ctx, logger,
-		llm.WithBaseUrl("https://tokenhub.tencentmaas.com/v1"),
-		llm.WithModel("hy3-preview"),
-		llm.WithChatGPTSecret(os.Getenv("HUNYUAN_SK")),
+		llm.WithBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
+		llm.WithModel("doubao-seed-2-0-mini-260428"),
+		llm.WithSecret(os.Getenv("DOUBAO_SK")),
 	)
 
 	data := map[string]struct {

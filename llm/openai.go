@@ -6,6 +6,7 @@ import (
 	"github.com/advancevillage/3rd/logx"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
 )
 
 var _ LLMStream = &baseGPT{}
@@ -34,7 +35,7 @@ func newBaseGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ba
 	}
 	client := openai.NewClient(
 		option.WithAPIKey(opts.sk),
-		option.WithBaseURL(opts.host),
+		option.WithBaseURL(opts.baseUrl),
 	)
 	c.client = &client
 	logger.Infow(ctx, "success to create chatgpt client", "sk", opts.sk, "model", opts.model)
@@ -42,6 +43,16 @@ func newBaseGPT(ctx context.Context, logger logx.ILogger, opt ...LLMOption) (*ba
 }
 
 func (c *baseGPT) Completion(ctx context.Context, handler StreamHandler, msg []Message) error {
+	c.logger.Infow(ctx, "model info", "model", c.opts.model, "sk", c.opts.sk)
+	stream := c.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
+		Messages: toChatMessages(msg),
+		Model:    c.opts.model,
+	})
+	return drainStream(ctx, stream, handler)
+}
+
+// toChatMessages 将统一的 Message 转换为 openai 标准对话消息。
+func toChatMessages(msg []Message) []openai.ChatCompletionMessageParamUnion {
 	chats := make([]openai.ChatCompletionMessageParamUnion, 0, len(msg))
 	for i := range msg {
 		m := &message{}
@@ -55,14 +66,11 @@ func (c *baseGPT) Completion(ctx context.Context, handler StreamHandler, msg []M
 			chats = append(chats, openai.SystemMessage(m.content))
 		}
 	}
-	return c.complete(ctx, chats, handler)
+	return chats
 }
 
-func (c *baseGPT) complete(ctx context.Context, chats []openai.ChatCompletionMessageParamUnion, handler StreamHandler) error {
-	stream := c.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
-		Messages: chats,
-		Model:    c.opts.model,
-	})
+// drainStream 消费流式响应并驱动 StreamHandler 的生命周期回调。
+func drainStream(ctx context.Context, stream *ssestream.Stream[openai.ChatCompletionChunk], handler StreamHandler) error {
 	defer stream.Close()
 
 	first := true

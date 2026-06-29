@@ -7,6 +7,13 @@ import (
 	"github.com/advancevillage/3rd/logx"
 )
 
+type LLMContext interface {
+	// Session 创建上下文缓存(context/create), 返回 context_id
+	Session(ctx context.Context, msg []Message) (string, error)
+	// Completion 携带 context_id 进行流式对话(context/chat/completions)
+	Completion(ctx context.Context, handler StreamHandler, contextId string, msg []Message) error
+}
+
 type LLMStream interface {
 	Completion(ctx context.Context, handler StreamHandler, msg []Message) error
 }
