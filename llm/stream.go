@@ -5,32 +5,38 @@ import (
 	"strings"
 
 	"github.com/advancevillage/3rd/logx"
+	"github.com/advancevillage/3rd/x"
 )
 
-type LLMContext interface {
-	// Session 创建上下文缓存(context/create), 返回 context_id
-	Session(ctx context.Context, msg []Message) (string, error)
-	// Completion 携带 context_id 进行流式对话(context/chat/completions)
-	Completion(ctx context.Context, handler StreamHandler, contextId string, msg []Message) error
-}
-
 type LLMStream interface {
-	Completion(ctx context.Context, handler StreamHandler, msg []Message) error
+	Completion(ctx context.Context, handler StreamHandler, msg []Message, opts ...CompletionOption) error
 }
 
 type StreamHandler interface {
-	OnStart(ctx context.Context)
+	OnStart(ctx context.Context, opts ...x.Option)
 	OnChunk(ctx context.Context, chunk string)
-	OnEnd(ctx context.Context)
+	OnEnd(ctx context.Context, opts ...x.Option)
 }
+
+// 流式元数据 key: 经 x.WithKV 写入 OnStart/OnEnd 的 x.Option, 由 x.Builder 读取。
+// OnStart 阶段携带 response id 与 think/cache(请求侧); OnEnd 阶段携带 usage。
+const (
+	MetaResponseID   = "response_id"   // string, OnStart
+	MetaThinking     = "thinking"      // bool, OnStart
+	MetaCaching      = "caching"       // bool, OnStart
+	MetaInputTokens  = "input_tokens"  // int64, OnEnd
+	MetaOutputTokens = "output_tokens" // int64, OnEnd
+	MetaTotalTokens  = "total_tokens"  // int64, OnEnd
+	MetaCachedTokens = "cached_tokens" // int64, OnEnd: 输入缓存命中
+)
 
 var _ StreamHandler = &emptyStreamHandler{}
 
 type emptyStreamHandler struct{}
 
-func (emptyStreamHandler) OnStart(ctx context.Context)               {}
-func (emptyStreamHandler) OnChunk(ctx context.Context, chunk string) {}
-func (emptyStreamHandler) OnEnd(ctx context.Context)                 {}
+func (emptyStreamHandler) OnStart(ctx context.Context, opts ...x.Option) {}
+func (emptyStreamHandler) OnChunk(ctx context.Context, chunk string)     {}
+func (emptyStreamHandler) OnEnd(ctx context.Context, opts ...x.Option)   {}
 
 // 缓存流事件处理
 var _ StreamHandler = &bufferStreamHandler{}
@@ -41,18 +47,18 @@ type bufferStreamHandler struct {
 	handler StreamHandler
 }
 
-func (h *bufferStreamHandler) OnStart(ctx context.Context) {
+func (h *bufferStreamHandler) OnStart(ctx context.Context, opts ...x.Option) {
 	if len(h.buf) == 0 {
-		h.handler.OnStart(ctx)
+		h.handler.OnStart(ctx, opts...)
 	}
 }
 
-func (h *bufferStreamHandler) OnEnd(ctx context.Context) {
+func (h *bufferStreamHandler) OnEnd(ctx context.Context, opts ...x.Option) {
 	if len(h.buf) > 0 {
 		h.handler.OnChunk(ctx, h.buf)
 		h.buf = ""
 	}
-	h.handler.OnEnd(ctx)
+	h.handler.OnEnd(ctx, opts...)
 }
 
 func (h *bufferStreamHandler) OnChunk(ctx context.Context, chunk string) {

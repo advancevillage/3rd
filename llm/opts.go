@@ -6,6 +6,12 @@ const (
 	roleAssist = "assistant"
 )
 
+// Completion API 方式
+const (
+	ModeResponse = "response" // Response API（默认）
+	ModeChat     = "chat"     // Chat Completion API
+)
+
 type Option[T any] interface {
 	apply(*T)
 }
@@ -79,10 +85,16 @@ type LLMOption = Option[llmOption]
 
 type llmOption struct {
 	commonOption
+	// mode Completion API 方式: response(默认) / chat
+	mode string
 }
 
 var defaultLLMOptions = llmOption{
-	commonOption: commonOption{model: "gpt-5-mini", baseUrl: "https://api.openai.com/v1"},
+	commonOption: commonOption{
+		model:   "doubao-seed-2-0-lite-260428",
+		baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+	},
+	mode: ModeResponse,
 }
 
 func WithBaseUrl(url string) LLMOption { return withBaseUrl[llmOption](url) }
@@ -90,6 +102,54 @@ func WithBaseUrl(url string) LLMOption { return withBaseUrl[llmOption](url) }
 func WithModel(model string) LLMOption { return withModel[llmOption](model) }
 
 func WithSecret(sk string) LLMOption { return withSecret[llmOption](sk) }
+
+func WithMode(mode string) LLMOption {
+	return newFuncOption(func(o *llmOption) { o.mode = mode })
+}
+
+// CompletionOption 每次 Completion 调用级别的透传选项, 仅 Response API 路径生效。
+type CompletionOption = Option[completionOption]
+
+type completionOption struct {
+	// webSearch 开启联网检索工具: tools=[{"type":"web_search"}]
+	webSearch bool
+	// thinking 开启思考模式: thinking={"type":"enabled"}
+	thinking bool
+	// caching 开启上下文缓存: caching={"type":"enabled"}, 命中重置
+	caching bool
+	// expireAt 缓存过期时长(秒), 经 expire_at=now+expireAt 显式控制, 默认 2 小时
+	expireAt int64
+	// prevRespId 复用上一轮缓存: previous_response_id
+	prevRespId string
+}
+
+// defaultCacheTTLSeconds 上下文缓存默认过期时长: 2 小时。
+const defaultCacheTTLSeconds int64 = 7200
+
+// WithWebSearch 开启联网检索。
+func WithWebSearch() CompletionOption {
+	return newFuncOption(func(o *completionOption) { o.webSearch = true })
+}
+
+// WithThinking 开启思考模式。
+func WithThinking() CompletionOption {
+	return newFuncOption(func(o *completionOption) { o.thinking = true })
+}
+
+// WithCache 开启上下文缓存, 本轮响应会被缓存, 过期时长默认 2 小时。
+func WithCache() CompletionOption {
+	return newFuncOption(func(o *completionOption) { o.caching = true; o.expireAt = defaultCacheTTLSeconds })
+}
+
+// WithCacheTTL 开启上下文缓存并指定过期时长(秒), 上限 259200(72 小时)。
+func WithCacheTTL(seconds int64) CompletionOption {
+	return newFuncOption(func(o *completionOption) { o.caching = true; o.expireAt = seconds })
+}
+
+// WithPreviousResponse 携带上一轮的 response id 命中缓存。
+func WithPreviousResponse(id string) CompletionOption {
+	return newFuncOption(func(o *completionOption) { o.prevRespId = id })
+}
 
 type LLMStreamOption = Option[llmStreamOption]
 
@@ -121,53 +181,6 @@ func WithStreamRegion(region string) LLMStreamOption {
 	return newFuncOption(func(o *llmStreamOption) {
 		o.region = region
 	})
-}
-
-// 上下文缓存(Context)
-type LLMContextOption = Option[llmContextOption]
-
-type llmContextOption struct {
-	commonOption
-	// mode 缓存模式: session(每轮动态更新, 多轮对话) / common_prefix(前缀缓存, 静态不更新)
-	mode string
-	// ttl 缓存存活时间(秒), 未命中倒计时, 命中则重置
-	ttl int
-	// maxWindowTokens session 模式 rolling_tokens 截断上限, 缓存达此阈值触发截断
-	maxWindowTokens int
-	// rollingWindowTokens session 模式 rolling_tokens 触发截断时滚动删除的陈旧历史 token 数
-	rollingWindowTokens int
-}
-
-var defaultLLMContextOptions = llmContextOption{
-	commonOption:        commonOption{model: "doubao-seed-2-0-mini-260428", baseUrl: "https://ark.cn-beijing.volces.com/api/v3"},
-	mode:                "session",
-	ttl:                 3600,
-	maxWindowTokens:     8192,
-	rollingWindowTokens: 4096,
-}
-
-func WithContextModel(model string) LLMContextOption { return withModel[llmContextOption](model) }
-
-func WithContextSecret(sk string) LLMContextOption { return withSecret[llmContextOption](sk) }
-
-func WithContextBaseUrl(url string) LLMContextOption { return withBaseUrl[llmContextOption](url) }
-
-func WithContextTimeout(timeout int) LLMContextOption { return withTimeout[llmContextOption](timeout) }
-
-func WithContextMode(mode string) LLMContextOption {
-	return newFuncOption(func(o *llmContextOption) { o.mode = mode })
-}
-
-func WithContextTTL(ttl int) LLMContextOption {
-	return newFuncOption(func(o *llmContextOption) { o.ttl = ttl })
-}
-
-func WithContextMaxWindowTokens(tokens int) LLMContextOption {
-	return newFuncOption(func(o *llmContextOption) { o.maxWindowTokens = tokens })
-}
-
-func WithContextRollingWindowTokens(tokens int) LLMContextOption {
-	return newFuncOption(func(o *llmContextOption) { o.rollingWindowTokens = tokens })
 }
 
 // 消息优先级: system > user > assistant(历史)
