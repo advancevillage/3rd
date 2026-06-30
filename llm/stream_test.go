@@ -3,17 +3,19 @@ package llm
 import (
 	"context"
 	"testing"
+
+	"github.com/advancevillage/3rd/x"
 )
 
 type collectStreamHandler struct {
 	chunks []string
 }
 
-func (h *collectStreamHandler) OnStart(context.Context) {}
+func (h *collectStreamHandler) OnStart(context.Context, ...x.Option) {}
 func (h *collectStreamHandler) OnChunk(_ context.Context, chunk string) {
 	h.chunks = append(h.chunks, chunk)
 }
-func (h *collectStreamHandler) OnEnd(context.Context) {}
+func (h *collectStreamHandler) OnEnd(context.Context, ...x.Option) {}
 
 func TestBufferStreamHandlerOnChunkEmitToLastSeparator(t *testing.T) {
 	handler := &collectStreamHandler{}
