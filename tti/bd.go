@@ -104,7 +104,7 @@ func (c *seedream) generate(ctx context.Context, prompt string, opts ...x.Option
 		x.WithKV("output_format", strings.Trim(c.opts.ext, ".")),
 		x.WithKV("size", "2K"),
 		x.WithKV("watermark", false),
-		x.WithKV("sequential_image_generation", false),
+		x.WithKV("sequential_image_generation", "disabled"),
 		x.WithKV("response_format", "url"),
 	).Build())
 	if err != nil {
