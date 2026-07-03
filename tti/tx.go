@@ -21,6 +21,7 @@ const (
 	txPollInterval    = 2 * time.Second
 )
 
+// Tencent HuanYuan Image Model
 type imagen struct {
 	s3         dbx.S3
 	opts       generateOption

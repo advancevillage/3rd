@@ -19,11 +19,28 @@ type txQueryUsage struct {
 }
 
 type txQueryResp struct {
-	RequestId   string         `json:"request_id"`
-	Object      string         `json:"object"`
-	CreatedAt   int64          `json:"created_at"`
-	CompletedAt int64          `json:"completed_at"`
-	Status      string         `json:"status"`
-	Data        []txQueryData  `json:"data"`
-	Usage       txQueryUsage   `json:"usage"`
+	RequestId   string        `json:"request_id"`
+	Object      string        `json:"object"`
+	CreatedAt   int64         `json:"created_at"`
+	CompletedAt int64         `json:"completed_at"`
+	Status      string        `json:"status"`
+	Data        []txQueryData `json:"data"`
+	Usage       txQueryUsage  `json:"usage"`
+}
+
+type bdSubmitResp struct {
+	Model string         `json:"model"`
+	Data  []*bdQueryResp `json:"data"`
+	Usage *bdUsageResp   `json:"usage"`
+}
+
+type bdQueryResp struct {
+	Url  string `json:"url"`
+	Size string `json:"size"`
+}
+
+type bdUsageResp struct {
+	GeneratedImages int `json:"generated_images"`
+	OutputTokens    int `json:"output_tokens"`
+	TotalTokens     int `json:"total_tokens"`
 }
