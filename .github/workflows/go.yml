@@ -118,6 +118,8 @@ jobs:
         COS_AK: ${{ vars.COS_AK }}
         COS_SK: ${{ vars.COS_SK }}
         TX_SK: ${{ vars.TX_SK }}
+        DOUBAO_SK: ${{ vars.DOUBAO_SK }}
+
 
     - name: notice
       run: go test -v -count=1 -cover ./notice/

@@ -67,7 +67,7 @@ type generateOption struct {
 var defaultGenerateOptions = generateOption{
 	ext:         ".png",
 	prefix:      "tti",
-	aspectRatio: "9:16",
+	aspectRatio: "1:1",
 	parser:      emptyGenerateParser,
 	timeout:     time.Minute * 5,
 }

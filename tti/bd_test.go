@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_tx_imagen(t *testing.T) {
+func Test_bd_imagen(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	ctx = context.WithValue(ctx, "accountId", "AC1905654379034595328")
 	logger, err := logx.NewLogger("debug")
@@ -36,7 +36,7 @@ func Test_tx_imagen(t *testing.T) {
 
 	for n, v := range data {
 		f := func(t *testing.T) {
-			c, err := tti.NewTxImageClient(ctx, logger, s3, tti.WitGenerateSecret(os.Getenv("TX_SK")), tti.WithGenerateModel("hy-image-v3.0"))
+			c, err := tti.NewBdImageClient(ctx, logger, s3, tti.WitGenerateSecret(os.Getenv("DOUBAO_SK")), tti.WithGenerateModel("doubao-seedream-5-0-260128"))
 			assert.NoError(t, err)
 
 			d, err := c.Generate(ctx, v.prompt)
