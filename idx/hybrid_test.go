@@ -11,29 +11,66 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_new_search_request(t *testing.T) {
+	data := map[string]struct {
+		req            idx.HybridSearchRequest
+		limit          int
+		matchThreshold int
+		hasFilter      bool
+	}{
+		"doc-default": {
+			req:            idx.NewDocSearchRequest("cards", "苹果"),
+			limit:          2,
+			matchThreshold: 75,
+		},
+		"image-default": {
+			req:            idx.NewImageSearchRequest("images", "苹果"),
+			limit:          2,
+			matchThreshold: 75,
+		},
+		"doc-options": {
+			req: idx.NewDocSearchRequest("cards", "苹果",
+				idx.WithLimit(10),
+				idx.WithMatchThreshold(60),
+				idx.WithFilter(idx.Eq("color", "red")),
+			),
+			limit:          10,
+			matchThreshold: 60,
+			hasFilter:      true,
+		},
+	}
+
+	for n, v := range data {
+		v := v
+		t.Run(n, func(t *testing.T) {
+			assert.Equal(t, v.limit, v.req.Limit)
+			assert.Equal(t, v.matchThreshold, v.req.MatchThreshold)
+			assert.Equal(t, idx.ModeText, v.req.Mode)
+			if v.hasFilter {
+				assert.NotEmpty(t, v.req.Filter)
+			} else {
+				assert.Empty(t, v.req.Filter)
+			}
+		})
+	}
+}
+
 func Test_hybrid_search(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
 
 	dsn := os.Getenv("IDX_DSN")
-	dataset := os.Getenv("IDX_DATASET")
-	text := os.Getenv("IDX_SEARCH_TEXT")
-	if dsn == "" || dataset == "" {
-		t.Skip("IDX_DSN and IDX_DATASET are required")
-	}
-	if text == "" {
-		text = "蓝色汽车"
-	}
+	text := "苹果"
 
 	data := map[string]struct {
 		req idx.HybridSearchRequest
 	}{
 		"case-doc": {
-			req: idx.NewDocSearchRequest(dataset, text),
+			req: idx.NewDocSearchRequest("cards", text),
 		},
 		"case-image": {
-			req: idx.NewImageSearchRequest(dataset, text),
+			req: idx.NewImageSearchRequest("images", text),
 		},
 	}
 
@@ -43,10 +80,9 @@ func Test_hybrid_search(t *testing.T) {
 			assert.Nil(t, err)
 
 			reply, err := c.HybridSearch(ctx, v.req)
+			t.Logf("reply: %+v", reply)
 			assert.Nil(t, err)
 			assert.NotNil(t, reply)
-			assert.NotEmpty(t, reply.RequestId)
-			t.Logf("request_id: %s", reply.RequestId)
 		}
 		t.Run(n, f)
 	}

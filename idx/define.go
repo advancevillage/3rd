@@ -36,7 +36,6 @@ type HybridSearchRequest struct {
 }
 
 type HybridSearchResponse struct {
-	RequestId   string              `json:"RequestId"`
 	ImageResult []ImageSearchResult `json:"ImageResult,omitempty"`
 	DocResult   []DocSearchResult   `json:"DocResult,omitempty"`
 }
@@ -47,11 +46,8 @@ type ImageSearchResult struct {
 }
 
 type DocSearchResult struct {
-	URI       string            `json:"URI"`
-	Text      string            `json:"Text"`
-	Score     int               `json:"Score"`
-	TextPage  int               `json:"TextPage"`
-	ImageUrls map[string]string `json:"ImageUrls,omitempty"`
+	URI   string `json:"URI"`
+	Score int    `json:"Score"`
 }
 
 type txHybridSearcher struct {

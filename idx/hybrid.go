@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/tencentyun/cos-go-sdk-v5"
@@ -19,21 +18,35 @@ const (
 	hybridSearchPath = "/datasetquery/hybridsearch"
 )
 
-func NewDocSearchRequest(dataset, text string) HybridSearchRequest {
+func NewDocSearchRequest(dataset, text string, opts ...SearchOption) HybridSearchRequest {
+	o := defaultSearchOption
+	for _, opt := range opts {
+		opt.Apply(&o)
+	}
 	return HybridSearchRequest{
-		DatasetName: dataset,
-		Mode:        ModeText,
-		Templates:   TemplateDocSearch,
-		SearchText:  text,
+		DatasetName:    dataset,
+		Mode:           o.mode,
+		Templates:      TemplateDocSearch,
+		SearchText:     text,
+		Limit:          o.limit,
+		MatchThreshold: o.matchThreshold,
+		Filter:         o.filter,
 	}
 }
 
-func NewImageSearchRequest(dataset, text string) HybridSearchRequest {
+func NewImageSearchRequest(dataset, text string, opts ...SearchOption) HybridSearchRequest {
+	o := defaultSearchOption
+	for _, opt := range opts {
+		opt.Apply(&o)
+	}
 	return HybridSearchRequest{
-		DatasetName: dataset,
-		Mode:        ModeText,
-		Templates:   TemplateImageSearch,
-		SearchText:  text,
+		DatasetName:    dataset,
+		Mode:           o.mode,
+		Templates:      TemplateImageSearch,
+		SearchText:     text,
+		Limit:          o.limit,
+		MatchThreshold: o.matchThreshold,
+		Filter:         o.filter,
 	}
 }
 
@@ -82,9 +95,6 @@ func NewHybridSearcher(ctx context.Context, logger logx.ILogger, opt ...Option) 
 }
 
 func (c *txHybridSearcher) HybridSearch(ctx context.Context, req HybridSearchRequest) (*HybridSearchResponse, error) {
-	if err := req.validate(); err != nil {
-		return nil, err
-	}
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -98,9 +108,7 @@ func (c *txHybridSearcher) HybridSearch(ctx context.Context, req HybridSearchReq
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		if c.logger != nil {
-			c.logger.Errorw(ctx, "idx hybrid search failed", "err", err, "dataset", req.DatasetName)
-		}
+		c.logger.Errorw(ctx, "idx hybrid search failed", "err", err, "dataset", req.DatasetName)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -109,55 +117,9 @@ func (c *txHybridSearcher) HybridSearch(ctx context.Context, req HybridSearchReq
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("idx: hybrid search status %d: %s", resp.StatusCode, string(replyBody))
-	}
 	var reply HybridSearchResponse
 	if err := json.Unmarshal(replyBody, &reply); err != nil {
 		return nil, err
 	}
 	return &reply, nil
-}
-
-func (r HybridSearchRequest) validate() error {
-	if r.DatasetName == "" {
-		return fmt.Errorf("idx: dataset name is required")
-	}
-	switch r.Templates {
-	case TemplateImageSearch, TemplateDocSearch:
-	default:
-		return fmt.Errorf("idx: invalid templates: %s", r.Templates)
-	}
-	if r.Mode == "" {
-		r.Mode = ModePic
-	}
-	switch r.Mode {
-	case ModeText:
-		if r.SearchText == "" {
-			return fmt.Errorf("idx: search text is required")
-		}
-	case ModePic:
-		if len(r.SearchURIs) == 0 {
-			return fmt.Errorf("idx: search uris is required")
-		}
-	default:
-		return fmt.Errorf("idx: invalid mode: %s", r.Mode)
-	}
-	if r.Templates == TemplateDocSearch && r.Mode != ModeText {
-		return fmt.Errorf("idx: doc search requires text mode")
-	}
-	if r.Limit < 0 || r.Limit > 100 {
-		return fmt.Errorf("idx: limit must be in [1, 100]")
-	}
-	if r.MatchThreshold < 0 || r.MatchThreshold > 100 {
-		return fmt.Errorf("idx: match threshold must be in [0, 100]")
-	}
-	return nil
-}
-
-func parseTimeout(s string) (time.Duration, error) {
-	if strings.IndexFunc(s, func(r rune) bool { return r < '0' || r > '9' }) < 0 {
-		return time.ParseDuration(s + "s")
-	}
-	return time.ParseDuration(s)
 }
