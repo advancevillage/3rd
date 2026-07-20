@@ -16,60 +16,8 @@ import (
 )
 
 const (
-	ModePic  SearchMode = "pic"
-	ModeText SearchMode = "text"
-
-	TemplateImageSearch SearchTemplate = "ImageSearch"
-	TemplateDocSearch   SearchTemplate = "DocSearch"
-
 	hybridSearchPath = "/datasetquery/hybridsearch"
 )
-
-type SearchMode string
-type SearchTemplate string
-
-type HybridSearcher interface {
-	HybridSearch(ctx context.Context, req HybridSearchRequest) (*HybridSearchResponse, error)
-}
-
-type HybridSearchRequest struct {
-	DatasetName    string         `json:"DatasetName"`
-	Mode           SearchMode     `json:"Mode,omitempty"`
-	Templates      SearchTemplate `json:"Templates"`
-	SearchURIs     []string       `json:"SearchURIs,omitempty"`
-	SearchText     string         `json:"SearchText,omitempty"`
-	Limit          int            `json:"Limit,omitempty"`
-	MatchThreshold int            `json:"MatchThreshold,omitempty"`
-	Filter         Filter         `json:"Filter,omitempty"`
-}
-
-type HybridSearchResponse struct {
-	RequestId   string              `json:"RequestId"`
-	ImageResult []ImageSearchResult `json:"ImageResult,omitempty"`
-	DocResult   []DocSearchResult   `json:"DocResult,omitempty"`
-}
-
-type ImageSearchResult struct {
-	URI   string `json:"URI"`
-	Score int    `json:"Score"`
-}
-
-type DocSearchResult struct {
-	URI       string            `json:"URI"`
-	Text      string            `json:"Text"`
-	Score     int               `json:"Score"`
-	TextPage  int               `json:"TextPage"`
-	ImageUrls map[string]string `json:"ImageUrls,omitempty"`
-}
-
-type txHybridSearcher struct {
-	opts     option
-	logger   logx.ILogger
-	endpoint string
-	client   *http.Client
-}
-
-var _ HybridSearcher = (*txHybridSearcher)(nil)
 
 func NewDocSearchRequest(dataset, text string) HybridSearchRequest {
 	return HybridSearchRequest{
@@ -89,7 +37,7 @@ func NewImageSearchRequest(dataset, text string) HybridSearchRequest {
 	}
 }
 
-// idx://ak:sk@appid/region?token=xxx&timeout=30&endpoint=https://appid.ci.ap-shanghai.myqcloud.com
+// idx://ak:sk@appid/region
 func NewHybridSearchClient(ctx context.Context, logger logx.ILogger, dsn string) (HybridSearcher, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
@@ -110,19 +58,6 @@ func NewHybridSearchClient(ctx context.Context, logger logx.ILogger, dsn string)
 		WithAppId(appId),
 		WithRegion(region),
 	}
-	if token := u.Query().Get("token"); token != "" {
-		opts = append(opts, WithSessionToken(token))
-	}
-	if endpoint := u.Query().Get("endpoint"); endpoint != "" {
-		opts = append(opts, WithEndpoint(endpoint))
-	}
-	if timeout := u.Query().Get("timeout"); timeout != "" {
-		d, err := parseTimeout(timeout)
-		if err != nil {
-			return nil, fmt.Errorf("idx: invalid timeout: %s", timeout)
-		}
-		opts = append(opts, WithTimeout(d))
-	}
 	return NewHybridSearcher(ctx, logger, opts...)
 }
 
@@ -131,27 +66,17 @@ func NewHybridSearcher(ctx context.Context, logger logx.ILogger, opt ...Option) 
 	for _, o := range opt {
 		o.Apply(&opts)
 	}
-	if err := opts.validate(); err != nil {
-		return nil, err
-	}
-	endpoint := opts.endpoint
-	if endpoint == "" {
-		endpoint = fmt.Sprintf("https://%s.ci.%s.myqcloud.com", opts.appId, opts.region)
-	}
+	endpoint := fmt.Sprintf("https://%s.ci.%s.myqcloud.com", opts.appId, opts.region)
 	endpoint = strings.TrimRight(endpoint, "/")
 	if _, err := url.ParseRequestURI(endpoint); err != nil {
 		return nil, fmt.Errorf("idx: invalid endpoint: %w", err)
 	}
-	client := opts.httpClient
-	if client == nil {
-		client = &http.Client{
-			Timeout: opts.timeout,
-			Transport: &cos.AuthorizationTransport{
-				SecretID:     opts.ak,
-				SecretKey:    opts.sk,
-				SessionToken: opts.token,
-			},
-		}
+	client := &http.Client{
+		Timeout: opts.timeout,
+		Transport: &cos.AuthorizationTransport{
+			SecretID:  opts.ak,
+			SecretKey: opts.sk,
+		},
 	}
 	return &txHybridSearcher{opts: opts, logger: logger, endpoint: endpoint, client: client}, nil
 }
