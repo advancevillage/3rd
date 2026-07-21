@@ -18,3 +18,4 @@ cli/cky/cky
 *.pcap
 debug.*
 dbx/temp
+*.log
