@@ -28,7 +28,7 @@ func WithWords(words ...string) Option {
 	})
 }
 
-// MatchOption 作用于单次匹配（MatchFirst / MatchFirstAndValues）。
+// MatchOption 作用于单次匹配（Match）。
 type MatchOption = x.Options[matchOption]
 
 type matchOption struct {

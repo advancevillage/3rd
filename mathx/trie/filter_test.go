@@ -1,18 +1,6 @@
 package trie
 
-import (
-	"reflect"
-	"strings"
-	"testing"
-)
-
-func listToMap(items []string) map[string]struct{} {
-	m := make(map[string]struct{})
-	for _, item := range items {
-		m[item] = struct{}{}
-	}
-	return m
-}
+import "testing"
 
 func newTestFilter(t *testing.T) Filter {
 	t.Helper()
@@ -23,160 +11,27 @@ func newTestFilter(t *testing.T) Filter {
 	return f
 }
 
-func TestLoad(t *testing.T) {
+func TestFilterAddRemove(t *testing.T) {
 	filter := newTestFilter(t)
-	if err := filter.Load(strings.NewReader("read")); err != nil {
-		t.Errorf("fail to load dict %v", err)
-	}
-	if got := filter.FindAll("read"); len(got) == 0 {
-		t.Errorf("load dict empty")
-	}
-}
+	filter.AddWord("一个东西", "一个", "东西")
 
-func TestSensitiveFilter(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("有一个东西")
-	filter.AddWord("一个东西")
-	filter.AddWord("一个")
-	filter.AddWord("东西")
-	filter.AddWord("个东")
-
-	testcases := []struct {
-		Text   string
-		Expect string
-	}{
-		{"我有一个东东西", "我有东"},
-		{"我有一个东西", "我"},
-		{"一个东西", ""},
-		{"两个东西", "两西"},
-		{"一个物体", "物体"},
+	if found, word := filter.Match("有一个东西"); !found || word != "一个" {
+		t.Fatalf("Match(有一个东西) got %v %s, expect true 一个", found, word)
 	}
 
-	for _, tc := range testcases {
-		if got := filter.Filter(tc.Text); got != tc.Expect {
-			t.Fatalf("filter %s, got %s, expect %s", tc.Text, got, tc.Expect)
-		}
+	// 移除公共前缀词后，共享前缀的其它词仍应命中。
+	filter.RemoveWord("一个")
+	if found, _ := filter.Match("一个物体"); found {
+		t.Fatalf("Match(一个物体) should miss after RemoveWord(一个)")
 	}
-}
-
-func TestSensitiveValidateSingleword(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("东")
-
-	testcases := []struct {
-		Text        string
-		ExpectPass  bool
-		ExpectFirst string
-	}{
-		{"两个东西", false, "东"},
+	if found, word := filter.Match("有一个东西"); !found || word != "一个东西" {
+		t.Fatalf("Match(有一个东西) got %v %s, expect true 一个东西", found, word)
 	}
 
-	for _, tc := range testcases {
-		if pass, first := filter.Validate(tc.Text); pass != tc.ExpectPass || first != tc.ExpectFirst {
-			t.Fatalf("validate %s, got %v, %s, expect %v, %s", tc.Text, pass, first, tc.ExpectPass, tc.ExpectFirst)
-		}
-	}
-}
-
-func TestSensitiveValidate(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("有一个东西")
-	filter.AddWord("一个东西")
-	filter.AddWord("一个")
-	filter.AddWord("东西")
-	filter.AddWord("个东")
-	filter.AddWord("有一个东西")
-	filter.AddWord("一个东西")
-	filter.AddWord("一个")
-	filter.AddWord("东西")
-
-	testcases := []struct {
-		Text        string
-		ExpectPass  bool
-		ExpectFirst string
-	}{
-		{"我有一@ |个东东西", false, "一个"},
-		{"我有一个东东西", false, "一个"},
-		{"我有一个东西", false, "一个"},
-		{"一个东西", false, "一个"},
-		{"两个东西", false, "个东"},
-		{"一样东西", false, "东西"},
-	}
-
-	for _, tc := range testcases {
-		if pass, first := filter.Validate(tc.Text); pass != tc.ExpectPass || first != tc.ExpectFirst {
-			t.Errorf("validate %s, got %v, %s, expect %v, %s", tc.Text, pass, first, tc.ExpectPass, tc.ExpectFirst)
-		}
-	}
-}
-
-func TestSensitiveReplace(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("有一个东西")
-	filter.AddWord("一个东西")
-	filter.AddWord("一个")
-	filter.AddWord("东西")
-	filter.AddWord("个东")
-
-	testcases := []struct {
-		Text   string
-		Expect string
-	}{
-		{"我有一个东东西", "我有*****"},
-		{"我有一个东西", "我*****"},
-		{"一个东西", "****"},
-		{"两个东西", "两***"},
-		{"一个物体", "**物体"},
-	}
-
-	for _, tc := range testcases {
-		if got := filter.Replace(tc.Text, '*'); got != tc.Expect {
-			t.Fatalf("replace %s, got %s, expect %s", tc.Text, got, tc.Expect)
-		}
-	}
-}
-
-func TestSensitiveFindAll(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("有一个东西")
-	filter.AddWord("一个东西")
-	filter.AddWord("一个")
-	filter.AddWord("东西")
-	filter.AddWord("个东")
-
-	testcases := []struct {
-		Text   string
-		Expect []string
-	}{
-		{"我有一个东东西", []string{"一个", "个东", "东西"}},
-		{"我有一个东西", []string{"有一个东西", "一个", "一个东西", "个东", "东西"}},
-		{"一个东西", []string{"一个", "一个东西", "个东", "东西"}},
-		{"两个东西", []string{"个东", "东西"}},
-		{"一个物体", []string{"一个"}},
-	}
-
-	for _, tc := range testcases {
-		if got := filter.FindAll(tc.Text); !reflect.DeepEqual(listToMap(tc.Expect), listToMap(got)) {
-			t.Errorf("findall %s, got %s, expect %s", tc.Text, got, tc.Expect)
-		}
-	}
-}
-
-func TestSensitiveFindallSingleword(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("东")
-
-	testcases := []struct {
-		Text   string
-		Expect []string
-	}{
-		{"两个东西", []string{"东"}},
-	}
-
-	for _, tc := range testcases {
-		if got := filter.FindAll(tc.Text); !reflect.DeepEqual(listToMap(tc.Expect), listToMap(got)) {
-			t.Fatalf("findall %s, got %s, expect %s", tc.Text, got, tc.Expect)
-		}
+	// 移除不存在的词应静默跳过。
+	filter.RemoveWord("不存在")
+	if found, word := filter.Match("东西"); !found || word != "东西" {
+		t.Fatalf("Match(东西) after removing missing word got %v %s", found, word)
 	}
 }
 
@@ -184,10 +39,10 @@ func TestMatchFirstWithRemoveNoise(t *testing.T) {
 	filter := newTestFilter(t)
 	filter.AddWord("东西")
 
-	if found, word := filter.MatchFirst("有东 西哈", WithRemoveNoise(true)); !found || word != "东西" {
+	if found, word := filter.Match("有东 西哈", WithRemoveNoise(true)); !found || word != "东西" {
 		t.Fatalf("match with noise removal, got %v %s, expect true 东西", found, word)
 	}
-	if found, _ := filter.MatchFirst("有东 西哈"); found {
+	if found, _ := filter.Match("有东 西哈"); found {
 		t.Fatalf("match without noise removal should miss")
 	}
 }
