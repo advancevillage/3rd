@@ -137,9 +137,16 @@ func chatFrame(chunk openai.ChatCompletionChunk) streamFrame {
 }
 
 // streamResponse 使用 Response API 流式补全, 按需透传 web_search/thinking/caching/expire_at/previous_response_id。
+func (c *baseGPT) streamResponse(ctx context.Context, handler StreamHandler, msg []Message, o completionOption) error {
+	params, reqOpts := c.buildResponseParams(msg, o)
+	stream := c.client.Responses.NewStreaming(ctx, params, reqOpts...)
+	return drainStream(ctx, stream, handler, responseFrame(o))
+}
+
+// buildResponseParams 构建 Response API 请求参数与请求级选项, 供流式与非流式共用。
 // caching/expire_at 与 thinking 是火山方舟扩展字段, 经 option.WithJSONSet 注入请求体。
 // expire_at 是缓存过期的绝对 UTC Unix 时间戳(秒), 由 now+cacheTTL 算出。
-func (c *baseGPT) streamResponse(ctx context.Context, handler StreamHandler, msg []Message, o completionOption) error {
+func (c *baseGPT) buildResponseParams(msg []Message, o completionOption) (responses.ResponseNewParams, []option.RequestOption) {
 	params := responses.ResponseNewParams{
 		Model: c.opts.model,
 		Input: responses.ResponseNewParamsInputUnion{OfInputItemList: toResponseInput(msg)},
@@ -164,8 +171,7 @@ func (c *baseGPT) streamResponse(ctx context.Context, handler StreamHandler, msg
 		reqOpts = append(reqOpts, option.WithJSONSet("thinking", map[string]any{"type": "enabled"}))
 	}
 
-	stream := c.client.Responses.NewStreaming(ctx, params, reqOpts...)
-	return drainStream(ctx, stream, handler, responseFrame(o))
+	return params, reqOpts
 }
 
 // responseFrame 构造 Response API 事件的解码器。
