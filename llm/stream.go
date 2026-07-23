@@ -12,6 +12,11 @@ type LLMStream interface {
 	Completion(ctx context.Context, handler StreamHandler, msg []Message, opts ...CompletionOption) error
 }
 
+// LLMChat 非流式接口: 一次请求直接返回完整文本。
+type LLMChat interface {
+	Chat(ctx context.Context, msg []Message, opts ...CompletionOption) (string, error)
+}
+
 type StreamHandler interface {
 	OnStart(ctx context.Context, opts ...x.Option)
 	OnChunk(ctx context.Context, chunk string)
