@@ -7,7 +7,7 @@ import (
 )
 
 func Test_rs_ggx(t *testing.T) {
-	var data = map[string]struct {
+	data := map[string]struct {
 		m     uint32
 		nEcCw uint32
 		alpha []uint32
@@ -46,11 +46,10 @@ func Test_rs_ggx(t *testing.T) {
 		}
 		t.Run(n, f)
 	}
-
 }
 
 func Test_rs_encode(t *testing.T) {
-	var data = map[string]struct {
+	data := map[string]struct {
 		m     uint32
 		nEcCw uint32
 		cw    []uint32

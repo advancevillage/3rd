@@ -104,6 +104,9 @@ jobs:
     - name: rs
       run: go test -v -count=1 -cover ./mathx/rs/
 
+    - name: trie
+      run: go test -v -count=1 -cover ./mathx/trie/
+
     - name: dbx
       run: go test -v -count=1 -cover ./dbx/
       env:

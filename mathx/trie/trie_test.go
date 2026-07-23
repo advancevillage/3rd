@@ -1,72 +1,67 @@
 package trie
 
 import (
-	"reflect"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestTrieTree(t *testing.T) {
-	tree := newTrie()
-
-	tree.Add("王麻子", "王麻子")
-	if found, word := tree.Match("你好吗 我支持王麻子， 他的名字叫做王麻子"); !found || word != "王麻子" {
-		t.Fatalf("Match got %v %s, expect true 王麻子", found, word)
+func Test_trie(t *testing.T) {
+	data := []struct {
+		text   string   // 待匹配文本
+		words  []string // 预置关键字
+		remove []string // 匹配前移除的关键字
+		found  bool     // 期望是否命中
+		word   string   // 期望命中的关键字
+	}{
+		// 空树、空文本：均不命中。
+		{},
+		{text: "hello world"},
+		{words: []string{"foo"}},
+		// 单关键字：命中与未命中。
+		{text: "hello world", words: []string{"world"}, found: true, word: "world"},
+		{text: "hello world", words: []string{"golang"}},
+		// 命中位置在文本中间，验证 start = i+1-depth 的定位。
+		{text: "say hi to me", words: []string{"hi"}, found: true, word: "hi"},
+		// 关键字即整段文本。
+		{text: "abc", words: []string{"abc"}, found: true, word: "abc"},
+		// 关键字比文本长：不命中。
+		{text: "ab", words: []string{"abc"}},
+		// AC 失败指针：ushers 中先经 sh→she 未成尾，回溯命中 he/hers。
+		{text: "ushers", words: []string{"he", "she", "his", "hers"}, found: true, word: "she"},
+		{text: "this", words: []string{"he", "she", "his", "hers"}, found: true, word: "his"},
+		// 公共前缀：ab 与 abc 并存，短词优先命中。
+		{text: "xabcy", words: []string{"ab", "abc"}, found: true, word: "ab"},
+		{text: "xabcy", words: []string{"abc"}, found: true, word: "abc"},
+		// Remove：移除后不再命中。
+		{text: "hello world", words: []string{"world"}, remove: []string{"world"}},
+		// Remove 公共前缀词不误删更长词：移除 ab 后 abc 仍可命中。
+		{text: "xabcy", words: []string{"ab", "abc"}, remove: []string{"ab"}, found: true, word: "abc"},
+		// Remove 更长词不影响更短的前缀词。
+		{text: "xaby", words: []string{"ab", "abc"}, remove: []string{"abc"}, found: true, word: "ab"},
+		// Remove 不存在的词：静默跳过，原词仍命中。
+		{text: "hello world", words: []string{"world"}, remove: []string{"golang"}, found: true, word: "world"},
+		// 中文 / 多字节 rune。
+		{text: "这是敏感词测试", words: []string{"敏感词"}, found: true, word: "敏感词"},
+		{text: "这是正常文本", words: []string{"敏感词"}},
 	}
-}
 
-// TestTrieTreeBFS 校验 BFS 逐层遍历的结果。
-// 注意：同层内的顺序依赖 map 迭代（无序），因此按 depth 归类后比较集合，
-// 而不是比较严格顺序。
-func TestTrieTreeBFS(t *testing.T) {
-	tree := newTrie()
-	tree.Add("王麻子", "共产党好")
+	for i, d := range data {
+		f := func(t *testing.T) {
+			tree, err := NewTrie()
+			assert.Nil(t, err)
+			assert.NotNil(t, tree)
 
-	expect := map[int]map[string]struct{}{
-		1: {"王": {}, "共": {}},
-		2: {"麻": {}, "产": {}},
-		3: {"子": {}, "党": {}},
-		4: {"好": {}},
-	}
+			tree.Add(d.words...)
+			if len(d.remove) > 0 {
+				tree.Remove(d.remove...)
+			}
 
-	got := map[int]map[string]struct{}{}
-	for n := range tree.bfs() {
-		if got[n.depth] == nil {
-			got[n.depth] = map[string]struct{}{}
+			found, word := tree.Match(d.text)
+			assert.Equal(t, d.found, found)
+			assert.Equal(t, d.word, word)
 		}
-		got[n.depth][string(n.character)] = struct{}{}
-	}
-
-	if !reflect.DeepEqual(expect, got) {
-		t.Errorf("bfs mismatch, expect %v got %v", expect, got)
-	}
-}
-
-func TestTrieTreeBuildFailureLinks(t *testing.T) {
-	tree := newTrie()
-	tree.Add("he", "his", "she", "hers")
-	tree.ensureLinks()
-}
-
-func TestTrieRemove(t *testing.T) {
-	tree := newTrie()
-	tree.Add("一个东西", "一个", "东西")
-
-	// 移除公共前缀词 "一个"，不应影响共享前缀的其它词。
-	tree.Remove("一个")
-
-	if found, _ := tree.Match("一个"); found {
-		t.Fatalf("Match(一个) should miss after Remove")
-	}
-	if found, word := tree.Match("一个东西"); !found || word != "一个东西" {
-		t.Fatalf("Match(一个东西) got %v %s, expect true 一个东西", found, word)
-	}
-	if found, word := tree.Match("东西"); !found || word != "东西" {
-		t.Fatalf("Match(东西) got %v %s, expect true 东西", found, word)
-	}
-
-	// 移除不存在的词应静默跳过，不影响已有词。
-	tree.Remove("不存在")
-	if found, word := tree.Match("东西"); !found || word != "东西" {
-		t.Fatalf("Match(东西) after removing missing word got %v %s", found, word)
+		t.Run(fmt.Sprintf("case-%d", i), f)
 	}
 }

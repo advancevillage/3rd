@@ -1,48 +1,70 @@
 package trie
 
-import "testing"
+import (
+	"fmt"
+	"testing"
 
-func newTestFilter(t *testing.T) Filter {
-	t.Helper()
-	f, err := NewFilter()
-	if err != nil {
-		t.Fatalf("new filter: %v", err)
+	"github.com/stretchr/testify/assert"
+)
+
+func Test_filter(t *testing.T) {
+	data := []struct {
+		opts        []Option      // 构造选项
+		addWords    []string      // 构造后追加的关键字
+		removeWords []string      // 匹配前移除的关键字
+		text        string        // 待匹配文本
+		matchOpts   []MatchOption // 单次匹配选项
+		wantErr     bool          // 构造是否期望报错
+		found       bool
+		word        string
+	}{
+		// 空过滤器、空文本：均不命中。
+		{},
+		{text: "hello world"},
+		{opts: []Option{WithWords("foo")}},
+		// WithWords 预置关键字命中。
+		{opts: []Option{WithWords("world")}, text: "hello world", found: true, word: "world"},
+		// AddWord 追加关键字命中。
+		{addWords: []string{"world"}, text: "hello world", found: true, word: "world"},
+		// RemoveWord 后不再命中。
+		{opts: []Option{WithWords("world")}, removeWords: []string{"world"}, text: "hello world"},
+		// 默认不去噪：噪音字符隔断关键字，不命中。
+		{opts: []Option{WithWords("hello")}, text: "he llo"},
+		// WithRemoveNoise：去噪后命中。
+		{opts: []Option{WithWords("hello")}, text: "he llo", matchOpts: []MatchOption{WithRemoveNoise(true)}, found: true, word: "hello"},
+		// 默认噪音模式覆盖多种噪音字符。
+		{opts: []Option{WithWords("abc")}, text: "a|b&c", matchOpts: []MatchOption{WithRemoveNoise(true)}, found: true, word: "abc"},
+		// 自定义噪音模式。
+		{opts: []Option{WithWords("abc"), WithNoisePattern(`[-]+`)}, text: "a-b-c", matchOpts: []MatchOption{WithRemoveNoise(true)}, found: true, word: "abc"},
+		// 自定义噪音模式不影响默认噪音字符（空格不被去除）。
+		{opts: []Option{WithWords("hello"), WithNoisePattern(`[-]+`)}, text: "he llo", matchOpts: []MatchOption{WithRemoveNoise(true)}},
+		// 非法正则：构造报错。
+		{opts: []Option{WithNoisePattern(`[invalid`)}, wantErr: true},
+		// 中文关键字。
+		{opts: []Option{WithWords("敏感词")}, text: "这是敏感词测试", found: true, word: "敏感词"},
+		// 中文关键字 + 去噪。
+		{opts: []Option{WithWords("敏感词")}, text: "敏 感 词", matchOpts: []MatchOption{WithRemoveNoise(true)}, found: true, word: "敏感词"},
 	}
-	return f
-}
 
-func TestFilterAddRemove(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("一个东西", "一个", "东西")
+	for i, d := range data {
+		f := func(t *testing.T) {
+			filter, err := NewFilter(d.opts...)
+			if d.wantErr {
+				assert.NotNil(t, err)
+				return
+			}
+			assert.Nil(t, err)
+			assert.NotNil(t, filter)
 
-	if found, word := filter.Match("有一个东西"); !found || word != "一个" {
-		t.Fatalf("Match(有一个东西) got %v %s, expect true 一个", found, word)
-	}
+			filter.AddWord(d.addWords...)
+			if len(d.removeWords) > 0 {
+				filter.RemoveWord(d.removeWords...)
+			}
 
-	// 移除公共前缀词后，共享前缀的其它词仍应命中。
-	filter.RemoveWord("一个")
-	if found, _ := filter.Match("一个物体"); found {
-		t.Fatalf("Match(一个物体) should miss after RemoveWord(一个)")
-	}
-	if found, word := filter.Match("有一个东西"); !found || word != "一个东西" {
-		t.Fatalf("Match(有一个东西) got %v %s, expect true 一个东西", found, word)
-	}
-
-	// 移除不存在的词应静默跳过。
-	filter.RemoveWord("不存在")
-	if found, word := filter.Match("东西"); !found || word != "东西" {
-		t.Fatalf("Match(东西) after removing missing word got %v %s", found, word)
-	}
-}
-
-func TestMatchFirstWithRemoveNoise(t *testing.T) {
-	filter := newTestFilter(t)
-	filter.AddWord("东西")
-
-	if found, word := filter.Match("有东 西哈", WithRemoveNoise(true)); !found || word != "东西" {
-		t.Fatalf("match with noise removal, got %v %s, expect true 东西", found, word)
-	}
-	if found, _ := filter.Match("有东 西哈"); found {
-		t.Fatalf("match without noise removal should miss")
+			found, word := filter.Match(d.text, d.matchOpts...)
+			assert.Equal(t, d.found, found)
+			assert.Equal(t, d.word, word)
+		}
+		t.Run(fmt.Sprintf("case-%d", i), f)
 	}
 }

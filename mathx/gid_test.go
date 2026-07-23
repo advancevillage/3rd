@@ -8,7 +8,7 @@ import (
 )
 
 func Test_gid(t *testing.T) {
-	var data = map[string]struct {
+	data := map[string]struct {
 		count int
 	}{
 		"case-10": {

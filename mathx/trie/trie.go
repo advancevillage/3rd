@@ -137,7 +137,7 @@ func (t *trie) remove(word string) {
 func (t *trie) add(word string) {
 	current := t.root
 	runes := []rune(word)
-	for position := 0; position < len(runes); position++ {
+	for position := range len(runes) {
 		r := runes[position]
 		if next, ok := current.children[r]; ok {
 			current = next
