@@ -55,7 +55,7 @@ jobs:
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级表';
           EOF
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.24'
 
