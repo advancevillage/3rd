@@ -1,0 +1,66 @@
+name: dbx
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:latest
+        ports:
+          - 3306:3306
+        env:
+          MARIADB_USER: root
+          MARIADB_ROOT_PASSWORD: password
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s  --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: init-mysql-data
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -ppassword << "EOF"
+          CREATE DATABASE IF NOT EXISTS test DEFAULT CHARSET utf8mb4;
+          CREATE USER IF NOT EXISTS 'test'@'%' IDENTIFIED BY 'password';
+          GRANT ALL PRIVILEGES ON test.* TO 'test'@'%';
+          FLUSH PRIVILEGES;
+          USE test;
+          CREATE TABLE IF NOT EXISTS t_test_user (
+              `id` INT AUTO_INCREMENT,
+              `name` CHAR(64) NOT NULL DEFAULT '' COMMENT '名称',
+              `age` INT NOT NULL DEFAULT 0 COMMENT '年龄',
+              `createTime` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
+              `updateTime` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间',
+              `deleteTime` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间',
+              PRIMARY KEY (`id`)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户测试表';
+          CREATE TABLE IF NOT EXISTS t_test_class (
+              `cid` INT AUTO_INCREMENT COMMENT '班级ID',
+              `uid` INT NOT NULL DEFAULT 0 COMMENT '用户ID',
+              `name` CHAR(64) NOT NULL DEFAULT '' COMMENT '名称',
+              `teacher` CHAR(64) NOT NULL DEFAULT '' COMMENT '教师',
+              `createTime` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间',
+              `updateTime` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间',
+              `deleteTime` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间',
+              PRIMARY KEY (`cid`)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级表';
+          EOF
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: dbx
+        run: go test -v -count=1 -cover ./dbx/
+        env:
+          COS_AK: ${{ vars.COS_AK }}
+          COS_SK: ${{ vars.COS_SK }}
