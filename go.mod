@@ -1,6 +1,6 @@
 module github.com/advancevillage/3rd
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/bwmarrin/snowflake v0.3.0
@@ -23,6 +23,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.34.0
 	golang.org/x/sync v0.10.0
+	golang.org/x/time v0.14.0
 	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.36.2
 	gopkg.in/yaml.v2 v2.4.0
