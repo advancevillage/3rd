@@ -8,6 +8,7 @@
 - [分布式锁](#分布式锁)
 - [JWT](#JWT)
 - [单元测试](#单元测试)
+- [LLM](#llm)
 
 ## gRPC
 1. 安装grpc核心库
@@ -129,3 +130,13 @@ dlv version
 
 ## 连通性
 1. nc -zv 127.0.0.1 6379
+
+## LLM
+
+从 v0.0.93 起，Responses 调用采用无状态上下文：每次传入 system、历史 user/assistant 和当前 user 消息。流式 `Completion` 与非流式 `Chat` 使用同一规则。
+
+迁移：删除 `WithCache()`、`WithCacheTTL()`、`WithPreviousResponse()` 调用及 `MetaCaching` 引用；不再根据响应 ID 省略历史或系统提示词。请求不再包含 `caching`、`expire_at`、`previous_response_id`。`MetaResponseID` 仅用于追踪，`MetaCachedTokens` 继续反映上游提供的缓存命中用量，自动缓存由上游决定。
+
+`WithWebSearch()` 和 `WithThinking()` 仍需显式启用，且取决于模型厂商支持；`thinking` 是火山方舟扩展字段，不是通用 Responses 参数。Chat Completions 路由保持原有行为。
+
+`go test ./llm` 包含离线 HTTP 请求契约测试；设置 `DOUBAO_SK` 后额外运行真实厂商测试。

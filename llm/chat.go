@@ -29,7 +29,7 @@ func (c *baseGPT) Chat(ctx context.Context, msg []Message, opts ...CompletionOpt
 }
 
 // chatComplete 使用 Chat Completion API 非流式补全。
-// Chat Completion 不承载缓存, 静默忽略 Response 专属选项(web_search/thinking/caching)。
+// Chat Completion 静默忽略 Response 专属选项(web_search/thinking)。
 func (c *baseGPT) chatComplete(ctx context.Context, msg []Message) (string, error) {
 	resp, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: toChatMessages(msg),

@@ -2,7 +2,6 @@ package llm
 
 import (
 	"context"
-	"time"
 
 	"github.com/advancevillage/3rd/logx"
 	"github.com/advancevillage/3rd/x"
@@ -60,7 +59,7 @@ func (c *baseGPT) Completion(ctx context.Context, handler StreamHandler, msg []M
 }
 
 // streamCompletion 使用 Chat Completion API 流式补全。
-// Chat Completion 不承载缓存, 静默忽略 Response 专属选项(web_search/thinking/caching)。
+// Chat Completion 静默忽略 Response 专属选项(web_search/thinking)。
 func (c *baseGPT) streamCompletion(ctx context.Context, handler StreamHandler, msg []Message, _ completionOption) error {
 	stream := c.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
 		Messages: toChatMessages(msg),
@@ -136,7 +135,7 @@ func chatFrame(chunk openai.ChatCompletionChunk) streamFrame {
 	return streamFrame{}
 }
 
-// streamResponse 使用 Response API 流式补全, 按需透传 web_search/thinking/caching/expire_at/previous_response_id。
+// streamResponse 使用 Response API 流式补全, 每次发送完整消息，按需透传 web_search/thinking。
 func (c *baseGPT) streamResponse(ctx context.Context, handler StreamHandler, msg []Message, o completionOption) error {
 	params, reqOpts := c.buildResponseParams(msg, o)
 	stream := c.client.Responses.NewStreaming(ctx, params, reqOpts...)
@@ -144,8 +143,7 @@ func (c *baseGPT) streamResponse(ctx context.Context, handler StreamHandler, msg
 }
 
 // buildResponseParams 构建 Response API 请求参数与请求级选项, 供流式与非流式共用。
-// caching/expire_at 与 thinking 是火山方舟扩展字段, 经 option.WithJSONSet 注入请求体。
-// expire_at 是缓存过期的绝对 UTC Unix 时间戳(秒), 由 now+cacheTTL 算出。
+// thinking 是火山方舟扩展字段，仅在调用方显式启用时注入请求体。
 func (c *baseGPT) buildResponseParams(msg []Message, o completionOption) (responses.ResponseNewParams, []option.RequestOption) {
 	params := responses.ResponseNewParams{
 		Model: c.opts.model,
@@ -156,17 +154,8 @@ func (c *baseGPT) buildResponseParams(msg []Message, o completionOption) (respon
 	if o.webSearch {
 		params.Tools = []responses.ToolUnionParam{responses.ToolParamOfWebSearch(responses.WebSearchToolTypeWebSearch)}
 	}
-	if o.prevRespId != "" {
-		params.PreviousResponseID = openai.String(o.prevRespId)
-	}
 
 	var reqOpts []option.RequestOption
-	//-- 火山缓存
-	//https://www.volcengine.com/docs/82379/1602228?lang=zh
-	if o.caching {
-		reqOpts = append(reqOpts, option.WithJSONSet("caching", map[string]any{"type": "enabled"}))
-		reqOpts = append(reqOpts, option.WithJSONSet("expire_at", time.Now().Unix()+o.expireAt))
-	}
 	if o.thinking {
 		reqOpts = append(reqOpts, option.WithJSONSet("thinking", map[string]any{"type": "enabled"}))
 	}
@@ -175,7 +164,7 @@ func (c *baseGPT) buildResponseParams(msg []Message, o completionOption) (respon
 }
 
 // responseFrame 构造 Response API 事件的解码器。
-// think/cache 取自请求侧参数(o), created 事件仅用于回显; usage 取自 completed 事件。
+// thinking 取自请求侧参数(o); response id 仅用于追踪，usage 取自 completed 事件。
 func responseFrame(o completionOption) func(responses.ResponseStreamEventUnion) streamFrame {
 	return func(e responses.ResponseStreamEventUnion) streamFrame {
 		switch e.Type {
@@ -183,7 +172,6 @@ func responseFrame(o completionOption) func(responses.ResponseStreamEventUnion) 
 			return streamFrame{start: true, opts: []x.Option{
 				x.WithKV(MetaResponseID, e.Response.ID),
 				x.WithKV(MetaThinking, o.thinking),
-				x.WithKV(MetaCaching, o.caching),
 			}}
 		case "response.output_text.delta":
 			return streamFrame{text: e.Delta}

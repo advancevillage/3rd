@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/advancevillage/3rd/llm"
@@ -15,19 +16,19 @@ import (
 var _ llm.StreamHandler = &testStreamHandler{}
 
 type testStreamHandler struct {
-	t  *testing.T
-	s  int
-	e  int
-	id string // OnStart 捕获的 response id
+	t    *testing.T
+	s    int
+	e    int
+	id   string // OnStart 捕获的 response id
+	text strings.Builder
 }
 
 func (t *testStreamHandler) OnStart(ctx context.Context, opts ...x.Option) {
 	kv := x.NewBuilder(opts...).Build()
 	id, _ := kv[llm.MetaResponseID].(string)
 	thinking, _ := kv[llm.MetaThinking].(bool)
-	caching, _ := kv[llm.MetaCaching].(bool)
 	t.id = id
-	t.t.Logf("stream started: id=%s thinking=%v caching=%v", id, thinking, caching)
+	t.t.Logf("stream started: id=%s thinking=%v", id, thinking)
 	t.s += 1
 }
 
@@ -43,10 +44,14 @@ func (t *testStreamHandler) OnEnd(ctx context.Context, opts ...x.Option) {
 }
 
 func (t *testStreamHandler) OnChunk(ctx context.Context, chunk string) {
+	t.text.WriteString(chunk)
 	t.t.Log(chunk)
 }
 
 func Test_openai(t *testing.T) {
+	if os.Getenv("DOUBAO_SK") == "" {
+		t.Skip("DOUBAO_SK is required for the live provider test")
+	}
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
@@ -190,8 +195,11 @@ func Test_openai(t *testing.T) {
 	}
 }
 
-// Test_openai_options 验证 web_search/thinking/caching 透传, 并通过 OnStart 元数据拿到 response id 续传。
+// Test_openai_options 验证联网调用以及携带完整历史的多轮请求。
 func Test_openai_options(t *testing.T) {
+	if os.Getenv("DOUBAO_SK") == "" {
+		t.Skip("DOUBAO_SK is required for the live provider test")
+	}
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
@@ -202,7 +210,7 @@ func Test_openai_options(t *testing.T) {
 	)
 	assert.Nil(t, err)
 
-	// 1. 首轮: 开启缓存 OnStart 捕获 response id
+	// 1. 首轮: 联网查询，response id 仅供追踪。
 	h1 := &testStreamHandler{t: t}
 	hh1 := llm.NewBufferStreamHandler(ctx, logger, h1)
 	err = c.Completion(ctx, hh1, []llm.Message{
@@ -214,13 +222,16 @@ func Test_openai_options(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, h1.id)
 
-	// 2. 次轮: 携带上一轮 response id 命中缓存继续对话
+	// 2. 次轮: 显式发送历史，不依赖供应商存储的 response id。
 	h2 := &testStreamHandler{t: t}
 	hh2 := llm.NewBufferStreamHandler(ctx, logger, h2)
 	err = c.Completion(ctx, hh2, []llm.Message{
+		llm.WithSystemMessage("你是一名资料调研助手, 回答简洁。"),
+		llm.WithUserMessage("帮我查明天武汉天气如何"),
+		llm.WithAssistantMessage(h1.text.String()),
 		llm.WithUserMessage("帮我查洪山区天气如何"),
 	},
-		llm.WithPreviousResponse(h1.id),
+		llm.WithWebSearch(),
 	)
 	assert.Nil(t, err)
 }

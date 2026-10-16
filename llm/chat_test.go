@@ -35,6 +35,9 @@ var intentSystem = `
 	`
 
 func Test_chat_chat(t *testing.T) {
+	if os.Getenv("DOUBAO_SK") == "" {
+		t.Skip("DOUBAO_SK is required for the live provider test")
+	}
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)
@@ -91,6 +94,9 @@ func Test_chat_chat(t *testing.T) {
 }
 
 func Test_chat_response(t *testing.T) {
+	if os.Getenv("DOUBAO_SK") == "" {
+		t.Skip("DOUBAO_SK is required for the live provider test")
+	}
 	ctx := context.WithValue(context.TODO(), logx.TraceId, mathx.UUID())
 	logger, err := logx.NewLogger("debug")
 	assert.Nil(t, err)

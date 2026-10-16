@@ -28,7 +28,6 @@ type StreamHandler interface {
 const (
 	MetaResponseID   = "response_id"   // string, OnStart
 	MetaThinking     = "thinking"      // bool, OnStart
-	MetaCaching      = "caching"       // bool, OnStart
 	MetaInputTokens  = "input_tokens"  // int64, OnEnd
 	MetaOutputTokens = "output_tokens" // int64, OnEnd
 	MetaTotalTokens  = "total_tokens"  // int64, OnEnd

@@ -115,16 +115,7 @@ type completionOption struct {
 	webSearch bool
 	// thinking 开启思考模式: thinking={"type":"enabled"}
 	thinking bool
-	// caching 开启上下文缓存: caching={"type":"enabled"}, 命中重置
-	caching bool
-	// expireAt 缓存过期时长(秒), 经 expire_at=now+expireAt 显式控制, 默认 2 小时
-	expireAt int64
-	// prevRespId 复用上一轮缓存: previous_response_id
-	prevRespId string
 }
-
-// defaultCacheTTLSeconds 上下文缓存默认过期时长: 2 小时。
-const defaultCacheTTLSeconds int64 = 7200
 
 // WithWebSearch 开启联网检索。
 func WithWebSearch() CompletionOption {
@@ -134,21 +125,6 @@ func WithWebSearch() CompletionOption {
 // WithThinking 开启思考模式。
 func WithThinking() CompletionOption {
 	return newFuncOption(func(o *completionOption) { o.thinking = true })
-}
-
-// WithCache 开启上下文缓存, 本轮响应会被缓存, 过期时长默认 2 小时。
-func WithCache() CompletionOption {
-	return newFuncOption(func(o *completionOption) { o.caching = true; o.expireAt = defaultCacheTTLSeconds })
-}
-
-// WithCacheTTL 开启上下文缓存并指定过期时长(秒), 上限 259200(72 小时)。
-func WithCacheTTL(seconds int64) CompletionOption {
-	return newFuncOption(func(o *completionOption) { o.caching = true; o.expireAt = seconds })
-}
-
-// WithPreviousResponse 携带上一轮的 response id 命中缓存。
-func WithPreviousResponse(id string) CompletionOption {
-	return newFuncOption(func(o *completionOption) { o.prevRespId = id })
 }
 
 type LLMStreamOption = Option[llmStreamOption]
